@@ -10,12 +10,17 @@ export function classifyCommand(raw:string):JarvisIntent {
  if(/\b(note|notes|remember)\b/.test(q))return'notes'; if(/\b(setting|settings|appearance|theme|voice)\b/.test(q))return'settings';
  if(/\b(file|files|workspace)\b/.test(q))return'files'; if(/\b(fullscreen|full screen|cinema)\b/.test(q))return'fullscreen';
  if(/\b(status|diagnostic|diagnostics|system check|health)\b/.test(q))return'status'; if(/\b(help|commands|what can you do)\b/.test(q))return'help';
+ if(/\b(news|headlines|current events|latest events)\b/.test(q))return'web';
  if(/\b(map|maps|directions|navigate|location)\b/.test(q))return'maps'; if(/\b(video|youtube|movie|play)\b/.test(q))return'media';
  if(/\b(postman|api|rest|http request|request client)\b/.test(q))return'api'; if(/\b(sftp|winscp|ssh|remote server|file transfer)\b/.test(q))return'remote';
- if(/\b(search|look up|google|bing|brave|internet|web)\b/.test(q))return'search'; return'unknown';
+ if(/\b(search|look up|google|bing|internet|web)\b/.test(q))return'search'; return'unknown';
 }
 export function runCommand(raw:string,telemetry:Telemetry):JarvisResult {
  const intent=classifyCommand(raw),q=raw.trim(),now=new Date();
+ if(intent==='web' && /\b(news|headlines|current events|latest events)\b/i.test(q)) {
+  window.dispatchEvent(new CustomEvent('jarvis:news',{detail:{query:q}}));
+  return{intent,reply:'Opening the live news desk.'};
+ }
  switch(intent){
   case'time':return{intent,reply:`The local time is ${new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(now)}.`};
   case'date':return{intent,reply:`Today is ${new Intl.DateTimeFormat([],{weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(now)}.`};
@@ -26,13 +31,13 @@ export function runCommand(raw:string,telemetry:Telemetry):JarvisResult {
   case'files':return{intent,reply:'Local workspace is online.',value:'files'};
   case'fullscreen':return{intent,reply:'Engaging immersive display.'};
   case'status':return{intent,reply:`All primary systems nominal. Network ${telemetry.network}. ${telemetry.cores??'Unknown'} logical processors detected. Memory telemetry ${telemetry.memory==null?'unavailable':`${telemetry.memory}%`}.`};
-  case'help':return{intent,reply:'I can control modules, search the web, open maps and media, send REST requests, manage remote connection profiles, run diagnostics, and operate by voice.'};
+  case'help':return{intent,reply:'I can control modules, search the web, read news, open maps and media, send REST requests, manage remote connection profiles, run diagnostics, and operate by voice.'};
   case'maps':return{intent,reply:'Mapping console ready.',value:'maps'};
   case'media':return{intent,reply:'Media console ready.',value:'media'};
   case'api':return{intent,reply:'REST client ready.',value:'api'};
   case'remote':return{intent,reply:'Secure transfer console ready. Browser-only SFTP requires a JARVIS Gateway.',value:'remote'};
   case'web': case'search':return{intent,reply:`Opening web search for “${q.replace(/\b(search|look up|internet|web)\b/gi,'').trim()||'your query'}”.`,value:'web'};
-  default:return{intent,reply:'I did not recognise that command. Try “search the web for…”, “open maps”, “open REST client”, or “open media”.'};
+  default:return{intent,reply:'I did not recognise that command. Try “search the web for…”, “show news”, “open maps”, “open REST client”, or “open media”.'};
  }
 }
 export async function getTelemetry():Promise<Telemetry>{
@@ -46,6 +51,6 @@ export function chooseJarvisVoice(){const voices=availableVoices();const preferr
 export function speak(text:string,cfg:VoiceConfig={voiceName:'',rate:.84,pitch:.58,volume:.98,language:'en-GB'}):void{if(!('speechSynthesis'in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=cfg.rate;u.pitch=cfg.pitch;u.volume=cfg.volume;u.lang=cfg.language;const v=availableVoices().find(x=>x.name===cfg.voiceName)||chooseJarvisVoice();if(v){u.voice=v;u.lang=v.lang}window.speechSynthesis.speak(u)}
 export function startVoice(onResult:(text:string)=>void,onState:(active:boolean,interim?:string)=>void,language='en-US'):()=>void{
  const C=(window as Window&{SpeechRecognition?:new()=>SpeechRecognition;webkitSpeechRecognition?:new()=>SpeechRecognition}).SpeechRecognition??(window as Window&{webkitSpeechRecognition?:new()=>SpeechRecognition}).webkitSpeechRecognition;
- if(!C)throw new Error('Voice recognition is not supported by this browser.');const r=new C();r.lang=language;r.interimResults=true;r.continuous=true;r.maxAlternatives=3;r.onstart=()=>onState(true);r.onend=()=>onState(false);r.onerror=()=>onState(false);r.onresult=e=>{let interim='';let final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}onState(true,interim);if(final.trim())onResult(final.trim())};r.start();return()=>{try{r.stop()}catch{}};
+ if(!C)throw new Error('Voice recognition is not supported by this browser.');const r=new C();r.lang=language;r.interimResults=true;r.continuous=true;r.maxAlternatives=3;r.onstart=()=>onState(true);r.onend=()=>onState(false);r.onerror=()=>onState(false);r.onresult=e=>{let interim='';let final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}onState(true,interim);if(final.trim()){if(/\b(news|headlines|current events|latest events)\b/i.test(final)){window.dispatchEvent(new CustomEvent('jarvis:news',{detail:{query:final.trim()}}));return}onResult(final.trim())}};r.start();return()=>{try{r.stop()}catch{}};
 }
 declare global{interface SpeechRecognitionResultList{[index:number]:SpeechRecognitionResult}interface SpeechRecognitionEvent extends Event{resultIndex:number;results:SpeechRecognitionResultList}interface SpeechRecognition{lang:string;interimResults:boolean;continuous:boolean;maxAlternatives:number;onstart:(()=>void)|null;onend:(()=>void)|null;onerror:(()=>void)|null;onresult:((event:SpeechRecognitionEvent)=>void)|null;start():void;stop():void}}
