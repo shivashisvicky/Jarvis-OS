@@ -51,7 +51,8 @@ test('REST client renders and accepts request data', async ({ page }) => {
 test('web, maps and media consoles render', async ({ page }) => {
   await page.goto('/');
   await nav(page, 'web').click();
-  await expect(page.getByRole('heading', { name: 'Web Console', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'JARVIS Browser', exact: true })).toBeVisible();
+  await expect(page.locator('#browserFrame')).toBeVisible();
   await nav(page, 'maps').click();
   await expect(page.getByRole('heading', { name: 'Maps', exact: true })).toBeVisible();
   await nav(page, 'media').click();
