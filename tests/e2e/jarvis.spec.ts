@@ -7,7 +7,7 @@ test('Jarvis boots as a command-centric intelligence workspace', async ({ page }
   await expect(page).toHaveTitle('J.A.R.V.I.S. OS');
   await expect(page.getByText('J.A.R.V.I.S', { exact: true })).toBeVisible();
   await expect(page.getByText('Command', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Command channel', { exact: true })).toBeVisible();
+  await expect(page.getByText('COMMAND CHANNEL', { exact: true })).toBeVisible();
   await expect(page.getByText('Tools at your command', { exact: true })).toBeVisible();
 });
 
