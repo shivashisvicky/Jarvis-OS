@@ -26,7 +26,9 @@ test.describe('JARVIS embedded browser', () => {
     await page.locator('button.nav[data-app="web"]').click();
     const pagesBefore = page.context().pages().length;
     await page.locator('#browserAddress').fill('latest AI news');
-    await page.locator('button[data-provider="brave"]').click();
+    // Bing is the only search provider exposed by JARVIS because the other
+    // providers were removed after proving unreliable inside the shell.
+    await page.locator('button[data-provider="bing"]').click();
     expect(page.context().pages().length).toBe(pagesBefore);
     await expect(page.locator('#browserFrame')).toBeVisible();
   });
