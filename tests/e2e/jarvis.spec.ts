@@ -39,8 +39,8 @@ test('notes persist', async ({ page }) => {
 
 test('REST client renders and accepts request data', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('REST Client').first().click();
-  await expect(page.getByText('REST Client', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '⌁ REST Client' }).click();
+  await expect(page.getByRole('heading', { name: 'REST Client', exact: true })).toBeVisible();
   await page.locator('#httpUrl').fill('https://example.com/api');
   await page.locator('#httpHeaders').fill('{"Accept":"application/json"}');
   await expect(page.locator('#httpUrl')).toHaveValue('https://example.com/api');
@@ -48,12 +48,12 @@ test('REST client renders and accepts request data', async ({ page }) => {
 
 test('web, maps and media consoles render', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('Web').first().click();
-  await expect(page.getByText('Web Console', { exact: true })).toBeVisible();
-  await page.getByText('Maps').first().click();
-  await expect(page.getByText('Maps', { exact: true })).toBeVisible();
-  await page.getByText('Media').first().click();
-  await expect(page.getByText('Media Center', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '⌕ Web' }).click();
+  await expect(page.getByRole('heading', { name: 'Web Console', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '⌖ Maps' }).click();
+  await expect(page.getByRole('heading', { name: 'Maps', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '▶ Media' }).click();
+  await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
 });
 
 test('settings exposes voice and search configuration', async ({ page }) => {
