@@ -63,7 +63,7 @@ test('live news desk renders visual headlines and moving ticker', async ({ page 
   });
   await page.goto('/');
   await expect(page.locator('.news-desk')).toBeVisible();
-  await expect(page.getByText('JARVIS test headline: quantum systems advance')).toBeVisible();
+  await expect(page.locator('.news-card strong', { hasText: 'JARVIS test headline: quantum systems advance' })).toBeVisible();
   await expect(page.locator('.news-track')).toBeVisible();
   await expect(page.locator('.news-card img')).toHaveCount(2);
   await expect(page.locator('[data-news-query="AI OR artificial intelligence"]')).toBeVisible();
