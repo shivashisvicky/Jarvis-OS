@@ -1,35 +1,19 @@
 /* J.A.R.V.I.S. Orchestration Layer
  * Product rule: paint immediately, hydrate from cache, refresh quietly.
- * This layer deliberately stays provider-agnostic and works around the legacy
- * single-page renderer without coupling the intelligence experience to it.
  */
 (() => {
   'use strict';
-  const VERSION = '2.0.0';
+  const VERSION = '2.0.1';
   const CACHE_PREFIX = 'jarvis:v2:';
   const TTL = { signal: 90_000, news: 300_000, media: 600_000 };
-
   const now = () => Date.now();
-  const read = (key, fallback = null) => {
-    try {
-      const raw = localStorage.getItem(CACHE_PREFIX + key);
-      if (!raw) return fallback;
-      const item = JSON.parse(raw);
-      return item && item.value !== undefined ? item : fallback;
-    } catch { return fallback; }
-  };
-  const write = (key, value) => {
-    try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ value, at: now(), v: VERSION })); } catch {}
-  };
+  const read = (key, fallback = null) => { try { const raw = localStorage.getItem(CACHE_PREFIX + key); if (!raw) return fallback; const item = JSON.parse(raw); return item && item.value !== undefined ? item : fallback; } catch { return fallback; } };
+  const write = (key, value) => { try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ value, at: now(), v: VERSION })); } catch {} };
 
   window.JARVIS = window.JARVIS || {};
   window.JARVIS.version = VERSION;
   window.JARVIS.cache = {
-    get(key, ttl = 0) {
-      const item = read(key);
-      if (!item) return null;
-      return { value: item.value, age: now() - item.at, fresh: !ttl || now() - item.at < ttl };
-    },
+    get(key, ttl = 0) { const item = read(key); if (!item) return null; return { value: item.value, age: now() - item.at, fresh: !ttl || now() - item.at < ttl }; },
     set: write,
     invalidate(key) { try { localStorage.removeItem(CACHE_PREFIX + key); } catch {} }
   };
@@ -50,66 +34,58 @@
 
   const dispatch = (command) => {
     window.dispatchEvent(new CustomEvent('jarvis:orchestrated-command', { detail: { command } }));
-    const input = document.querySelector('#commandInput');
-    const form = document.querySelector('#commandForm');
+    const input = document.querySelector('#commandInput'); const form = document.querySelector('#commandForm');
     if (input && form) { input.value = command; form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }
-    else {
-      window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: command }, cancelable: true }));
-    }
-  };
-
-  const mount = () => {
-    if (document.querySelector('.jarvis-mission-console')) return;
-    const home = document.querySelector('.command-center');
-    if (!home) return;
-    const first = home.querySelector('.hero-grid');
-    if (!first) return;
-
-    const cachedSignal = read('signal', null);
-    const consoleEl = document.createElement('section');
-    consoleEl.className = 'jarvis-mission-console';
-    consoleEl.innerHTML = `
-      <div class="jmc-top"><div class="jmc-live"><i></i><strong>JARVIS INTELLIGENCE CORE</strong><span>ORCHESTRATOR ${VERSION}</span></div><span id="jmcTime">LOCAL-FIRST / READY</span></div>
-      <div class="jmc-body"><div><div class="jmc-prompt">MISSION CONTROL</div><h2 class="jmc-question">What should JARVIS work on?</h2><p class="jmc-sub">Search, investigate, watch, calculate or open a workspace. JARVIS chooses the right subsystem.</p></div><div class="jmc-actions"><button class="jmc-action" data-jcmd="Give me today's most important technology news">TODAY'S SIGNAL</button><button class="jmc-action" data-jcmd="Find videos about artificial intelligence">FIND VIDEO</button><button class="jmc-action" data-jcmd="Search the web for latest AI research">RESEARCH</button><button class="jmc-action" data-jcmd="Open API Lab">ENGINEERING</button></div></div>
-      <div class="jmc-cache"><span>PERCEPTION LAYER</span><b>${cachedSignal ? 'WARM CACHE' : 'COLD START → HYDRATING'}</b></div>
-      <div class="jarvis-instant-news" id="jarvisInstantNews"><div class="jin-head"><span>LAST KNOWN SIGNAL</span><span id="jinAge"></span></div><div class="jin-items" id="jinItems"></div></div>`;
-    home.insertBefore(consoleEl, first);
-    consoleEl.querySelectorAll('[data-jcmd]').forEach(btn => btn.addEventListener('click', () => dispatch(btn.dataset.jcmd || '')));
-    if (cachedSignal && Array.isArray(cachedSignal.value)) renderSignal(cachedSignal.value, cachedSignal.at);
-    hydrateSignal(consoleEl);
+    else window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: command }, cancelable: true }));
   };
 
   const renderSignal = (items, at = now()) => {
-    const host = document.querySelector('#jarvisInstantNews');
-    const list = document.querySelector('#jinItems');
-    const age = document.querySelector('#jinAge');
+    const host = document.querySelector('#jarvisInstantNews'); const list = document.querySelector('#jinItems'); const age = document.querySelector('#jinAge');
     if (!host || !list || !Array.isArray(items) || !items.length) return;
     list.innerHTML = items.slice(0, 3).map(x => `<div class="jin-item">${String(x.title || 'Signal').replace(/[&<>]/g, '')}<small>${String(x.source || x.domain || 'SOURCE').replace(/[&<>]/g, '')}</small></div>`).join('');
-    age.textContent = `${Math.max(1, Math.round((now() - at) / 60000))} MIN AGO`;
-    host.classList.add('ready');
+    age.textContent = `${Math.max(1, Math.round((now() - at) / 60000))} MIN AGO`; host.classList.add('ready');
   };
 
   const hydrateSignal = async () => {
-    // Do not block first paint. GDELT is only a background signal source here.
-    const cached = read('signal', null);
-    if (cached) renderSignal(cached.value, cached.at);
+    const cached = read('signal', null); if (cached) renderSignal(cached.value, cached.at);
     try {
-      const q = encodeURIComponent('AI OR technology');
-      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=artlist&maxrecords=6&format=json&sort=datedesc`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500);
-      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-      clearTimeout(timeout);
+      const q = encodeURIComponent('AI OR technology'); const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=artlist&maxrecords=6&format=json&sort=datedesc`;
+      const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 3500);
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' }); clearTimeout(timeout);
       if (!response.ok) throw new Error('signal unavailable');
-      const data = await response.json();
-      const items = (data.articles || []).map(x => ({ title: x.title, source: x.domain || x.sourcecountry })).filter(x => x.title);
+      const data = await response.json(); const items = (data.articles || []).map(x => ({ title: x.title, source: x.domain || x.sourcecountry })).filter(x => x.title);
       if (items.length) { write('signal', items); renderSignal(items); }
     } catch {}
   };
 
-  const observe = new MutationObserver(() => {
-    if (document.querySelector('.command-center')) mount();
-  });
+  const mount = () => {
+    if (document.querySelector('.jarvis-mission-console')) return true;
+    const home = document.querySelector('.command-center');
+    if (!home) return false;
+    const first = home.querySelector('.hero-grid'); if (!first) return false;
+    const cachedSignal = read('signal', null);
+    const consoleEl = document.createElement('section'); consoleEl.className = 'jarvis-mission-console';
+    consoleEl.innerHTML = `<div class="jmc-top"><div class="jmc-live"><i></i><strong>JARVIS INTELLIGENCE CORE</strong><span>ORCHESTRATOR ${VERSION}</span></div><span id="jmcTime">LOCAL-FIRST / READY</span></div><div class="jmc-body"><div><div class="jmc-prompt">MISSION CONTROL</div><h2 class="jmc-question">What should JARVIS work on?</h2><p class="jmc-sub">Search, investigate, watch, calculate or open a workspace. JARVIS chooses the right subsystem.</p></div><div class="jmc-actions"><button class="jmc-action" data-jcmd="Give me today's most important technology news">TODAY'S SIGNAL</button><button class="jmc-action" data-jcmd="Find videos about artificial intelligence">FIND VIDEO</button><button class="jmc-action" data-jcmd="Search the web for latest AI research">RESEARCH</button><button class="jmc-action" data-jcmd="Open API Lab">ENGINEERING</button></div></div><div class="jmc-cache"><span>PERCEPTION LAYER</span><b>${cachedSignal ? 'WARM CACHE' : 'COLD START → HYDRATING'}</b></div><div class="jarvis-instant-news" id="jarvisInstantNews"><div class="jin-head"><span>LAST KNOWN SIGNAL</span><span id="jinAge"></span></div><div class="jin-items" id="jinItems"></div></div>`;
+    home.insertBefore(consoleEl, first);
+    consoleEl.querySelectorAll('[data-jcmd]').forEach(btn => btn.addEventListener('click', () => dispatch(btn.dataset.jcmd || '')));
+    if (cachedSignal && Array.isArray(cachedSignal.value)) renderSignal(cachedSignal.value, cachedSignal.at);
+    hydrateSignal(consoleEl); return true;
+  };
+
+  // The app shell is rendered by a module and can replace #app several times during
+  // hydration/theme restoration. A single MutationObserver can miss a render that
+  // occurs between callbacks, so use a short-lived repair loop as well. This makes
+  // the intelligence core a first-class boot surface rather than an optional overlay.
+  const ensureMounted = () => {
+    if (mount()) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (mount() || attempts >= 60) clearInterval(timer);
+    }, 100);
+  };
+  const observe = new MutationObserver(() => { if (!document.querySelector('.jarvis-mission-console')) mount(); });
   observe.observe(document.documentElement, { childList: true, subtree: true });
-  if (document.readyState !== 'loading') setTimeout(mount, 0); else document.addEventListener('DOMContentLoaded', () => setTimeout(mount, 0));
+  if (document.readyState !== 'loading') ensureMounted(); else document.addEventListener('DOMContentLoaded', ensureMounted, { once:true });
+  [0, 50, 150, 300, 600, 1200, 2000].forEach(ms => setTimeout(() => { if (!document.querySelector('.jarvis-mission-console')) mount(); }, ms));
 })();
