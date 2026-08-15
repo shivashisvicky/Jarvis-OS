@@ -42,7 +42,7 @@ test.describe('Jarvis internal-app and recovery SIT', () => {
 
   test('all first-party apps stay inside the Jarvis shell', async ({ page }) => {
     await expectInternalApp(page, 'api', 'REST Client');
-    await expectInternalApp(page, 'web', 'Web Console');
+    await expectInternalApp(page, 'web', 'JARVIS Browser');
     await expectInternalApp(page, 'maps', 'Maps');
     await expectInternalApp(page, 'media', 'Media Center');
   });
@@ -69,7 +69,7 @@ test.describe('Jarvis internal-app and recovery SIT', () => {
 
   test('critical shell survives repeated app switching', async ({ page }) => {
     for (let i = 0; i < 2; i++) {
-      await expectInternalApp(page, 'web', 'Web Console');
+      await expectInternalApp(page, 'web', 'JARVIS Browser');
       await expectInternalApp(page, 'maps', 'Maps');
       await expectInternalApp(page, 'media', 'Media Center');
       await expectInternalApp(page, 'api', 'REST Client');
