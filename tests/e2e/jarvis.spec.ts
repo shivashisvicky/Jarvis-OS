@@ -130,4 +130,34 @@ test('settings exposes voice and search configuration', async ({ page }) => {
   await expect(page.locator('#voicePitch')).toBeVisible();
   await expect(page.locator('#voiceVolume')).toBeVisible();
 });
-\n\ntest('media auto-loads trending videos and searches by keyword', async ({ page }) => {\n  await page.route('https://pipedapi.kavin.rocks/**', async route => {\n    const url = route.request().url();\n    if (url.includes('/trending')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ title: 'JARVIS fixture video', url: '/watch?v=abc123def45', videoId: 'abc123def45', thumbnail: 'https://example.com/thumb.jpg', uploader: 'JARVIS Lab', uploadedDate: 'today', views: 1234 }]) });\n    if (url.includes('/search?')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ title: 'SAP CPI fixture tutorial', url: '/watch?v=abc123def45', videoId: 'abc123def45', thumbnail: 'https://example.com/thumb.jpg', uploader: 'JARVIS Lab', uploadedDate: 'today', views: 42 }] }) });\n    if (url.includes('/streams/')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ thumbnailUrl: 'https://example.com/thumb.jpg', videoStreams: [{ mimeType: 'video/mp4', videoOnly: false, quality: '360p', height: 360, url: 'https://example.com/video.mp4' }] }) });\n    return route.continue();\n  });\n  await page.goto('/');\n  await page.locator('button.nav[data-app="media"]').click();\n  await expect(page.locator('.video-result')).toHaveCount(1);\n  await page.locator('#videoQuery').fill('SAP CPI tutorial');\n  await page.getByRole('button', { name: 'SEARCH', exact: true }).click();\n  await expect(page.locator('.video-result')).toContainText('SAP CPI fixture tutorial');\n  await page.locator('.video-result').click();\n  await expect(page.locator('#jarvisPlayer video')).toBeVisible();\n});\n\ntest('news desk renders a real JARVIS brief summary', async ({ page }) => {\n  await page.route('https://api.gdeltproject.org/**', async route => {\n    const url = route.request().url();\n    if (url.includes('/context/context')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ context: 'JARVIS summary: researchers announced a new quantum systems advance, highlighting improved stability and practical applications.' }] }) });\n    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ title: 'JARVIS quantum systems advance', url: 'https://example.com/news/1', socialimage: 'https://example.com/news.jpg', domain: 'example.com', sourcecountry: 'US' }, { title: 'JARVIS AI research update', url: 'https://example.com/news/2', socialimage: 'https://example.com/news2.jpg', domain: 'example.com', sourcecountry: 'US' }] }) });\n  });\n  await page.goto('/');\n  await expect(page.locator('.news-card')).toHaveCount(2);\n  await expect(page.locator('.news-card p').first()).toContainText('JARVIS summary: researchers announced');\n  await expect(page.locator('#newsTicker')).toBeVisible();\n});\n
+
+
+test('media auto-loads trending videos and searches by keyword', async ({ page }) => {
+  await page.route('https://pipedapi.kavin.rocks/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/trending')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ title: 'JARVIS fixture video', url: '/watch?v=abc123def45', videoId: 'abc123def45', thumbnail: 'https://example.com/thumb.jpg', uploader: 'JARVIS Lab', uploadedDate: 'today', views: 1234 }]) });
+    if (url.includes('/search?')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ title: 'SAP CPI fixture tutorial', url: '/watch?v=abc123def45', videoId: 'abc123def45', thumbnail: 'https://example.com/thumb.jpg', uploader: 'JARVIS Lab', uploadedDate: 'today', views: 42 }] }) });
+    if (url.includes('/streams/')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ thumbnailUrl: 'https://example.com/thumb.jpg', videoStreams: [{ mimeType: 'video/mp4', videoOnly: false, quality: '360p', height: 360, url: 'https://example.com/video.mp4' }] }) });
+    return route.continue();
+  });
+  await page.goto('/');
+  await page.locator('button.nav[data-app="media"]').click();
+  await expect(page.locator('.video-result')).toHaveCount(1);
+  await page.locator('#videoQuery').fill('SAP CPI tutorial');
+  await page.getByRole('button', { name: 'SEARCH', exact: true }).click();
+  await expect(page.locator('.video-result')).toContainText('SAP CPI fixture tutorial');
+  await page.locator('.video-result').click();
+  await expect(page.locator('#jarvisPlayer video')).toBeVisible();
+});
+
+test('news desk renders a real JARVIS brief summary', async ({ page }) => {
+  await page.route('https://api.gdeltproject.org/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/context/context')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ context: 'JARVIS summary: researchers announced a new quantum systems advance, highlighting improved stability and practical applications.' }] }) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ title: 'JARVIS quantum systems advance', url: 'https://example.com/news/1', socialimage: 'https://example.com/news.jpg', domain: 'example.com', sourcecountry: 'US' }, { title: 'JARVIS AI research update', url: 'https://example.com/news/2', socialimage: 'https://example.com/news2.jpg', domain: 'example.com', sourcecountry: 'US' }] }) });
+  });
+  await page.goto('/');
+  await expect(page.locator('.news-card')).toHaveCount(2);
+  await expect(page.locator('.news-card p').first()).toContainText('JARVIS summary: researchers announced');
+  await expect(page.locator('#newsTicker')).toBeVisible();
+});\n
