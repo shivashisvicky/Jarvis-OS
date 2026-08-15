@@ -1,0 +1,31 @@
+/* JARVIS Spatial Command Interface
+   Lightweight CSS 3D layer. No 3D engine, textures, or large assets. */
+:root{--sp-x:0deg;--sp-y:0deg;--sp-depth:0px;--holo:#55d6ff}
+body{perspective:1400px}
+.os{transform-style:preserve-3d;isolation:isolate}
+.os:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:12;background:radial-gradient(circle at 50% 45%,transparent 0 20%,rgba(85,214,255,.035) 20.2%,transparent 21%),repeating-conic-gradient(from 0deg at 50% 45%,transparent 0 9deg,rgba(85,214,255,.018) 9.2deg 9.7deg);mask-image:radial-gradient(circle at 50% 45%,#000 0 55%,transparent 85%);opacity:.9}
+header{transform:translateZ(24px)}
+.workspace{perspective:1200px;transform-style:preserve-3d;position:relative}
+.workspace:before{content:"";position:absolute;left:50%;top:42%;width:min(70vw,700px);height:min(70vw,700px);transform:translate(-50%,-50%) rotateX(70deg);border:1px solid rgba(85,214,255,.09);border-radius:50%;box-shadow:0 0 80px rgba(85,214,255,.04),inset 0 0 80px rgba(85,214,255,.025);pointer-events:none}
+.command-center{transform-style:preserve-3d;transition:transform .18s ease-out;transform:rotateX(var(--sp-y)) rotateY(var(--sp-x)) translateZ(var(--sp-depth))}
+.hud-top,.command-deck,.telemetry-grid,.module-strip,.recent-panel{transform-style:preserve-3d}
+.hud-top{transform:translateZ(55px)}
+.reactor-stage{transform:translateZ(95px);filter:drop-shadow(0 0 24px rgba(85,214,255,.12))}
+.reactor{position:relative}
+.reactor:before,.reactor:after{content:"";position:absolute;inset:-28px;border:1px solid rgba(85,214,255,.25);border-radius:50%;transform:rotateX(62deg);animation:spOrbit 9s linear infinite}
+.reactor:after{inset:-48px;border-color:rgba(242,196,91,.18);transform:rotateY(66deg);animation-duration:14s;animation-direction:reverse}
+.command-deck{transform:translateZ(75px);backdrop-filter:blur(18px);box-shadow:0 35px 90px rgba(0,0,0,.6),0 0 45px rgba(85,214,255,.08)}
+.telemetry{transform:translateZ(38px);transition:transform .25s, border-color .25s, box-shadow .25s}
+.telemetry:hover{transform:translateZ(65px) translateY(-4px);border-color:rgba(85,214,255,.35);box-shadow:0 15px 35px rgba(0,0,0,.45),0 0 25px rgba(85,214,255,.08)}
+.module{transform:translateZ(26px);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.module:hover{transform:translateZ(55px) rotateX(2deg);box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 24px rgba(85,214,255,.09)}
+.recent-panel{transform:translateZ(18px)}
+.nav{transform:translateZ(15px);transition:transform .18s, color .18s, border-color .18s}
+.nav:hover,.nav.selected{transform:translateZ(32px) translateX(3px)}
+.apphead{transform:translateZ(48px)}
+.api-card,.search-card,.filebox,.settings,.calc,.note-compose,.notes,.map-frame,.player{transform-style:preserve-3d;box-shadow:0 25px 70px rgba(0,0,0,.5),0 0 35px rgba(85,214,255,.035)}
+.apphead+h2,.apphead h2{text-shadow:0 0 30px rgba(85,214,255,.12)}
+.command-deck:after{content:"JARVIS / SPATIAL COMMAND CHANNEL";position:absolute;left:14px;bottom:-18px;color:rgba(85,214,255,.28);font:6px ui-monospace,monospace;letter-spacing:.25em}
+@keyframes spOrbit{to{transform:rotateX(62deg) rotateZ(360deg)}}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition:none!important}.command-center{transform:none!important}}
+@media (max-width:800px){body{perspective:none}.workspace{perspective:900px;padding:22px 14px 45px}.workspace:before{opacity:.45}.command-center{transform:rotateX(calc(var(--sp-y)*.45)) rotateY(calc(var(--sp-x)*.45))}.reactor-stage{height:235px}.telemetry-grid{grid-template-columns:repeat(2,1fr)}.module-strip{grid-template-columns:repeat(2,1fr)}.apphead h2{font-size:32px}}
