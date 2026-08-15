@@ -1,7 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-const nav = (page: Parameters<Parameters<typeof test>[1]>[0]['page'], app: string) =>
-  page.locator(`button.nav[data-app="${app}"]`);
+const nav = (page: Page, app: string) => page.locator(`button.nav[data-app="${app}"]`);
 
 test('Jarvis boots and renders command center', async ({ page }) => {
   await page.goto('/');
