@@ -64,22 +64,27 @@ test('settings exposes voice and search configuration', async ({ page }) => {
 });
 
 test('media loads a useful feed with no keyword and supports keyword search', async ({ page }) => {
-  await page.route('**/api.piped.video/**', async route => {
+  await page.route('**/pipedapi.*/**', async route => {
     const url = route.request().url();
+    if (url.includes('/trending')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ type: 'stream', title: 'JARVIS trending video', url: '/watch?v=trend123', thumbnail: 'https://example.com/trending.jpg', duration: 420, uploaderName: 'JARVIS Lab', views: 1200 }]) });
+    }
     if (url.includes('/search')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ type: 'stream', title: 'SAP CPI fixture tutorial', url: '/watch?v=fixture123', thumbnail: 'https://example.com/thumb.jpg', duration: 600, uploaderName: 'JARVIS Lab' }] }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ type: 'stream', title: 'SAP CPI fixture tutorial', url: '/watch?v=fixture123', thumbnail: 'https://example.com/thumb.jpg', duration: 600, uploaderName: 'JARVIS Lab', views: 5000 }] }) });
     }
     if (url.includes('/streams/')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videoStreams: [{ url: 'https://example.com/video.mp4', mimeType: 'video/mp4', quality: '720p' }] }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videoStreams: [{ url: 'https://example.com/video.mp4', mimeType: 'video/mp4', quality: '720p', height: 720 }] }) });
     }
     return route.continue();
   });
   await page.goto('/');
   await nav(page, 'media').click();
   await expect(page.locator('.video-result')).toHaveCount(1);
+  await expect(page.locator('.video-result').first()).toContainText('JARVIS trending video');
   await page.locator('#videoQuery').fill('SAP CPI tutorial');
   await page.getByRole('button', { name: 'SEARCH', exact: true }).click();
-  await expect(page.locator('.video-result')).toContainText('SAP CPI fixture tutorial');
+  await expect(page.locator('.video-result')).toHaveCount(1);
+  await expect(page.locator('.video-result').first()).toContainText('SAP CPI fixture tutorial');
   await page.locator('.video-result').click();
   await expect(page.locator('#jarvisPlayer video')).toBeVisible();
 });
