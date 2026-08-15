@@ -3,7 +3,7 @@ name: Deploy Jarvis OS
 on:
   push:
     branches:
-      - build/jarvis-os-foundation
+      - main
   workflow_dispatch:
 
 permissions:
