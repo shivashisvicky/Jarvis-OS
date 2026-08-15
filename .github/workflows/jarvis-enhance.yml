@@ -41,7 +41,7 @@ jobs:
           old="""test('media keyword search gives a useful empty-query state', async ({ page }) => {\n  await page.goto('/');\n  await nav(page, 'media').click();\n  await page.locator('#videoSearch').click();\n  await expect(page.getByText('Enter keywords and JARVIS will find videos for you.')).toBeVisible();\n});"""
           new="""test('media opens with a useful trending feed without requiring a keyword', async ({ page }) => {\n  await page.route('https://pipedapi.kavin.rocks/**', async route => {\n    const url = route.request().url();\n    if (url.includes('/trending')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ title: 'JARVIS trending fixture', url: '/watch?v=trend1234567', thumbnail: 'https://example.com/trend.jpg', uploader: 'JARVIS', uploadedDate: 'today', views: 10 }]) });\n    return route.continue();\n  });\n  await page.goto('/');\n  await nav(page, 'media').click();\n  await expect(page.locator('.video-result')).toContainText('JARVIS trending fixture');\n});"""
           t=t.replace(old,new)
-          t=t.replace(r'\n\ntest(', '\n\ntest(').replace(r'\n  ', '\n  ').replace(r'\n});', '\n});')
+          t=t.replace(r'\n','\n')
           tests.write_text(t)
           PY
       - name: Build
