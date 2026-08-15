@@ -66,7 +66,7 @@ test('live news desk renders visual headlines and moving ticker', async ({ page 
   await expect(page.locator('.news-card strong', { hasText: 'JARVIS test headline: quantum systems advance' })).toBeVisible();
   await expect(page.locator('.news-track')).toBeVisible();
   await expect(page.locator('.news-card img')).toHaveCount(2);
-  await expect(page.locator('[data-news-query="AI OR artificial intelligence"]')).toBeVisible();
+  await expect(page.locator('#newsGenre')).toBeVisible();
 });
 
 test('media search works from keywords without requiring a URL', async ({ page }) => {
@@ -97,14 +97,18 @@ test('media search works from keywords without requiring a URL', async ({ page }
   await expect(page.locator('.video-result')).toBeVisible();
   await expect(page.getByText('SAP CPI tutorial for integration architects')).toBeVisible();
   await page.locator('.video-result').click();
-  await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');
+  await expect(page.locator('#jarvisPlayer video source')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');
 });
 
-test('media keyword search gives a useful empty-query state', async ({ page }) => {
+test('media opens with a useful trending feed without requiring a keyword', async ({ page }) => {
+  await page.route('https://pipedapi.kavin.rocks/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/trending')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ title: 'JARVIS trending fixture', url: '/watch?v=trend1234567', thumbnail: 'https://example.com/trend.jpg', uploader: 'JARVIS', uploadedDate: 'today', views: 10 }]) });
+    return route.continue();
+  });
   await page.goto('/');
   await nav(page, 'media').click();
-  await page.locator('#videoSearch').click();
-  await expect(page.getByText('Enter keywords and JARVIS will find videos for you.')).toBeVisible();
+  await expect(page.locator('.video-result')).toContainText('JARVIS trending fixture');
 });
 
 test('search, maps and media stay inside the JARVIS shell until external search is requested', async ({ page }) => {
