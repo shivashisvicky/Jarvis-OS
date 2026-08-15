@@ -70,7 +70,11 @@
     };
     const navigate = (url, record = true) => {
       try {
-        const target = new URL(url, location.href).toString();
+        // Keep the address-bar representation stable. Browsers canonicalize
+        // origin-only iframe URLs to a trailing slash, but JARVIS should not
+        // rewrite what the user entered or what tests assert.
+        const target = normalize(url);
+        new URL(target);
         address.value = target;
         frame.src = target;
         if (record) {
@@ -84,9 +88,9 @@
       }
     };
 
-    document.querySelector('#browserGo')?.addEventListener('click', () => navigate(normalize(address.value)));
+    document.querySelector('#browserGo')?.addEventListener('click', () => navigate(address.value));
     address.addEventListener('keydown', event => {
-      if (event.key === 'Enter') navigate(normalize(address.value));
+      if (event.key === 'Enter') navigate(address.value);
     });
     document.querySelector('#browserBack')?.addEventListener('click', () => {
       if (position > 0) { position--; navigate(history[position], false); }
