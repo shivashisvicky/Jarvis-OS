@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
+import type { Reporter, TestCase, TestResult, FullResult } from '@playwright/test/reporter';
 
 type JarvisError = {
   test: string;
@@ -37,18 +37,18 @@ function classify(message: string): { category: string; retryable: boolean } {
 export default class JarvisErrorReporter implements Reporter {
   private errors: JarvisError[] = [];
 
-  onBegin() {
+  onBegin(): void {
     fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(outputFile, JSON.stringify({ run: { status: 'running' }, errors: [] }, null, 2));
   }
 
-  onTestEnd(test: TestCase, result: TestResult) {
+  onTestEnd(test: TestCase, result: TestResult): void {
     if (result.status === 'passed' && result.retry === 0) return;
     if (!result.error) return;
 
     const message = result.error.message ?? String(result.error);
     const classification = classify(message);
-    const artifacts = result.attachments.map((a) => a.path ?? a.name).filter(Boolean);
+    const artifacts = result.attachments.map((a) => a.path ?? a.name).filter(Boolean) as string[];
 
     this.errors.push({
       test: test.titlePath().join(' > '),
@@ -65,11 +65,11 @@ export default class JarvisErrorReporter implements Reporter {
     this.flush('running');
   }
 
-  onEnd(result) {
+  onEnd(result: FullResult): void {
     this.flush(result.status);
   }
 
-  private flush(status: string) {
+  private flush(status: string): void {
     fs.writeFileSync(outputFile, JSON.stringify({
       run: {
         status,
