@@ -15,8 +15,8 @@ test.describe('JARVIS embedded browser', () => {
     const pagesBefore = page.context().pages().length;
     await page.locator('#browserAddress').fill('https://example.com');
     await page.locator('#browserGo').click();
-    // URL() canonicalizes the origin-only URL with a trailing slash.
-    await expect(page.locator('#browserAddress')).toHaveValue('https://example.com/');
+    // Keep the user-entered origin-only URL stable in the JARVIS address bar.
+    await expect(page.locator('#browserAddress')).toHaveValue('https://example.com');
     expect(page.context().pages().length).toBe(pagesBefore);
     await expect(page.locator('.os')).toBeVisible();
   });
