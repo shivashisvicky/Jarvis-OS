@@ -1,0 +1,24 @@
+name: One-shot JARVIS media and news enhancement
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/jarvis_enhance.py'
+      - '.github/workflows/jarvis-enhance.yml'
+permissions:
+  contents: write
+jobs:
+  enhance:
+    if: "!contains(github.event.head_commit.message, '[jarvis-enhance]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch application
+        run: python3 scripts/jarvis_enhance.py
+      - name: Commit application changes
+        run: |
+          git config user.name 'JARVIS Engineering Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/main.ts
+          git commit -m 'feat: make media keyword-first and add summarized live news [jarvis-enhance]'
+          git push
