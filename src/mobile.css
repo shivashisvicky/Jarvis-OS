@@ -1,0 +1,75 @@
+/* JARVIS mobile-first rescue layer
+   Loaded after the desktop shell styles so iPhone/iPad layouts never depend on pinch zoom. */
+html,body,#app{width:100%;max-width:100%;min-width:0}
+body{overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-y}
+button,input,select,textarea{font:inherit}
+button,a,[role="button"]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+@media (max-width: 700px){
+  html,body,#app{min-height:100dvh;height:100dvh;overflow:hidden}
+  .os{height:100dvh;min-height:100dvh;display:grid;grid-template-rows:58px minmax(0,1fr) 0;overflow:hidden}
+  header{height:58px;padding:0 14px;min-width:0}
+  .brand{gap:8px;font-size:11px;letter-spacing:.22em;min-width:0}
+  .brand em{display:none}
+  .orb{width:28px;height:28px;flex:0 0 28px}
+  .status{gap:7px;font-size:9px}
+  .status .signal{display:none}
+  .status button{font-size:15px;padding:6px 8px}
+  main{display:block;min-height:0;height:calc(100dvh - 58px);overflow:hidden}
+  aside{position:fixed;z-index:100;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));height:64px;padding:7px 8px;display:flex;flex-direction:row;align-items:stretch;justify-content:space-between;gap:4px;border:1px solid #19333e;border-radius:15px;background:#02070aeF;box-shadow:0 10px 35px #000b,0 0 30px #55d6ff0a;backdrop-filter:blur(20px);overflow:hidden}
+  .nav{flex:1;min-width:0;height:50px;padding:5px 2px;display:grid;place-items:center;align-content:center;gap:2px;border-radius:10px;font-size:7px;line-height:1}
+  .nav b{font-size:18px;line-height:1}
+  .nav span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav:nth-child(n+8){display:none}
+  .workspace{height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px 14px calc(92px + env(safe-area-inset-bottom));overscroll-behavior-y:contain}
+  .command-center{width:100%;max-width:none;min-width:0}
+  .hud-top{gap:10px}
+  .eyebrow{font-size:8px;letter-spacing:.18em}
+  .hud-top h1{font-size:clamp(36px,11vw,52px);line-height:.98}
+  .sub{font-size:16px;line-height:1.5}
+  .reactor-stage{height:170px;margin:-2px auto -4px;max-width:340px;transform:scale(.82)}
+  .command-deck{padding:10px;border-radius:12px}
+  .command-deck form{grid-template-columns:auto minmax(0,1fr) auto;gap:7px}
+  .prompt{font-size:22px;padding-left:2px}
+  .command-deck input{font-size:16px;min-width:0}
+  .command-deck .execute{grid-column:1/-1;width:100%;min-height:44px;font-size:12px}
+  .voice{min-height:44px;padding:9px 10px}
+  .voice span{display:none}
+  .suggestions{padding:8px 0 1px;gap:6px}
+  .suggestions button,.search-providers button{font-size:9px;min-height:40px;padding:8px 11px}
+  .voice-hud{padding:7px 2px 0;font-size:7px}
+  .telemetry-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .telemetry{min-height:92px;padding:12px}
+  .telemetry strong{font-size:14px}
+  .module-strip{grid-template-columns:1fr 1fr;gap:8px}
+  .module{min-height:64px;padding:11px}
+  .module strong{font-size:11px}
+  .module small{font-size:7px}
+  .apphead{gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .apphead h2{font-size:clamp(32px,9vw,42px);line-height:1}
+  .apphead .sub{font-size:15px}
+  .primary{min-height:44px;padding:10px 15px;font-size:12px}
+  .calc,.filebox,.settings,.api-card,.search-card{width:100%;max-width:none;padding:14px}
+  .calc input{font-size:36px}
+  .keys{gap:6px}
+  .keys button{height:58px;min-height:52px}
+  .note-compose,.request-row{display:grid;grid-template-columns:1fr;gap:8px}
+  .note-compose .primary,.request-row .primary{width:100%}
+  .request-row input,.request-row select,.api-card textarea,.search-card input,.settings select,.api-card select{width:100%;max-width:none;min-height:46px;font-size:16px}
+  .api-layout{grid-template-columns:1fr;gap:10px}
+  .profiles{grid-template-columns:1fr}
+  .map-frame{height:min(52vh,420px);min-height:280px}
+  .player{width:100%;min-height:210px}
+  .recent-panel{margin-bottom:8px}
+  .recent-item{min-height:48px}
+  footer{display:none}
+}
+@media (max-width:390px){
+  header{padding:0 10px}
+  .workspace{padding-left:10px;padding-right:10px}
+  .telemetry-grid,.module-strip{grid-template-columns:1fr}
+  .reactor-stage{transform:scale(.72);height:145px;margin-top:-8px}
+  .sub{font-size:15px}
+}
+@media (min-width:701px){
+  .mobile-only{display:none!important}
+}
