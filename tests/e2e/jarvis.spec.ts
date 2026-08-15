@@ -48,6 +48,65 @@ test('REST API Lab renders and accepts request data', async ({ page }) => {
   await expect(page.locator('#httpUrl')).toHaveValue('https://example.com/api');
 });
 
+test('live news desk renders visual headlines and moving ticker', async ({ page }) => {
+  await page.route('https://api.gdeltproject.org/**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        articles: [
+          { title: 'JARVIS test headline: quantum systems advance', url: 'https://example.com/news/1', socialimage: 'https://example.com/image-1.jpg', domain: 'example.com', sourcecountry: 'US' },
+          { title: 'JARVIS test headline: new AI research lands', url: 'https://example.com/news/2', socialimage: 'https://example.com/image-2.jpg', domain: 'example.org', sourcecountry: 'IN' },
+        ],
+      }),
+    });
+  });
+  await page.goto('/');
+  await expect(page.locator('.news-desk')).toBeVisible();
+  await expect(page.getByText('JARVIS test headline: quantum systems advance')).toBeVisible();
+  await expect(page.locator('.news-track')).toBeVisible();
+  await expect(page.locator('.news-card img')).toHaveCount(2);
+  await expect(page.locator('[data-news-query="AI OR artificial intelligence"]')).toBeVisible();
+});
+
+test('media search works from keywords without requiring a URL', async ({ page }) => {
+  await page.route('https://pipedapi.kavin.rocks/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/search') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ title: 'SAP CPI tutorial for integration architects', url: '/watch?v=jarvis12345', thumbnail: 'https://example.com/thumb.jpg', uploader: 'JARVIS Labs', duration: 321, views: 12000 }]),
+      });
+      return;
+    }
+    if (url.pathname === '/streams/jarvis12345') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ title: 'SAP CPI tutorial for integration architects', thumbnailUrl: 'https://example.com/thumb.jpg', videoStreams: [{ url: 'https://cdn.example.com/video.mp4', mimeType: 'video/mp4', format: 'MPEG_4', height: 720, videoOnly: false }] }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto('/');
+  await nav(page, 'media').click();
+  await page.locator('#videoQuery').fill('SAP CPI tutorial');
+  await page.locator('#videoSearch').click();
+  await expect(page.locator('.video-result')).toBeVisible();
+  await expect(page.getByText('SAP CPI tutorial for integration architects')).toBeVisible();
+  await page.locator('.video-result').click();
+  await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');
+});
+
+test('media keyword search gives a useful empty-query state', async ({ page }) => {
+  await page.goto('/');
+  await nav(page, 'media').click();
+  await page.locator('#videoSearch').click();
+  await expect(page.getByText('Enter keywords and JARVIS will find videos for you.')).toBeVisible();
+});
+
 test('search, maps and media stay inside the JARVIS shell until external search is requested', async ({ page }) => {
   await page.goto('/');
   await nav(page, 'web').click();
