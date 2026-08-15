@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+const nav = (page: Parameters<Parameters<typeof test>[1]>[0]['page'], app: string) =>
+  page.locator(`button.nav[data-app="${app}"]`);
+
 test('Jarvis boots and renders command center', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle('Jarvis OS');
@@ -39,7 +42,7 @@ test('notes persist', async ({ page }) => {
 
 test('REST client renders and accepts request data', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '⌁ REST Client' }).click();
+  await nav(page, 'api').click();
   await expect(page.getByRole('heading', { name: 'REST Client', exact: true })).toBeVisible();
   await page.locator('#httpUrl').fill('https://example.com/api');
   await page.locator('#httpHeaders').fill('{"Accept":"application/json"}');
@@ -48,11 +51,11 @@ test('REST client renders and accepts request data', async ({ page }) => {
 
 test('web, maps and media consoles render', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '⌕ Web' }).click();
+  await nav(page, 'web').click();
   await expect(page.getByRole('heading', { name: 'Web Console', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '⌖ Maps' }).click();
+  await nav(page, 'maps').click();
   await expect(page.getByRole('heading', { name: 'Maps', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '▶ Media' }).click();
+  await nav(page, 'media').click();
   await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
 });
 
