@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
       - name: Patch application
         run: python3 scripts/jarvis_enhance.py
       - name: Add intelligence surface styling and deterministic UI tests
@@ -39,6 +45,12 @@ jobs:
           t=t.replace(r'\n\ntest(', '\n\ntest(').replace(r'\n  ', '\n  ').replace(r'\n});', '\n});')
           tests.write_text(t)
           PY
+      - name: Build
+        run: npm run build
+      - name: Browser tests
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
       - name: Commit application changes
         run: |
           git config user.name 'JARVIS Engineering Bot'
