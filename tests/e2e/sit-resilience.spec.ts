@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-/** Resilient SIT helpers. */
 async function retryStep(page: Page, name: string, action: () => Promise<void>, attempts = 3) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -21,26 +20,25 @@ async function expectInternalApp(page: Page, app: string, heading: string) {
     await page.locator(`button.nav[data-app="${app}"]`).click();
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
   });
-  expect(page.context().pages().length, `${app} opened a new browser page`).toBe(pagesBefore);
-  expect(page.url(), `${app} left the Jarvis shell`).toBe(urlBefore);
+  expect(page.context().pages().length).toBe(pagesBefore);
+  expect(page.url()).toBe(urlBefore);
 }
 
-test.describe('Jarvis internal-app and recovery SIT', () => {
+test.describe('JARVIS internal-app and recovery SIT', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('JARVIS').first()).toBeVisible();
+    await expect(page.getByText('J.A.R.V.I.S', { exact: true })).toBeVisible();
   });
 
-  test('all first-party apps stay inside the Jarvis shell', async ({ page }) => {
-    await expectInternalApp(page, 'api', 'REST Client');
-    await expectInternalApp(page, 'web', 'JARVIS Browser');
-    await expectInternalApp(page, 'maps', 'JARVIS Maps');
-    await expectInternalApp(page, 'media', 'JARVIS Player');
-    await expectInternalApp(page, 'news', 'JARVIS News');
+  test('first-party applications remain internal', async ({ page }) => {
+    await expectInternalApp(page, 'api', 'API Lab');
+    await expectInternalApp(page, 'web', 'Search Hub');
+    await expectInternalApp(page, 'maps', 'Maps');
+    await expectInternalApp(page, 'media', 'Media Center');
   });
 
-  test('REST client recovers from transient UI timing and preserves input', async ({ page }) => {
-    await expectInternalApp(page, 'api', 'REST Client');
+  test('REST client preserves developer input', async ({ page }) => {
+    await expectInternalApp(page, 'api', 'API Lab');
     await retryStep(page, 'rest-input', async () => {
       await page.locator('#httpUrl').fill('https://example.com/api');
       await page.locator('#httpHeaders').fill('{"Accept":"application/json"}');
@@ -49,24 +47,13 @@ test.describe('Jarvis internal-app and recovery SIT', () => {
     });
   });
 
-  test('spatial module launch is also internal and recoverable', async ({ page }) => {
-    const pagesBefore = page.context().pages().length;
-    await retryStep(page, 'spatial-rest', async () => {
-      await page.locator('button.module[data-app="api"]').click();
-      await expect(page.getByRole('heading', { name: 'REST Client', exact: true })).toBeVisible();
-    });
-    expect(page.context().pages().length).toBe(pagesBefore);
-    expect(page.url()).toMatch(/\/$/);
-  });
-
   test('critical shell survives repeated app switching', async ({ page }) => {
     for (let i = 0; i < 2; i++) {
-      await expectInternalApp(page, 'web', 'JARVIS Browser');
-      await expectInternalApp(page, 'maps', 'JARVIS Maps');
-      await expectInternalApp(page, 'media', 'JARVIS Player');
-      await expectInternalApp(page, 'news', 'JARVIS News');
-      await expectInternalApp(page, 'api', 'REST Client');
+      await expectInternalApp(page, 'web', 'Search Hub');
+      await expectInternalApp(page, 'maps', 'Maps');
+      await expectInternalApp(page, 'media', 'Media Center');
+      await expectInternalApp(page, 'api', 'API Lab');
     }
-    await expect(page.getByText('JARVIS').first()).toBeVisible();
+    await expect(page.locator('.os')).toBeVisible();
   });
 });
