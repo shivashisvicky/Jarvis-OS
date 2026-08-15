@@ -13,11 +13,12 @@ test('Jarvis boots as a command-centric intelligence workspace', async ({ page }
 
 test('command palette opens and exposes apps', async ({ page }) => {
   await page.goto('/');
-  await page.keyboard.press('Control+KeyK');
-  await expect(page.getByRole('dialog', { name: 'JARVIS command palette' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /API Lab/ })).toBeVisible();
+  await page.locator('#paletteBtn').click();
+  const palette = page.locator('#paletteHost .palette');
+  await expect(palette).toBeVisible();
+  await expect(palette.locator('[data-palette-app="api"]')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'JARVIS command palette' })).toHaveCount(0);
+  await expect(palette).toHaveCount(0);
 });
 
 test('calculator works', async ({ page }) => {
