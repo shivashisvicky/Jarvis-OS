@@ -48,15 +48,30 @@ test('REST client renders and accepts request data', async ({ page }) => {
   await expect(page.locator('#httpUrl')).toHaveValue('https://example.com/api');
 });
 
-test('web, maps and media consoles render', async ({ page }) => {
+test('web, maps, media and news consoles render in-house', async ({ page }) => {
   await page.goto('/');
   await nav(page, 'web').click();
   await expect(page.getByRole('heading', { name: 'JARVIS Browser', exact: true })).toBeVisible();
   await expect(page.locator('#browserFrame')).toBeVisible();
+
   await nav(page, 'maps').click();
-  await expect(page.getByRole('heading', { name: 'Maps', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'JARVIS Maps', exact: true })).toBeVisible();
+  await expect(page.getByText('No Google Maps redirect')).toBeVisible();
+
   await nav(page, 'media').click();
-  await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'JARVIS Player', exact: true })).toBeVisible();
+  await expect(page.locator('#jarvisPlayer')).toBeVisible();
+
+  await nav(page, 'news').click();
+  await expect(page.getByRole('heading', { name: 'JARVIS News', exact: true })).toBeVisible();
+  await expect(page.locator('#jarvisNewsSearch')).toBeVisible();
+});
+
+test('dashboard telemetry is interactive', async ({ page }) => {
+  await page.goto('/');
+  await page.getByText('CORE STATUS', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Core diagnostics', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '×' }).click();
 });
 
 test('settings exposes voice and search configuration', async ({ page }) => {
