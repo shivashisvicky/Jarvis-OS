@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-test('Jarvis boots and renders desktop', async ({ page }) => {
+test('Jarvis boots and renders command center', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle('Jarvis OS');
-  await expect(page.getByText('JARVIS', { exact: true })).toBeVisible();
-  await expect(page.getByText('JARVIS OS / ONLINE', { exact: true })).toBeVisible();
+  await expect(page.getByText('J.A.R.V.I.S', { exact: true })).toBeVisible();
+  await expect(page.getByText('JARVIS COMMAND DECK / CORE 01', { exact: true })).toBeVisible();
   await expect(page.getByText('Good afternoon.', { exact: true })).toBeVisible();
 });
 
@@ -35,4 +35,32 @@ test('notes persist', async ({ page }) => {
   await page.reload();
   await page.getByText('Notes').first().click();
   await expect(page.getByText('Jarvis SIT persistence')).toBeVisible();
+});
+
+test('REST client renders and accepts request data', async ({ page }) => {
+  await page.goto('/');
+  await page.getByText('REST Client').first().click();
+  await expect(page.getByText('REST Client', { exact: true })).toBeVisible();
+  await page.locator('#httpUrl').fill('https://example.com/api');
+  await page.locator('#httpHeaders').fill('{"Accept":"application/json"}');
+  await expect(page.locator('#httpUrl')).toHaveValue('https://example.com/api');
+});
+
+test('web, maps and media consoles render', async ({ page }) => {
+  await page.goto('/');
+  await page.getByText('Web').first().click();
+  await expect(page.getByText('Web Console', { exact: true })).toBeVisible();
+  await page.getByText('Maps').first().click();
+  await expect(page.getByText('Maps', { exact: true })).toBeVisible();
+  await page.getByText('Media').first().click();
+  await expect(page.getByText('Media Center', { exact: true })).toBeVisible();
+});
+
+test('settings exposes voice and search configuration', async ({ page }) => {
+  await page.goto('/');
+  await page.getByText('Settings').first().click();
+  await expect(page.locator('#searchEngine')).toBeVisible();
+  await expect(page.locator('#voiceRate')).toBeVisible();
+  await expect(page.locator('#voicePitch')).toBeVisible();
+  await expect(page.locator('#voiceVolume')).toBeVisible();
 });
