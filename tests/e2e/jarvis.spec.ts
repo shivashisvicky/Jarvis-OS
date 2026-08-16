@@ -70,10 +70,9 @@ test('REAL VIDEO GATE: keyword cats returns a live result and opens an in-house 
   await page.locator('#videoQuery').fill('cats');
   await page.locator('#videoSearch').click();
 
-  await expect(page.locator('#jvcStatus')).toContainText('RESULTS', { timeout: 20000 });
-  await expect(page.locator('.jvc-card')).toHaveCount(expect.any(Number), { timeout: 20000 });
   const card = page.locator('.jvc-card').first();
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('#jvcStatus')).toContainText('RESULTS', { timeout: 20000 });
   await expect(card.locator('strong')).not.toHaveText('');
 
   await card.click();
