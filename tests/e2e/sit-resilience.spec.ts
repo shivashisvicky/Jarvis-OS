@@ -72,6 +72,30 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
   });
 
+  test('video search falls back to real YouTube and Bing keyword search', async ({ page }) => {
+    await page.route('**/pipedapi.*/**', route => route.abort());
+    await page.route('**/api/v1/**', route => route.abort());
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoSearch').click();
+    await expect(page.getByText('LIVE SEARCH READY · CHOOSE A SEARCH ENGINE', { exact: true })).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jvcYoutube')).toBeVisible();
+    await expect(page.locator('#jvcBing')).toBeVisible();
+    await expect(page.locator('#jvcStatus')).toContainText('LIVE SEARCH READY');
+    await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
+
+    const youtubePopup = page.waitForEvent('popup');
+    await page.locator('#jvcYoutube').click();
+    const youtube = await youtubePopup;
+    await expect.poll(() => youtube.url()).toContain('youtube.com/results?search_query=cats');
+  });
+
+  test('dashboard Find Video opens the media search with a real query', async ({ page }) => {
+    await page.locator('.jmc-action').nth(1).click();
+    await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#videoQuery')).toHaveValue('trending videos India', { timeout: 5000 });
+  });
+
   test('critical shell survives repeated app switching', async ({ page }) => {
     for (let i = 0; i < 2; i++) {
       await expectInternalApp(page, 'web', 'Search Hub');
