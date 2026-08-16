@@ -70,23 +70,21 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.locator('#videoResults .jvc-card').click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
+    expect(page.context().pages().length).toBe(1);
   });
 
-  test('video search falls back to real YouTube and Bing keyword search', async ({ page }) => {
+  test('video search stays inside JARVIS when public indexes fail', async ({ page }) => {
     await page.route('**/pipedapi.*/**', route => route.abort());
     await page.route('**/api/v1/**', route => route.abort());
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await expect(page.getByText('LIVE SEARCH READY · CHOOSE A SEARCH ENGINE', { exact: true })).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('#jvcYoutube')).toBeVisible();
-    await expect(page.locator('#jvcBing')).toBeVisible();
-    await expect(page.locator('#jvcStatus')).toContainText('LIVE SEARCH READY');
-    await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
-    await expect(page.locator('#jvcYoutube')).toHaveAttribute('data-search-url', 'https://www.youtube.com/results?search_query=cats');
-    await expect(page.locator('#jvcBing')).toHaveAttribute('data-search-url', 'https://www.bing.com/videos/search?q=cats');
-    await page.locator('#jvcYoutube').click();
-    await page.locator('#jvcBing').click();
+    await expect(page.getByText(/No public video index responded with results/i)).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jvcStatus')).toContainText('NO REDIRECT');
+    await expect(page.locator('#jvcYoutube')).toHaveCount(0);
+    await expect(page.locator('#jvcBing')).toHaveCount(0);
+    expect(page.context().pages().length).toBe(1);
+    expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
   });
 
   test('dashboard Find Video opens the media search with a real query', async ({ page }) => {
