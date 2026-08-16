@@ -16,8 +16,7 @@
     $('#videoSearch',w).onclick=()=>void run(input.value);input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void run(input.value)}};$$('[data-video-provider]',w).forEach(b=>b.onclick=()=>{input.value='trending videos India';void run(input.value)});
     $('#playVideo',w).onclick=()=>{const raw=$('#videoUrl',w).value.trim(),id=idOf(raw);if(id)play({id,title:'Pasted YouTube video'});else if(/^https?:\/\//i.test(raw)){player.innerHTML=`<video controls playsinline src="${esc(raw)}"></video>`;status.textContent='PLAYING · DIRECT MEDIA'}else status.textContent='PASTE A YOUTUBE URL, VIDEO ID OR DIRECT MP4'};
   }
-  let timer=0;
-  const tick=()=>{const w=$('.media-workspace');if(w&&w.dataset.jv3==='1'&&w.dataset.jv3media!=='1'){clearTimeout(timer);timer=setTimeout(()=>mount(w),350)}};
+  const tick=()=>{const w=$('.media-workspace');if(w&&w.dataset.jv3==='1'&&w.dataset.jv3media!=='1')mount(w)};
   const o=new MutationObserver(tick);o.observe(document.documentElement,{childList:true,subtree:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',tick,{once:true});else tick();
 })();
