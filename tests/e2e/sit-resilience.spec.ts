@@ -48,9 +48,11 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('video search resolves keyword results and has a real player path', async ({ page }) => {
+    const cors = { 'access-control-allow-origin': '*' };
     await page.route('https://inv.nadeko.net/api/v1/search**', async route => {
       await route.fulfill({
         status: 200,
+        headers: cors,
         contentType: 'application/json',
         body: JSON.stringify([{
           type: 'video',
@@ -67,6 +69,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => {
       await route.fulfill({
         status: 200,
+        headers: cors,
         contentType: 'application/json',
         body: JSON.stringify({
           videoId: 'dQw4w9WgXcQ',
@@ -77,6 +80,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     });
 
     await expectInternalApp(page, 'media', 'Media Center');
+    await expect(page.locator('#jvcStatus')).toBeVisible({ timeout: 3000 });
     await page.locator('#videoQuery').fill('SAP CPI tutorial');
     await page.locator('#videoSearch').click();
     await expect(page.getByText('SAP Cloud Integration Tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
