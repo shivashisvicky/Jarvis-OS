@@ -65,34 +65,29 @@ test('settings exposes voice and search configuration', async ({ page }) => {
 
 test('media keyword search returns results and playback resolves', async ({ page }) => {
   const cors = { 'access-control-allow-origin': '*' };
-  const result = {
-    type: 'video', title: 'SAP CPI fixture tutorial', videoId: 'dQw4w9WgXcQ', author: 'JARVIS Lab',
-    viewCount: 5000, publishedText: 'today', lengthSeconds: 600,
-    videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
-  };
-  await page.route('**/api/v1/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify([result]) }));
-  await page.route('**/api/v1/videos/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoId: 'dQw4w9WgXcQ', videoThumbnails: [], formatStreams: [] }) }));
-  await page.route('**/pipedapi.*/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ items: [result] }) }));
-  await page.route('**/pipedapi.*/streams/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoStreams: [] }) }));
+  const result = { type:'video', title:'SAP CPI fixture tutorial', videoId:'dQw4w9WgXcQ', author:'JARVIS Lab', viewCount:5000, publishedText:'today', lengthSeconds:600, videoThumbnails:[{ quality:'medium', url:'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width:480, height:360 }] };
+  const searchBody = JSON.stringify({ items:[result] });
+  await page.route('https://pipedapi.kavin.rocks/search**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:searchBody}));
+  await page.route('https://pipedapi.kavin.rocks/streams/dQw4w9WgXcQ**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({videoStreams:[]})}));
+  await page.route('https://inv.nadeko.net/api/v1/search**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify([result])}));
+  await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({videoId:'dQw4w9WgXcQ',videoThumbnails:[],formatStreams:[]})}));
   await page.goto('/');
   await nav(page, 'media').click();
-  await expect(page.locator('#jvcStatus')).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('#jvcStatus')).toBeVisible({timeout:3000});
   await page.locator('#videoQuery').fill('SAP CPI tutorial');
   await page.locator('#videoSearch').click();
-  await expect(page.locator('.jvc-card')).toHaveCount(1, { timeout: 8000 });
+  await expect(page.locator('.jvc-card')).toHaveCount(1,{timeout:8000});
   await expect(page.locator('.jvc-card').first()).toContainText('SAP CPI fixture tutorial');
   await page.locator('.jvc-card').first().click();
-  await expect(page.locator('#jarvisPlayer video, #jarvisPlayer iframe')).toHaveCount(1, { timeout: 8000 });
+  await expect(page.locator('#jarvisPlayer video, #jarvisPlayer iframe')).toHaveCount(1,{timeout:8000});
   await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
 });
 
 test('news desk renders visual headlines, ticker and summarized briefs', async ({ page }) => {
   await page.route('https://api.gdeltproject.org/**', async route => {
     const url = route.request().url();
-    if (url.includes('/context/context')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ context: 'JARVIS summary: researchers announced a new quantum systems advance, highlighting improved stability and practical applications.' }] }) });
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ articles: [{ title: 'JARVIS quantum systems advance', url: 'https://example.com/news/1', socialimage: 'https://example.com/news.jpg', domain: 'example.com', sourcecountry: 'US' }, { title: 'JARVIS AI research update', url: 'https://example.com/news/2', socialimage: 'https://example.com/news2.jpg', domain: 'example.com', sourcecountry: 'US' }] }) });
+    if (url.includes('/context/context')) return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({articles:[{context:'JARVIS summary: researchers announced a new quantum systems advance, highlighting improved stability and practical applications.'}]})});
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({articles:[{title:'JARVIS quantum systems advance',url:'https://example.com/news/1',socialimage:'https://example.com/news.jpg',domain:'example.com',sourcecountry:'US'},{title:'JARVIS AI research update',url:'https://example.com/news/2',socialimage:'https://example.com/news2.jpg',domain:'example.com',sourcecountry:'US'}]})});
   });
   await page.goto('/');
   await expect(page.locator('.news-desk')).toBeVisible();
