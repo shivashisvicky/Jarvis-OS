@@ -61,7 +61,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
           publishedText: 'today',
           lengthSeconds: 212,
           videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
-        }]
+        }])
       });
     });
     await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => {
