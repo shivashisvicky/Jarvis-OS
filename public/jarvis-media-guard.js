@@ -14,6 +14,7 @@
       window.jarvisLog?.('media','failure guard applied',{query:q});
     },4200);
   };
+  window.addEventListener('click',e=>{if(e.target instanceof Element && e.target.closest('#videoSearch'))guard()},true);
   const o=new MutationObserver(()=>{if(document.querySelector('#videoSearch'))guard()});
   o.observe(document.body,{childList:true,subtree:true});
 })();
