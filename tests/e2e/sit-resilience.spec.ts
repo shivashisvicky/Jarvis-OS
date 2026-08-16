@@ -47,6 +47,47 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     });
   });
 
+  test('video search resolves keyword results and has a real player path', async ({ page }) => {
+    await page.route('https://inv.nadeko.net/api/v1/search**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{
+          type: 'video',
+          title: 'SAP Cloud Integration Tutorial',
+          videoId: 'dQw4w9WgXcQ',
+          author: 'JARVIS Test Channel',
+          viewCount: 12345,
+          publishedText: 'today',
+          lengthSeconds: 212,
+          videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
+        }]
+      });
+    });
+    await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          videoId: 'dQw4w9WgXcQ',
+          videoThumbnails: [],
+          formatStreams: []
+        })
+      });
+    });
+
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoQuery').fill('SAP CPI tutorial');
+    await page.locator('#videoSearch').click();
+    await expect(page.getByText('SAP Cloud Integration Tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jvcStatus')).toContainText('RESULTS');
+    await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1);
+
+    await page.locator('#videoResults .jvc-card').click();
+    await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
+  });
+
   test('critical shell survives repeated app switching', async ({ page }) => {
     for (let i = 0; i < 2; i++) {
       await expectInternalApp(page, 'web', 'Search Hub');
