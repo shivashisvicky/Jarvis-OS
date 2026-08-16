@@ -63,24 +63,25 @@ test('settings exposes voice and search configuration', async ({ page }) => {
   await expect(page.locator('#voiceRate')).toBeVisible();
 });
 
-test('media keyword search returns results and playback resolves', async ({ page }) => {
-  const cors = { 'access-control-allow-origin': '*' };
-  const result = { type:'video', title:'SAP CPI fixture tutorial', videoId:'dQw4w9WgXcQ', author:'JARVIS Lab', viewCount:5000, publishedText:'today', lengthSeconds:600, videoThumbnails:[{ quality:'medium', url:'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width:480, height:360 }] };
-  const searchBody = JSON.stringify({ items:[result] });
-  await page.route('https://pipedapi.kavin.rocks/search**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:searchBody}));
-  await page.route('https://pipedapi.kavin.rocks/streams/dQw4w9WgXcQ**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({videoStreams:[]})}));
-  await page.route('https://inv.nadeko.net/api/v1/search**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify([result])}));
-  await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({videoId:'dQw4w9WgXcQ',videoThumbnails:[],formatStreams:[]})}));
+test('REAL VIDEO GATE: keyword cats returns a live result and opens an in-house YouTube player', async ({ page }) => {
   await page.goto('/');
   await nav(page, 'media').click();
-  await expect(page.locator('#jvcStatus')).toBeVisible({timeout:3000});
-  await page.locator('#videoQuery').fill('SAP CPI tutorial');
+  await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
+  await page.locator('#videoQuery').fill('cats');
   await page.locator('#videoSearch').click();
-  await expect(page.locator('.jvc-card')).toHaveCount(1,{timeout:8000});
-  await expect(page.locator('.jvc-card').first()).toContainText('SAP CPI fixture tutorial');
-  await page.locator('.jvc-card').first().click();
-  await expect(page.locator('#jarvisPlayer video, #jarvisPlayer iframe')).toHaveCount(1,{timeout:8000});
-  await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
+
+  await expect(page.locator('#jvcStatus')).toContainText('RESULTS', { timeout: 20000 });
+  await expect(page.locator('.jvc-card')).toHaveCount(expect.any(Number), { timeout: 20000 });
+  const card = page.locator('.jvc-card').first();
+  await expect(card).toBeVisible();
+  await expect(card.locator('strong')).not.toHaveText('');
+
+  await card.click();
+  const iframe = page.locator('#jarvisPlayer iframe');
+  await expect(iframe).toBeVisible({ timeout: 10000 });
+  await expect(iframe).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}/);
+  await expect(page.locator('#jvcStatus')).toContainText('PLAYING', { timeout: 5000 });
+  expect(page.context().pages()).toHaveLength(1);
 });
 
 test('news desk renders visual headlines, ticker and summarized briefs', async ({ page }) => {
