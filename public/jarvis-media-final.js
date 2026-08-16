@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const STATIC_INVIDIOUS = [
+  const INVIDIOUS = [
     'https://inv.nadeko.net',
     'https://invidious.nerdvpn.de',
     'https://yt.chocolatemoo53.com',
     'https://invidious.tiekoetter.com',
+    'https://invidious.f5.si',
   ];
-  const STATIC_PIPED = [
+  const PIPED = [
     'https://pipedapi.kavin.rocks',
     'https://pipedapi.leptons.xyz',
     'https://pipedapi.adminforge.de',
@@ -17,19 +18,35 @@
     'https://pipedapi.syncpundit.io',
     'https://api-piped.mha.fi',
   ];
-  const INSTANCE_TTL = 15 * 60 * 1000;
+  const CORS_PROXIES = [
+    target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+    target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+  ];
   const REQUEST_TIMEOUT = 6500;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const findId = v => String(v?.videoId || String(v?.url || '').match(/[?&]v=([^&]+)/)?.[1] || '');
-  const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-  const json = async url => {
-    const r = await Promise.race([
-      fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store', mode: 'cors' }),
-      timeout(REQUEST_TIMEOUT),
+
+  const fetchJson = async (url, proxy = false) => {
+    const target = proxy ? url : url;
+    const response = await Promise.race([
+      fetch(target, { headers: { Accept: 'application/json' }, cache: 'no-store', mode: 'cors' }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), REQUEST_TIMEOUT)),
     ]);
-    if (!r.ok) throw new Error(String(r.status));
-    return r.json();
+    if (!response.ok) throw new Error(String(response.status));
+    return response.json();
   };
+
+  async function json(url) {
+    try {
+      return await fetchJson(url);
+    } catch {
+      for (const makeProxy of CORS_PROXIES) {
+        try { return await fetchJson(makeProxy(url), true); } catch {}
+      }
+      throw new Error('all transports failed');
+    }
+  }
+
   const normalize = items => (Array.isArray(items) ? items : []).map(v => ({
     id: findId(v),
     title: v.title || 'Untitled video',
@@ -38,18 +55,6 @@
     published: v.publishedText || v.uploadedDate || '',
     thumb: v.videoThumbnails?.find(x => x.quality === 'medium')?.url || v.videoThumbnails?.[0]?.url || v.thumbnail || '',
   })).filter(v => v.id);
-
-  async function discoverInvidious() {
-    try {
-      const raw = await json('https://api.invidious.io/instances.json');
-      const dynamic = Object.entries(raw || {})
-        .filter(([, meta]) => meta && meta[1]?.api && meta[1]?.type === 'https')
-        .map(([host]) => `https://${host}`);
-      return [...new Set([...STATIC_INVIDIOUS, ...dynamic])].slice(0, 20);
-    } catch {
-      return STATIC_INVIDIOUS;
-    }
-  }
 
   async function searchInvidious(base, q) {
     const d = await json(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&page=1`);
@@ -65,41 +70,33 @@
     return new Promise(resolve => {
       let remaining = tasks.length;
       if (!remaining) return resolve([]);
-      let settled = false;
+      let done = false;
       tasks.forEach(task => Promise.resolve().then(task).then(items => {
-        if (!settled && items?.length) {
-          settled = true;
-          resolve(items);
-        } else if (--remaining === 0 && !settled) resolve([]);
+        if (!done && items?.length) { done = true; resolve(items); return; }
+        if (--remaining === 0 && !done) resolve([]);
       }).catch(() => {
-        if (--remaining === 0 && !settled) resolve([]);
+        if (--remaining === 0 && !done) resolve([]);
       }));
     });
   }
 
   async function search(q) {
-    const invidious = await discoverInvidious();
-    const tasks = [
-      ...invidious.map(base => () => searchInvidious(base, q)),
-      ...STATIC_PIPED.map(base => () => searchPiped(base, q)),
-    ];
-    return firstSuccessful(tasks);
+    return firstSuccessful([
+      ...INVIDIOUS.map(base => () => searchInvidious(base, q)),
+      ...PIPED.map(base => () => searchPiped(base, q)),
+    ]);
   }
 
-  function youtubeUrl(q) {
-    return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-  }
-  function bingUrl(q) {
-    return `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}`;
-  }
+  const youtubeUrl = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+  const bingUrl = q => `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}`;
 
   function install() {
     const input = document.querySelector('#videoQuery');
     const button = document.querySelector('#videoSearch');
     const results = document.querySelector('#videoResults');
     const player = document.querySelector('#jarvisPlayer');
-    if (!input || !button || !results || !player || button.dataset.finalMedia === '2') return;
-    button.dataset.finalMedia = '2';
+    if (!input || !button || !results || !player || button.dataset.finalMedia === '3') return;
+    button.dataset.finalMedia = '3';
 
     let status = document.querySelector('#jvcStatus');
     if (!status) {
@@ -122,7 +119,7 @@
       results.querySelectorAll('.jvc-card').forEach(b => b.addEventListener('click', () => play(b.dataset.id)));
     };
     const liveFallback = q => {
-      results.innerHTML = `<div class="video-context jvc-live-fallback"><strong>LIVE SEARCH READY · CHOOSE A SEARCH ENGINE</strong><p>Public video indexes are temporarily unavailable. JARVIS keeps the search inside this workspace and opens the selected provider in a new tab.</p><div class="jvc-provider-actions"><button id="jvcYoutube" type="button">YOUTUBE SEARCH</button><button id="jvcBing" type="button">BING VIDEO SEARCH</button></div></div>`;
+      results.innerHTML = `<div class="video-context jvc-live-fallback"><strong>LIVE SEARCH READY · CHOOSE A SEARCH ENGINE</strong><p>JARVIS could not reach a public video index. Use a live provider search without losing your JARVIS session.</p><div class="jvc-provider-actions"><button id="jvcYoutube" type="button">YOUTUBE SEARCH</button><button id="jvcBing" type="button">BING VIDEO SEARCH</button></div></div>`;
       results.querySelector('#jvcYoutube').onclick = () => window.open(youtubeUrl(q), '_blank', 'noopener,noreferrer');
       results.querySelector('#jvcBing').onclick = () => window.open(bingUrl(q), '_blank', 'noopener,noreferrer');
       set('LIVE SEARCH READY · CHOOSE A SEARCH ENGINE');
@@ -130,20 +127,16 @@
     const run = async () => {
       const q = input.value.trim();
       if (!q) { set('READY · ENTER A VIDEO SEARCH TERM'); return; }
-      set('SEARCHING · JARVIS VIDEO SOURCES');
+      set('SEARCHING · MULTI-SOURCE VIDEO INDEX');
       results.innerHTML = '<div class="empty">JARVIS is searching multiple video sources…</div>';
       const items = await search(q);
-      if (items.length) {
-        render(items);
-        set(`RESULTS · ${items.length} · JARVIS`);
-      } else {
-        liveFallback(q);
-      }
+      if (items.length) { render(items); set(`RESULTS · ${items.length} · JARVIS`); }
+      else liveFallback(q);
     };
 
     const fresh = button.cloneNode(true);
     button.replaceWith(fresh);
-    fresh.dataset.finalMedia = '2';
+    fresh.dataset.finalMedia = '3';
     fresh.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); void run(); }, true);
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); void run(); }
@@ -152,8 +145,7 @@
       const b = x.cloneNode(true);
       x.replaceWith(b);
       b.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         if (b.dataset.videoProvider === 'trending') input.value = 'trending videos India';
         void run();
       }, true);
