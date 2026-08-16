@@ -15,26 +15,28 @@
   }
 
   function clickApp(id) {
-    document.querySelector(`[data-app="${id}"]`)?.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+    const button = document.querySelector(`button.nav[data-app="${id}"]`);
+    if (button) { button.click(); return true; }
+    const target = document.querySelector(`[data-app="${id}"]`);
+    if (target) { target.dispatchEvent(new MouseEvent('click', {bubbles:true})); return true; }
+    return false;
   }
 
   function runMediaSearch() {
     clickApp('media');
     const q = 'trending videos India';
-    const finish = () => {
-      if (typeof window.jarvisVideoSearch === 'function') {
-        window.jarvisVideoSearch(q);
-        return true;
-      }
-      const input = document.querySelector('#videoQuery');
-      if (!input) return false;
-      input.value = q;
-      document.querySelector('#videoSearch')?.click();
-      return true;
-    };
     let tries = 0;
     const timer = setInterval(() => {
-      if (finish() || ++tries > 40) clearInterval(timer);
+      const input = document.querySelector('#videoQuery');
+      const visible = input && input.getClientRects().length > 0;
+      if (visible) {
+        input.value = q;
+        if (typeof window.jarvisVideoSearch === 'function') window.jarvisVideoSearch(q);
+        else document.querySelector('#videoSearch')?.click();
+        clearInterval(timer);
+      } else if (++tries > 50) {
+        clearInterval(timer);
+      }
     }, 100);
   }
 
