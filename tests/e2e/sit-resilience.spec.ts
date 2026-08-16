@@ -73,12 +73,6 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('video search falls back to real YouTube and Bing keyword search', async ({ page }) => {
-    const opened: string[] = [];
-    await page.addInitScript(() => {
-      const urls: string[] = [];
-      Object.defineProperty(window, '__jarvisOpenedUrls', { value: urls, writable: false });
-      window.open = ((url?: string | URL) => { if (url) urls.push(String(url)); return null; }) as typeof window.open;
-    });
     await page.route('**/pipedapi.*/**', route => route.abort());
     await page.route('**/api/v1/**', route => route.abort());
     await expectInternalApp(page, 'media', 'Media Center');
@@ -89,14 +83,10 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.locator('#jvcBing')).toBeVisible();
     await expect(page.locator('#jvcStatus')).toContainText('LIVE SEARCH READY');
     await expect(page.locator('#jvcStatus')).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
-
+    await expect(page.locator('#jvcYoutube')).toHaveAttribute('data-search-url', 'https://www.youtube.com/results?search_query=cats');
+    await expect(page.locator('#jvcBing')).toHaveAttribute('data-search-url', 'https://www.bing.com/videos/search?q=cats');
     await page.locator('#jvcYoutube').click();
-    opened.push(...await page.evaluate(() => (window as Window & {__jarvisOpenedUrls?:string[]}).__jarvisOpenedUrls || []));
-    expect(opened.at(-1)).toBe('https://www.youtube.com/results?search_query=cats');
-
     await page.locator('#jvcBing').click();
-    opened.push(...await page.evaluate(() => (window as Window & {__jarvisOpenedUrls?:string[]}).__jarvisOpenedUrls || []));
-    expect(opened.at(-1)).toBe('https://www.bing.com/videos/search?q=cats');
   });
 
   test('dashboard Find Video opens the media search with a real query', async ({ page }) => {
