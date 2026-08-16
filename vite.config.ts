@@ -2,36 +2,167 @@ import { defineConfig, type Plugin } from 'vite';
 
 const PIPED = ['https://pipedapi.kavin.rocks','https://pipedapi.adminforge.de','https://api.piped.yt','https://pipedapi.leptons.xyz'];
 const INVIDIOUS = ['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://invidious.tiekoetter.com'];
-let youtubeClientPromise: Promise<any> | null = null;
-async function getYoutubeClient(){if(!youtubeClientPromise)youtubeClientPromise=import('youtubei.js').then(({Innertube})=>Innertube.create({lang:'en',location:'IN'}));return youtubeClientPromise}
-const asText=(value:any)=>{if(value==null)return '';if(typeof value==='string'||typeof value==='number')return String(value);if(typeof value.text==='string')return value.text;if(typeof value.simpleText==='string')return value.simpleText;if(Array.isArray(value.runs))return value.runs.map((x:any)=>x.text||'').join('');return ''};
-const thumbnail=(video:any)=>{const list=[...(video?.thumbnails||[])];if(video?.best_thumbnail)list.unshift(video.best_thumbnail);return list.find((x:any)=>x?.url)?.url||''};
-function normalizeYoutubeVideo(video:any){const id=String(video?.id||video?.video_id||'');if(!/^[A-Za-z0-9_-]{11}$/.test(id))return null;const m=video?.metadata||{};return{id,title:asText(video?.title)||'YouTube video',author:asText(video?.author?.name||video?.author)||'YouTube',views:asText(m?.view_count||m?.view_count_text||video?.view_count),published:asText(video?.published||video?.published_text),duration:asText(video?.duration?.text||video?.duration),thumbnail:thumbnail(video)||`https://i.ytimg.com/vi/${id}/hqdefault.jpg`,source:'YOUTUBE'}}
-async function searchYoutube(query:string){const yt=await Promise.race([getYoutubeClient(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('YouTube client timeout')),7000))]);const result=await Promise.race([yt.search(query,{type:'video'}),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('YouTube search timeout')),7000))]);return(Array.isArray(result?.videos)?result.videos:[]).map(normalizeYoutubeVideo).filter(Boolean).slice(0,12)}
-async function searchPiped(base:string,query:string){const r=await fetch(`${base}/search?q=${encodeURIComponent(query)}&filter=videos&region=IN`,{headers:{accept:'application/json'},signal:AbortSignal.timeout(6000)});if(!r.ok)throw new Error(`Piped ${r.status}`);const d:any=await r.json();const items=Array.isArray(d)?d:(d.items||[]);return items.map((x:any)=>({id:String(x.videoId||''),title:String(x.title||'YouTube video'),author:String(x.uploaderName||x.uploader||x.author||'YouTube'),views:String(x.viewCount||x.views||''),published:String(x.uploadedDate||x.publishedText||''),duration:String(x.duration||''),thumbnail:String(x.thumbnail||x.videoThumbnails?.[0]?.url||''),source:'PIPED'})).filter((x:any)=>/^[A-Za-z0-9_-]{11}$/.test(x.id)).slice(0,12)}
-async function searchInvidious(base:string,query:string){const r=await fetch(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1&region=IN`,{headers:{accept:'application/json'},signal:AbortSignal.timeout(6000)});if(!r.ok)throw new Error(`Invidious ${r.status}`);const d:any=await r.json();return(Array.isArray(d)?d:[]).filter((x:any)=>x.type==='video'||x.videoId).map((x:any)=>({id:String(x.videoId||''),title:String(x.title||'YouTube video'),author:String(x.author||'YouTube'),views:String(x.viewCount||''),published:String(x.publishedText||''),duration:String(x.lengthSeconds||''),thumbnail:String(x.videoThumbnails?.find((t:any)=>t.quality==='medium')?.url||x.videoThumbnails?.[0]?.url||''),source:'INVIDIOUS'})).filter((x:any)=>/^[A-Za-z0-9_-]{11}$/.test(x.id)).slice(0,12)}
-function htmlDecode(value:string){return value.replace(/&quot;/g,'"').replace(/&#34;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')}
-function extractYoutubeId(url:string){try{const u=new URL(url);if(u.hostname==='youtu.be')return u.pathname.split('/').filter(Boolean)[0]||'';if(u.hostname.endsWith('youtube.com'))return u.searchParams.get('v')||u.pathname.split('/').filter(Boolean).pop()||''}catch{}return ''}
-async function searchBingVideos(query:string){const r=await fetch(`https://www.bing.com/videos/search?q=${encodeURIComponent(query)}&count=35&first=1&scope=video`,{headers:{accept:'text/html,application/xhtml+xml','user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36'},signal:AbortSignal.timeout(7000)});if(!r.ok)throw new Error(`Bing ${r.status}`);const html=await r.text();const out:any[]=[];for(const match of html.matchAll(/class=["']vrhdata["'][^>]*vrhm=["']([^"']+)["']/gi)){try{const meta=JSON.parse(htmlDecode(match[1]));const id=extractYoutubeId(String(meta.murl||''));if(!id||out.some(x=>x.id===id))continue;out.push({id,title:String(meta.vt||'YouTube video'),author:'YouTube',views:'',published:'',duration:String(meta.du||''),thumbnail:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`,source:'BING'})}catch{}}return out.slice(0,12)}
-async function serverVideoSearch(query:string){try{const direct=await searchYoutube(query);if(direct.length)return direct}catch{}const fallbacks=[...PIPED.map(base=>()=>searchPiped(base,query)),...INVIDIOUS.map(base=>()=>searchInvidious(base,query)),()=>searchBingVideos(query)];return new Promise<any[]>(resolve=>{let remaining=fallbacks.length,settled=false;for(const task of fallbacks)task().then(items=>{if(!settled&&items.length){settled=true;resolve(items)}else if(--remaining===0&&!settled)resolve([])}).catch(()=>{if(--remaining===0&&!settled)resolve([])})})}
-function mediaApiMiddleware(req:any,res:any,next:any){const url=new URL(req.url||'/','http://127.0.0.1');if(url.pathname!=='/api/jarvis/video-search')return next();const query=(url.searchParams.get('q')||'').trim();res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');if(!query){res.statusCode=400;res.end(JSON.stringify({error:'query_required',results:[]}));return}serverVideoSearch(query).then(results=>{res.statusCode=results.length?200:502;res.end(JSON.stringify({query,results,source:results[0]?.source||null}))}).catch(error=>{res.statusCode=502;res.end(JSON.stringify({query,results:[],error:String(error?.message||error)}))})}
 
-const mediaRuntime=`
+const validId = (id: unknown) => /^[A-Za-z0-9_-]{11}$/.test(String(id || ''));
+const text = (v: any) => {
+  if (v == null) return '';
+  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  if (typeof v.text === 'string') return v.text;
+  if (typeof v.simpleText === 'string') return v.simpleText;
+  if (Array.isArray(v.runs)) return v.runs.map((x: any) => x.text || '').join('');
+  return '';
+};
+
+function youtubeIdFromUrl(raw: string) {
+  try {
+    const u = new URL(raw);
+    if (u.hostname === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || '';
+    if (u.hostname.endsWith('youtube.com')) return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || '';
+  } catch {}
+  return '';
+}
+
+function normalize(v: any, source: string) {
+  const id = String(v?.id || v?.videoId || v?.video_id || '');
+  if (!validId(id)) return null;
+  return {
+    id,
+    title: text(v?.title) || String(v?.name || 'YouTube video'),
+    author: text(v?.author?.name || v?.author || v?.uploaderName || v?.uploader) || 'YouTube',
+    views: text(v?.viewCount || v?.view_count || v?.views),
+    published: text(v?.publishedText || v?.published || v?.uploadedDate),
+    duration: text(v?.duration?.text || v?.duration || v?.lengthSeconds),
+    thumbnail: String(v?.thumbnail || v?.thumb || v?.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
+    source
+  };
+}
+
+async function searchYoutubePage(query: string) {
+  const r = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
+    headers: {
+      accept: 'text/html,application/xhtml+xml',
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+    },
+    signal: AbortSignal.timeout(9000)
+  });
+  if (!r.ok) throw new Error(`YouTube web ${r.status}`);
+  const html = await r.text();
+  const out: any[] = [];
+  const seen = new Set<string>();
+  const idRe = /"videoId":"([A-Za-z0-9_-]{11})"/g;
+  for (const m of html.matchAll(idRe)) {
+    const id = m[1];
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const start = Math.max(0, (m.index || 0) - 1800);
+    const chunk = html.slice(start, Math.min(html.length, (m.index || 0) + 1800));
+    const titleMatch = chunk.match(/"title":\{"runs":\[\{"text":"((?:\\.|[^"\\])*)"/);
+    let title = 'YouTube result for ' + query;
+    try { if (titleMatch?.[1]) title = JSON.parse('"' + titleMatch[1] + '"'); } catch {}
+    out.push(normalize({ id, title, thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` }, 'YOUTUBE'));
+    if (out.length >= 12) break;
+  }
+  return out.filter(Boolean);
+}
+
+async function searchPiped(base: string, query: string) {
+  const r = await fetch(`${base}/search?q=${encodeURIComponent(query)}&filter=videos&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
+  if (!r.ok) throw new Error(`Piped ${r.status}`);
+  const d: any = await r.json();
+  const items = Array.isArray(d) ? d : (d.items || []);
+  return items.map((x: any) => normalize(x, 'PIPED')).filter(Boolean).slice(0, 12);
+}
+
+async function searchInvidious(base: string, query: string) {
+  const r = await fetch(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
+  if (!r.ok) throw new Error(`Invidious ${r.status}`);
+  const d: any = await r.json();
+  return (Array.isArray(d) ? d : []).filter((x: any) => x.type === 'video' || x.videoId).map((x: any) => normalize(x, 'INVIDIOUS')).filter(Boolean).slice(0, 12);
+}
+
+async function searchBingVideos(query: string) {
+  const r = await fetch(`https://www.bing.com/videos/search?q=${encodeURIComponent(query)}&count=35&first=1&scope=video`, {
+    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36' },
+    signal: AbortSignal.timeout(7000)
+  });
+  if (!r.ok) throw new Error(`Bing ${r.status}`);
+  const html = await r.text();
+  const out: any[] = [];
+  for (const m of html.matchAll(/(?:murl|mediaurl|contentUrl)[^:]*:\s*["'](https?:[^"']+youtube[^"']+)["']/gi)) {
+    const id = youtubeIdFromUrl(m[1]);
+    if (validId(id) && !out.some(x => x.id === id)) out.push(normalize({ id, title: `YouTube result for ${query}` }, 'BING'));
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+async function serverVideoSearch(query: string) {
+  const tasks = [
+    () => searchYoutubePage(query),
+    ...PIPED.map(base => () => searchPiped(base, query)),
+    ...INVIDIOUS.map(base => () => searchInvidious(base, query)),
+    () => searchBingVideos(query)
+  ];
+  return new Promise<any[]>(resolve => {
+    let remaining = tasks.length;
+    let done = false;
+    for (const task of tasks) {
+      task().then(items => {
+        if (!done && items.length) { done = true; resolve(items); return; }
+        if (--remaining === 0 && !done) resolve([]);
+      }).catch(() => { if (--remaining === 0 && !done) resolve([]); });
+    }
+  });
+}
+
+function mediaApiMiddleware(req: any, res: any, next: any) {
+  const url = new URL(req.url || '/', 'http://127.0.0.1');
+  if (url.pathname !== '/api/jarvis/video-search') return next();
+  const query = (url.searchParams.get('q') || '').trim();
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  if (!query) { res.statusCode = 400; res.end(JSON.stringify({ error: 'query_required', results: [] })); return; }
+  serverVideoSearch(query).then(results => {
+    res.statusCode = results.length ? 200 : 502;
+    res.end(JSON.stringify({ query, results, source: results[0]?.source || null }));
+  }).catch(error => {
+    res.statusCode = 502;
+    res.end(JSON.stringify({ query, results: [], error: String(error?.message || error) }));
+  });
+}
+
+const mediaRuntime = `
 async function setupMedia(){
  const input=document.querySelector<HTMLInputElement>('#videoQuery');const results=document.querySelector<HTMLElement>('#videoResults');const player=document.querySelector<HTMLElement>('#jarvisPlayer');const state=document.querySelector<HTMLElement>('#mediaState');if(!input||!results||!player||!state)return;
- const escMedia=(s:string)=>String(s??'').replace(/[&<>\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\"':'&quot;',"'":'&#39;'}[c]!));
- const videoId=(raw:string)=>{try{const u=new URL(raw);if(u.hostname==='youtu.be')return u.pathname.split('/').filter(Boolean)[0]||'';if(u.hostname.endsWith('youtube.com'))return u.searchParams.get('v')||u.pathname.split('/').filter(Boolean).pop()||''}catch{}return /^[A-Za-z0-9_-]{11}$/.test(raw)?raw:''};
- const fallbackSources=(q:string)=>['https://corsproxy.io/?url='+encodeURIComponent('https://inv.nadeko.net/api/v1/search?q='+encodeURIComponent(q)+'&type=video&page=1'),'https://api.allorigins.win/raw?url='+encodeURIComponent('https://pipedapi.adminforge.de/search?q='+encodeURIComponent(q)+'&filter=videos')];
- const normalize=(items:any[])=>items.map(v=>({id:String(v.id||v.videoId||''),title:String(v.title||'YouTube video'),author:String(v.author||v.uploader||v.uploaderName||'YouTube'),views:String(v.views||v.viewCount||''),published:String(v.published||v.publishedText||v.uploadedDate||''),duration:String(v.duration||v.lengthSeconds||''),thumbnail:String(v.thumbnail||v.thumb||v.videoThumbnails?.[0]?.url||'')})).filter(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
- const search=async(q:string)=>{try{const r=await fetch('/api/jarvis/video-search?q='+encodeURIComponent(q),{cache:'no-store'});if(r.ok){const d=await r.json();if(d.results?.length)return normalize(d.results)}}catch{}for(const url of fallbackSources(q)){try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)continue;const d=await r.json();const items=normalize(Array.isArray(d)?d:(d.items||[]));if(items.length)return items}catch{}}return []};
+ const esc=(s:string)=>String(s??'').replace(/[&<>\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\"':'&quot;',"'":'&#39;'}[c]!));
  const set=(s:string)=>{state.textContent=s;const j=document.querySelector('#jvcStatus');if(j)j.textContent=s};
- const play=(id:string,title='YouTube video')=>{if(!id)return;player.innerHTML='<iframe title="'+escMedia(title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id)+'?rel=0&playsinline=1"></iframe>';set('PLAYING · JARVIS PLAYER')};
- const render=(items:any[])=>{results.innerHTML=items.slice(0,8).map(v=>'<button class="jvc-card video-result" data-video-id="'+escMedia(v.id)+'"><img src="'+escMedia(v.thumbnail||('https://i.ytimg.com/vi/'+v.id+'/hqdefault.jpg'))+'" alt=""><span class="video-meta"><strong>'+escMedia(v.title)+'</strong><small>'+escMedia(v.author)+(v.views?' · '+escMedia(v.views):'')+'</small><small>'+escMedia(v.duration)+(v.published?' · '+escMedia(v.published):'')+'</small></span><b>▶</b></button>').join('');results.querySelectorAll<HTMLButtonElement>('.jvc-card').forEach(b=>b.onclick=()=>play(b.dataset.videoId||'',b.textContent||'YouTube video'))};
+ const play=(id:string,title='YouTube video')=>{if(!/^[A-Za-z0-9_-]{11}$/.test(id))return;player.innerHTML='<iframe title="'+esc(title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="https://www.youtube-nocookie.com/embed/'+id+'?rel=0&playsinline=1"></iframe>';set('PLAYING · JARVIS PLAYER')};
+ const normalize=(items:any[])=>items.map(v=>({id:String(v.id||v.videoId||''),title:String(v.title||'YouTube video'),author:String(v.author||v.uploader||'YouTube'),views:String(v.views||v.viewCount||''),published:String(v.published||v.publishedText||''),duration:String(v.duration||v.lengthSeconds||''),thumbnail:String(v.thumbnail||('https://i.ytimg.com/vi/'+v.id+'/hqdefault.jpg'))})).filter(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
+ const search=async(q:string)=>{try{const r=await fetch('/api/jarvis/video-search?q='+encodeURIComponent(q),{cache:'no-store'});if(r.ok){const d=await r.json();if(d.results?.length)return normalize(d.results)}}catch{}return[]};
+ const render=(items:any[])=>{results.innerHTML=items.slice(0,8).map(v=>'<button class="jvc-card video-result" data-video-id="'+esc(v.id)+'"><img src="'+esc(v.thumbnail)+'" alt=""><span class="video-meta"><strong>'+esc(v.title)+'</strong><small>'+esc(v.author)+(v.views?' · '+esc(v.views):'')+'</small><small>'+esc(v.duration)+(v.published?' · '+esc(v.published):'')+'</small></span><b>▶</b></button>').join('');results.querySelectorAll<HTMLButtonElement>('.jvc-card').forEach(b=>b.onclick=()=>play(b.dataset.videoId||'',b.querySelector('strong')?.textContent||'YouTube video'))};
  const run=async()=>{const q=input.value.trim();if(!q){set('READY · ENTER A VIDEO SEARCH TERM');return}set('SEARCHING · YOUTUBE');results.innerHTML='<div class="empty">JARVIS is searching YouTube…</div>';const items=await search(q);if(items.length){render(items);set('RESULTS · '+items.length+' · YOUTUBE')}else{results.innerHTML='<div class="video-context"><strong>NO VIDEO RESULTS</strong><p>JARVIS could not retrieve a live YouTube result for this query.</p></div>';set('NO VIDEO RESULTS')}};
- const fresh=document.querySelector('#videoSearch')?.cloneNode(true) as HTMLElement|null;if(fresh){document.querySelector('#videoSearch')?.replaceWith(fresh);fresh.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();void run()},true)}input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();void run()}},true);
+ const old=document.querySelector('#videoSearch');if(old){const b=old.cloneNode(true) as HTMLElement;old.replaceWith(b);b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();void run()},true)}
+ input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();void run()}},true);
  document.querySelectorAll<HTMLElement>('[data-video-provider]').forEach(old=>{const b=old.cloneNode(true) as HTMLElement;old.replaceWith(b);b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(b.dataset.videoProvider==='trending')input.value='trending videos India';void run()},true)});
- const playButton=document.querySelector('#playVideo');if(playButton){const freshPlay=playButton.cloneNode(true);playButton.replaceWith(freshPlay);freshPlay.addEventListener('click',e=>{e.preventDefault();const raw=(document.querySelector<HTMLInputElement>('#videoUrl')?.value||'').trim();const id=videoId(raw);if(id)play(id,'YouTube video')},true)}set('READY · YOUTUBE VIDEO SEARCH');
+ const p=document.querySelector('#playVideo');if(p){const b=p.cloneNode(true);p.replaceWith(b);b.addEventListener('click',e=>{e.preventDefault();const raw=(document.querySelector<HTMLInputElement>('#videoUrl')?.value||'').trim();try{const u=new URL(raw);const id=u.hostname==='youtu.be'?u.pathname.split('/').filter(Boolean)[0]:(u.searchParams.get('v')||'');play(id,'YouTube video')}catch{}})}
+ set('READY · YOUTUBE VIDEO SEARCH');
 }
 `;
-function mediaPlugin():Plugin{return{name:'jarvis-media-runtime',enforce:'pre',configureServer(server){server.middlewares.use(mediaApiMiddleware)},configurePreviewServer(server){server.middlewares.use(mediaApiMiddleware)},transform(code,id){if(!id.endsWith('/src/main.ts'))return null;const start=code.indexOf('async function setupMedia(){');const end=code.indexOf('\nasync function setupSettings',start);if(start<0||end<0)return null;return code.slice(0,start)+mediaRuntime+code.slice(end+1)}}}
-export default defineConfig({base:'./',plugins:[mediaPlugin()]});
+
+function mediaPlugin(): Plugin {
+  return {
+    name: 'jarvis-media-runtime',
+    enforce: 'pre',
+    configureServer(server) { server.middlewares.use(mediaApiMiddleware); },
+    configurePreviewServer(server) { server.middlewares.use(mediaApiMiddleware); },
+    transform(code, id) {
+      if (!id.endsWith('/src/main.ts')) return null;
+      const start = code.indexOf('async function setupMedia(){');
+      const end = code.indexOf('\nasync function setupSettings', start);
+      if (start < 0 || end < 0) return null;
+      return code.slice(0, start) + mediaRuntime + code.slice(end + 1);
+    }
+  };
+}
+
+export default defineConfig({ base: './', plugins: [mediaPlugin()] });
