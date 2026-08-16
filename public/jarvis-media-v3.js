@@ -1,9 +1,10 @@
 (() => {
   'use strict';
 
-  // JARVIS media is intentionally self-contained. A failed public index must never
-  // turn into a browser redirect. We search several public Piped/Invidious APIs,
-  // merge their successful responses, and keep playback inside the JARVIS shell.
+  // JARVIS media never redirects for search. The search pipeline is local-first:
+  // a same-origin provider can supply results immediately, then public indexes
+  // are queried in parallel. Every provider is optional and failures are isolated.
+  const LOCAL = '/api/v1/search';
   const PIPED = [
     'https://pipedapi.kavin.rocks',
     'https://pipedapi.tokhmi.xyz',
@@ -22,11 +23,11 @@
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  const esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;'
   }[c]));
 
-  const json = async (url, timeout = 3500) => {
+  const json = async (url, timeout = 2500) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
@@ -59,16 +60,23 @@
   };
 
   async function search(query) {
-    const tasks = [
-      ...PIPED.map(base => json(`${base}/search?q=${encodeURIComponent(query)}&filter=videos&region=IN`)
+    const q = encodeURIComponent(query);
+    const providers = [
+      // Same-origin is deliberately first. A production deployment can implement
+      // this endpoint as the JARVIS intelligence gateway, while static hosting
+      // simply falls through to public indexes. It also gives deterministic CI.
+      json(`${LOCAL}?q=${q}&filter=videos&region=IN`).then(data =>
+        (Array.isArray(data) ? data : data?.items || data?.results || [])
+          .map(v => normalize(v, 'JARVIS LOCAL')).filter(Boolean)),
+      ...PIPED.map(base => json(`${base}/search?q=${q}&filter=videos&region=IN`)
         .then(data => (Array.isArray(data) ? data : data?.items || [])
           .map(v => normalize(v, 'PIPED')).filter(Boolean))),
-      ...INVIDIOUS.map(base => json(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&region=IN&page=1`)
+      ...INVIDIOUS.map(base => json(`${base}/api/v1/search?q=${q}&type=video&region=IN&page=1`)
         .then(data => (Array.isArray(data) ? data : [])
           .map(v => normalize(v, 'INVIDIOUS')).filter(Boolean)))
     ];
 
-    const settled = await Promise.allSettled(tasks);
+    const settled = await Promise.allSettled(providers);
     const merged = [];
     const seen = new Set();
     for (const result of settled) {
@@ -153,12 +161,17 @@
         return;
       }
       status.textContent = 'SEARCHING · JARVIS VIDEO INDEX';
-      results.innerHTML = '<div class="jv3-status">Searching multiple public video indexes…</div>';
-      const items = await search(q);
-      draw(items);
-      status.textContent = items.length
-        ? `${items.length} RESULTS · STAYING INSIDE JARVIS`
-        : 'VIDEO INDEX DEGRADED · NO REDIRECT';
+      results.innerHTML = '<div class="jv3-status">Searching JARVIS local intelligence and public video indexes…</div>';
+      try {
+        const items = await search(q);
+        draw(items);
+        status.textContent = items.length
+          ? `${items.length} RESULTS · STAYING INSIDE JARVIS`
+          : 'VIDEO INDEX DEGRADED · NO REDIRECT';
+      } catch {
+        draw([]);
+        status.textContent = 'VIDEO INDEX DEGRADED · NO REDIRECT';
+      }
     };
 
     window.jarvisVideoSearch = run;
@@ -188,9 +201,6 @@
     };
   }
 
-  // Dashboard mission action: navigate internally, then seed the media query.
-  // This is deliberately delegated so it works whether the mission console is
-  // mounted before or after this media controller.
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest('.jmc-action') : null;
     if (!target) return;
