@@ -49,35 +49,15 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
 
   test('video search resolves keyword results and has a real player path', async ({ page }) => {
     const cors = { 'access-control-allow-origin': '*' };
-    await page.route('https://inv.nadeko.net/api/v1/search**', async route => {
-      await route.fulfill({
-        status: 200,
-        headers: cors,
-        contentType: 'application/json',
-        body: JSON.stringify([{
-          type: 'video',
-          title: 'SAP Cloud Integration Tutorial',
-          videoId: 'dQw4w9WgXcQ',
-          author: 'JARVIS Test Channel',
-          viewCount: 12345,
-          publishedText: 'today',
-          lengthSeconds: 212,
-          videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
-        }])
-      });
-    });
-    await page.route('https://inv.nadeko.net/api/v1/videos/dQw4w9WgXcQ**', async route => {
-      await route.fulfill({
-        status: 200,
-        headers: cors,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          videoId: 'dQw4w9WgXcQ',
-          videoThumbnails: [],
-          formatStreams: []
-        })
-      });
-    });
+    const result = {
+      type: 'video', title: 'SAP Cloud Integration Tutorial', videoId: 'dQw4w9WgXcQ',
+      author: 'JARVIS Test Channel', viewCount: 12345, publishedText: 'today', lengthSeconds: 212,
+      videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
+    };
+    await page.route('**/api/v1/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify([result]) }));
+    await page.route('**/api/v1/videos/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoId: 'dQw4w9WgXcQ', videoThumbnails: [], formatStreams: [] }) }));
+    await page.route('**/pipedapi.*/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ items: [result] }) }));
+    await page.route('**/pipedapi.*/streams/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoStreams: [] }) }));
 
     await expectInternalApp(page, 'media', 'Media Center');
     await expect(page.locator('#jvcStatus')).toBeVisible({ timeout: 3000 });
