@@ -2,135 +2,16 @@ import { defineConfig, type Plugin } from 'vite';
 
 const PIPED = ['https://pipedapi.kavin.rocks','https://pipedapi.adminforge.de','https://api.piped.yt','https://pipedapi.leptons.xyz'];
 const INVIDIOUS = ['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://invidious.tiekoetter.com'];
-
 const validId = (id: unknown) => /^[A-Za-z0-9_-]{11}$/.test(String(id || ''));
-const text = (v: any) => {
-  if (v == null) return '';
-  if (typeof v === 'string' || typeof v === 'number') return String(v);
-  if (typeof v.text === 'string') return v.text;
-  if (typeof v.simpleText === 'string') return v.simpleText;
-  if (Array.isArray(v.runs)) return v.runs.map((x: any) => x.text || '').join('');
-  return '';
-};
-
-function youtubeIdFromUrl(raw: string) {
-  try {
-    const u = new URL(raw);
-    if (u.hostname === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || '';
-    if (u.hostname.endsWith('youtube.com')) return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || '';
-  } catch {}
-  return '';
-}
-
-function normalize(v: any, source: string) {
-  const id = String(v?.id || v?.videoId || v?.video_id || '');
-  if (!validId(id)) return null;
-  return {
-    id,
-    title: text(v?.title) || String(v?.name || 'YouTube video'),
-    author: text(v?.author?.name || v?.author || v?.uploaderName || v?.uploader) || 'YouTube',
-    views: text(v?.viewCount || v?.view_count || v?.views),
-    published: text(v?.publishedText || v?.published || v?.uploadedDate),
-    duration: text(v?.duration?.text || v?.duration || v?.lengthSeconds),
-    thumbnail: String(v?.thumbnail || v?.thumb || v?.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
-    source
-  };
-}
-
-async function searchYoutubePage(query: string) {
-  const r = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
-    headers: {
-      accept: 'text/html,application/xhtml+xml',
-      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
-    },
-    signal: AbortSignal.timeout(9000)
-  });
-  if (!r.ok) throw new Error(`YouTube web ${r.status}`);
-  const html = await r.text();
-  const out: any[] = [];
-  const seen = new Set<string>();
-  const idRe = /"videoId":"([A-Za-z0-9_-]{11})"/g;
-  for (const m of html.matchAll(idRe)) {
-    const id = m[1];
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const start = Math.max(0, (m.index || 0) - 1800);
-    const chunk = html.slice(start, Math.min(html.length, (m.index || 0) + 1800));
-    const titleMatch = chunk.match(/"title":\{"runs":\[\{"text":"((?:\\.|[^"\\])*)"/);
-    let title = 'YouTube result for ' + query;
-    try { if (titleMatch?.[1]) title = JSON.parse('"' + titleMatch[1] + '"'); } catch {}
-    out.push(normalize({ id, title, thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` }, 'YOUTUBE'));
-    if (out.length >= 12) break;
-  }
-  return out.filter(Boolean);
-}
-
-async function searchPiped(base: string, query: string) {
-  const r = await fetch(`${base}/search?q=${encodeURIComponent(query)}&filter=videos&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
-  if (!r.ok) throw new Error(`Piped ${r.status}`);
-  const d: any = await r.json();
-  const items = Array.isArray(d) ? d : (d.items || []);
-  return items.map((x: any) => normalize(x, 'PIPED')).filter(Boolean).slice(0, 12);
-}
-
-async function searchInvidious(base: string, query: string) {
-  const r = await fetch(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
-  if (!r.ok) throw new Error(`Invidious ${r.status}`);
-  const d: any = await r.json();
-  return (Array.isArray(d) ? d : []).filter((x: any) => x.type === 'video' || x.videoId).map((x: any) => normalize(x, 'INVIDIOUS')).filter(Boolean).slice(0, 12);
-}
-
-async function searchBingVideos(query: string) {
-  const r = await fetch(`https://www.bing.com/videos/search?q=${encodeURIComponent(query)}&count=35&first=1&scope=video`, {
-    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36' },
-    signal: AbortSignal.timeout(7000)
-  });
-  if (!r.ok) throw new Error(`Bing ${r.status}`);
-  const html = await r.text();
-  const out: any[] = [];
-  for (const m of html.matchAll(/(?:murl|mediaurl|contentUrl)[^:]*:\s*["'](https?:[^"']+youtube[^"']+)["']/gi)) {
-    const id = youtubeIdFromUrl(m[1]);
-    if (validId(id) && !out.some(x => x.id === id)) out.push(normalize({ id, title: `YouTube result for ${query}` }, 'BING'));
-    if (out.length >= 12) break;
-  }
-  return out;
-}
-
-async function serverVideoSearch(query: string) {
-  const tasks = [
-    () => searchYoutubePage(query),
-    ...PIPED.map(base => () => searchPiped(base, query)),
-    ...INVIDIOUS.map(base => () => searchInvidious(base, query)),
-    () => searchBingVideos(query)
-  ];
-  return new Promise<any[]>(resolve => {
-    let remaining = tasks.length;
-    let done = false;
-    for (const task of tasks) {
-      task().then(items => {
-        if (!done && items.length) { done = true; resolve(items); return; }
-        if (--remaining === 0 && !done) resolve([]);
-      }).catch(() => { if (--remaining === 0 && !done) resolve([]); });
-    }
-  });
-}
-
-function mediaApiMiddleware(req: any, res: any, next: any) {
-  const url = new URL(req.url || '/', 'http://127.0.0.1');
-  if (url.pathname !== '/api/jarvis/video-search') return next();
-  const query = (url.searchParams.get('q') || '').trim();
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  if (!query) { res.statusCode = 400; res.end(JSON.stringify({ error: 'query_required', results: [] })); return; }
-  serverVideoSearch(query).then(results => {
-    res.statusCode = results.length ? 200 : 502;
-    res.end(JSON.stringify({ query, results, source: results[0]?.source || null }));
-  }).catch(error => {
-    res.statusCode = 502;
-    res.end(JSON.stringify({ query, results: [], error: String(error?.message || error) }));
-  });
-}
-
+const text = (v: any) => { if (v == null) return ''; if (typeof v === 'string' || typeof v === 'number') return String(v); if (typeof v.text === 'string') return v.text; if (typeof v.simpleText === 'string') return v.simpleText; if (Array.isArray(v.runs)) return v.runs.map((x: any) => x.text || '').join(''); return ''; };
+function youtubeIdFromUrl(raw: string) { try { const u = new URL(raw); if (u.hostname === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || ''; if (u.hostname.endsWith('youtube.com')) return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || ''; } catch {} return ''; }
+function normalize(v: any, source: string) { const id = String(v?.id || v?.videoId || v?.video_id || ''); if (!validId(id)) return null; return { id, title: text(v?.title) || String(v?.name || 'YouTube video'), author: text(v?.author?.name || v?.author || v?.uploaderName || v?.uploader) || 'YouTube', views: text(v?.viewCount || v?.view_count || v?.views), published: text(v?.publishedText || v?.published || v?.uploadedDate), duration: text(v?.duration?.text || v?.duration || v?.lengthSeconds), thumbnail: String(v?.thumbnail || v?.thumb || v?.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`), source }; }
+async function searchYoutubePage(query: string) { const r = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, { headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36' }, signal: AbortSignal.timeout(9000) }); if (!r.ok) throw new Error(`YouTube web ${r.status}`); const html = await r.text(); const out: any[] = []; const seen = new Set<string>(); for (const m of html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)) { const id = m[1]; if (seen.has(id)) continue; seen.add(id); out.push(normalize({ id, title: `YouTube result for ${query}` }, 'YOUTUBE')); if (out.length >= 12) break; } return out.filter(Boolean); }
+async function searchPiped(base: string, query: string) { const r = await fetch(`${base}/search?q=${encodeURIComponent(query)}&filter=videos&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) }); if (!r.ok) throw new Error(`Piped ${r.status}`); const d: any = await r.json(); return (Array.isArray(d) ? d : (d.items || [])).map((x: any) => normalize(x, 'PIPED')).filter(Boolean).slice(0, 12); }
+async function searchInvidious(base: string, query: string) { const r = await fetch(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1&region=IN`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(6000) }); if (!r.ok) throw new Error(`Invidious ${r.status}`); const d: any = await r.json(); return (Array.isArray(d) ? d : []).filter((x: any) => x.type === 'video' || x.videoId).map((x: any) => normalize(x, 'INVIDIOUS')).filter(Boolean).slice(0, 12); }
+async function searchBingWeb(query: string) { const r = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(`site:youtube.com/watch ${query}`)}&count=20`, { headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36' }, signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(`Bing web ${r.status}`); const html = await r.text(); const out: any[] = []; const seen = new Set<string>(); for (const m of html.matchAll(/https?:\\/\\/www\\.youtube\\.com\\/watch\\?v=([A-Za-z0-9_-]{11})/g)) { const id = m[1]; if (seen.has(id)) continue; seen.add(id); out.push(normalize({ id, title: `YouTube result for ${query}` }, 'BING')); if (out.length >= 12) break; } return out.filter(Boolean); }
+async function serverVideoSearch(query: string) { const tasks = [() => searchYoutubePage(query), ...PIPED.map(base => () => searchPiped(base, query)), ...INVIDIOUS.map(base => () => searchInvidious(base, query)), () => searchBingWeb(query)]; return new Promise<any[]>(resolve => { let remaining = tasks.length; let done = false; for (const task of tasks) task().then(items => { if (!done && items.length) { done = true; resolve(items); return; } if (--remaining === 0 && !done) resolve([]); }).catch(() => { if (--remaining === 0 && !done) resolve([]); }); }); }
+function mediaApiMiddleware(req: any, res: any, next: any) { const url = new URL(req.url || '/', 'http://127.0.0.1'); if (url.pathname !== '/api/jarvis/video-search') return next(); const query = (url.searchParams.get('q') || '').trim(); res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); if (!query) { res.statusCode = 400; res.end(JSON.stringify({ error: 'query_required', results: [] })); return; } serverVideoSearch(query).then(results => { res.statusCode = results.length ? 200 : 502; res.end(JSON.stringify({ query, results, source: results[0]?.source || null })); }).catch(error => { res.statusCode = 502; res.end(JSON.stringify({ query, results: [], error: String(error?.message || error) })); }); }
 const mediaRuntime = `
 async function setupMedia(){
  const input=document.querySelector<HTMLInputElement>('#videoQuery');const results=document.querySelector<HTMLElement>('#videoResults');const player=document.querySelector<HTMLElement>('#jarvisPlayer');const state=document.querySelector<HTMLElement>('#mediaState');if(!input||!results||!player||!state)return;
@@ -148,21 +29,5 @@ async function setupMedia(){
  set('READY · YOUTUBE VIDEO SEARCH');
 }
 `;
-
-function mediaPlugin(): Plugin {
-  return {
-    name: 'jarvis-media-runtime',
-    enforce: 'pre',
-    configureServer(server) { server.middlewares.use(mediaApiMiddleware); },
-    configurePreviewServer(server) { server.middlewares.use(mediaApiMiddleware); },
-    transform(code, id) {
-      if (!id.endsWith('/src/main.ts')) return null;
-      const start = code.indexOf('async function setupMedia(){');
-      const end = code.indexOf('\nasync function setupSettings', start);
-      if (start < 0 || end < 0) return null;
-      return code.slice(0, start) + mediaRuntime + code.slice(end + 1);
-    }
-  };
-}
-
+function mediaPlugin(): Plugin { return { name: 'jarvis-media-runtime', enforce: 'pre', configureServer(server) { server.middlewares.use(mediaApiMiddleware); }, configurePreviewServer(server) { server.middlewares.use(mediaApiMiddleware); }, transform(code, id) { if (!id.endsWith('/src/main.ts')) return null; const start = code.indexOf('async function setupMedia(){'); const end = code.indexOf('\nasync function setupSettings', start); if (start < 0 || end < 0) return null; return code.slice(0, start) + mediaRuntime + code.slice(end + 1); } }; }
 export default defineConfig({ base: './', plugins: [mediaPlugin()] });
