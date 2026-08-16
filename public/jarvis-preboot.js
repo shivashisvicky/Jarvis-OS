@@ -2,9 +2,8 @@
   'use strict';
   const nativeSetInterval = window.setInterval.bind(window);
   window.setInterval = function(fn, delay, ...args) {
-    const source = typeof fn === 'function' ? Function.prototype.toString.call(fn) : String(fn);
-    if (delay === 15000 && /active\s*===\s*['"]home['"]/.test(source) && /render\s*\(/.test(source)) {
-      console.info('[JARVIS:stability] blocked periodic home render to prevent operation interruption');
+    if (delay === 15000) {
+      console.info('[JARVIS:stability] blocked 15-second refresh timer');
       return 0;
     }
     return nativeSetInterval(fn, delay, ...args);
