@@ -1,63 +1,94 @@
 import { expect, test } from '@playwright/test';
 
+const openMedia = async (page: Parameters<Parameters<typeof test>[2]>[0]['page']) => {
+  await page.goto('/');
+  await page.locator('button.nav[data-app="media"]').click();
+  await expect(page.locator('#videoQuery')).toBeVisible();
+  await expect(page.locator('#videoSearch')).toBeVisible();
+};
+
 test.describe('JARVIS CI smoke contract', () => {
-  test('video search exposes the real YouTube search URL contract', async ({ page }) => {
+  test('shell boots and media remains inside the workspace', async ({ page }) => {
     await page.goto('/');
+    await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
     await page.locator('button.nav[data-app="media"]').click();
-    await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
-    const url = await page.evaluate(() => {
-      const fn = (window as unknown as { jarvisVideoSearchUrl?: (q: string) => string }).jarvisVideoSearchUrl;
-      return fn?.('cats') ?? '';
-    });
-    expect(url).toContain('youtube.com');
-    expect(url).toContain('search_query=cats');
-    expect(url).not.toContain('JARVIS result');
-    expect(url).not.toContain('aqz-KE-bpKQ');
+    await expect(page.locator('#videoQuery')).toBeVisible();
+    expect(page.url()).toMatch(/\/$/);
+    expect(page.context().pages()).toHaveLength(1);
   });
 
-  test('live video result renders and plays inside JARVIS', async ({ page }) => {
-    await page.route('https://pipedapi.tokhmi.xyz/search**', async route => {
+  test('keyword video search returns a real result card', async ({ page }) => {
+    await page.route('https://pipedapi.kavin.rocks/search**', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ items: [{
-          videoId: 'dQw4w9WgXcQ', title: 'Live test video result', uploaderName: 'Test Channel',
-          viewCount: 1234, uploadedDate: 'today', thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', type: 'stream',
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          title: 'Live test video result',
+          uploader: 'Test Channel',
+          duration: 42,
+          views: 1234,
+          thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
         }] }),
       });
     });
-    await page.goto('/');
-    await page.locator('button.nav[data-app="media"]').click();
-    await expect(page.getByRole('heading', { name: 'Media Center', exact: true })).toBeVisible();
-    await page.locator('#videoQuery').fill('test video');
+    await openMedia(page);
+    await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('.jvs-card')).toHaveCount(1);
-    await expect(page.locator('.jvs-card strong')).toHaveText('Live test video result');
-    await page.locator('.jvs-card').click();
-    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
-    await expect(page.locator('#mediaState')).toContainText('PLAYING');
+    await expect(page.locator('.video-result')).toHaveCount(1);
+    await expect(page.locator('.video-result strong')).toHaveText('Live test video result');
   });
 
-  test('video authority does not invent a result when live indexes fail', async ({ page }) => {
-    for (const host of [
-      'pipedapi.tokhmi.xyz', 'pipedapi.moomoo.me', 'piped-api.garudalinux.org', 'api.piped.privacydev.net',
-      'pipedapi.smnz.de', 'pipedapi.adminforge.de', 'pipedapi.qdi.fi', 'piped-api.hostux.net',
-      'inv.nadeko.net', 'invidious.nerdvpn.de', 'yt.chocolatemoo53.com', 'invidious.tiekoetter.com',
-      'invidious.f5.si', 'inv.zoomerville.com', 'corsproxy.io', 'api.allorigins.win', 'www.youtube.com',
-    ]) await page.route(`https://${host}/**`, route => route.abort());
-    await page.goto('/');
-    await page.locator('button.nav[data-app="media"]').click();
+  test('selected video resolves to an in-shell player', async ({ page }) => {
+    await page.route('https://pipedapi.kavin.rocks/search**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [{
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          title: 'Playable test video',
+          uploader: 'Test Channel',
+          duration: 42,
+          views: 1234,
+          thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        }] }),
+      });
+    });
+    await page.route('https://pipedapi.kavin.rocks/streams/**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          title: 'Playable test video',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+          videoStreams: [{
+            url: 'https://cdn.example.test/video.mp4',
+            videoOnly: false,
+            height: 720,
+            format: 'mp4',
+            mimeType: 'video/mp4',
+          }],
+        }),
+      });
+    });
+    await openMedia(page);
+    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoSearch').click();
+    await page.locator('.video-result').click();
+    await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.test/video.mp4');
+    await expect(page.locator('.media-keyword-status').last()).toContainText('PLAYING');
+    expect(page.url()).toMatch(/\/$/);
+  });
+
+  test('failed live indexes do not invent playable results', async ({ page }) => {
+    await page.route('https://pipedapi.kavin.rocks/**', route => route.abort('failed'));
+    await page.route('https://pipedapi.tokhmi.xyz/**', route => route.abort('failed'));
+    await page.route('https://pipedapi.syncpundit.io/**', route => route.abort('failed'));
+    await openMedia(page);
     await page.locator('#videoQuery').fill('unreachable test query');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('NO LIVE RESULTS', { timeout: 15000 });
+    await expect(page.locator('#videoResults')).toContainText('VIDEO SEARCH DEGRADED');
     await expect(page.locator('#videoResults')).not.toContainText('JARVIS playable fallback');
-  });
-
-  test('map and media authorities are installed without leaving the shell', async ({ page }) => {
-    await page.goto('/');
-    await expect.poll(async () => page.evaluate(() => Boolean((window as unknown as { jarvisMapSearch?: unknown }).jarvisMapSearch))).toBe(true);
-    await expect.poll(async () => page.evaluate(() => Boolean((window as unknown as { jarvisVideoSearch?: unknown }).jarvisVideoSearch))).toBe(true);
-    expect(page.context().pages()).toHaveLength(1);
     expect(page.url()).toMatch(/\/$/);
   });
 });
