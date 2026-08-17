@@ -1,7 +1,7 @@
 /* JARVIS Media Center presentation layer.
    Keep the existing media DOM/runtime intact and change only visual flow:
    search -> results -> player -> URL playback controls. */
-.media-workspace.media-flow-v2 {
+.media-workspace {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
   gap: 10px !important;
@@ -9,31 +9,31 @@
   margin-left: auto !important;
   margin-right: auto !important;
 }
-.media-workspace.media-flow-v2 > .media-main,
-.media-workspace.media-flow-v2 > .media-side {
+.media-workspace > .media-main,
+.media-workspace > .media-side {
   display: contents !important;
 }
-.media-workspace.media-flow-v2 > .media-main > .search-bar {
+.media-workspace > .media-main > .search-bar {
   grid-row: 1;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(7,16,22,.76);
 }
-.media-workspace.media-flow-v2 > .media-main > .media-search-links {
+.media-workspace > .media-main > .media-search-links {
   grid-row: 2;
   display: flex;
   gap: 6px;
   margin: -3px 0 0;
 }
-.media-workspace.media-flow-v2 > .media-side > .panel-head {
+.media-workspace > .media-side > .panel-head {
   grid-row: 3;
   padding: 13px 14px;
   border: 1px solid var(--line);
   border-radius: 10px 10px 0 0;
   background: rgba(7,16,22,.94);
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults {
+.media-workspace > .media-side > #videoResults {
   grid-row: 4;
   min-height: 120px;
   max-height: 420px;
@@ -43,13 +43,13 @@
   border-radius: 0 0 10px 10px;
   background: rgba(7,16,22,.76);
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-results {
+.media-workspace > .media-side > #videoResults .video-results {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card {
+.media-workspace > .media-side > #videoResults .jvc-card {
   min-width: 0;
   width: 100%;
   display: grid;
@@ -64,32 +64,32 @@
   color: var(--text);
   cursor: pointer;
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card:hover {
+.media-workspace > .media-side > #videoResults .jvc-card:hover {
   border-color: var(--line-strong);
   background: rgba(100,220,255,.045);
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card img {
+.media-workspace > .media-side > #videoResults .jvc-card img {
   width: 112px;
   height: 63px;
   object-fit: cover;
   border-radius: 6px;
   background: #020508;
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-meta {
+.media-workspace > .media-side > #videoResults .video-meta {
   min-width: 0;
   display: grid;
   gap: 4px;
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-meta strong,
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-meta small {
+.media-workspace > .media-side > #videoResults .video-meta strong,
+.media-workspace > .media-side > #videoResults .video-meta small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-meta strong { font-size: 9px; }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .video-meta small { font-size: 7px; color: #59737c; }
-.media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card > b { color: var(--cyan); font-size: 13px; }
-.media-workspace.media-flow-v2 > .media-main > #jarvisPlayer {
+.media-workspace > .media-side > #videoResults .video-meta strong { font-size: 9px; }
+.media-workspace > .media-side > #videoResults .video-meta small { font-size: 7px; color: #59737c; }
+.media-workspace > .media-side > #videoResults .jvc-card > b { color: var(--cyan); font-size: 13px; }
+.media-workspace > .media-main > #jarvisPlayer {
   grid-row: 5;
   width: 100%;
   padding: 13px;
@@ -98,20 +98,20 @@
   background: linear-gradient(180deg, rgba(9,22,29,.92), rgba(4,10,14,.94));
   box-shadow: var(--shadow);
 }
-.media-workspace.media-flow-v2 > .media-main > #jarvisPlayer .player {
+.media-workspace > .media-main > #jarvisPlayer .player {
   width: 100%;
   min-height: 0;
   aspect-ratio: 16 / 9;
 }
-.media-workspace.media-flow-v2 > .media-main > .request-line {
+.media-workspace > .media-main > .request-line {
   grid-row: 6;
   padding: 0 13px 13px;
   margin-top: -10px;
 }
 @media (max-width: 760px) {
-  .media-workspace.media-flow-v2 > .media-side > #videoResults { max-height: 360px; }
-  .media-workspace.media-flow-v2 > .media-side > #videoResults .video-results { grid-template-columns: 1fr; }
-  .media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card { grid-template-columns: 96px minmax(0,1fr) auto; }
-  .media-workspace.media-flow-v2 > .media-side > #videoResults .jvc-card img { width: 96px; height: 54px; }
-  .media-workspace.media-flow-v2 > .media-main > #jarvisPlayer { padding: 8px; }
+  .media-workspace > .media-side > #videoResults { max-height: 360px; }
+  .media-workspace > .media-side > #videoResults .video-results { grid-template-columns: 1fr; }
+  .media-workspace > .media-side > #videoResults .jvc-card { grid-template-columns: 96px minmax(0,1fr) auto; }
+  .media-workspace > .media-side > #videoResults .jvc-card img { width: 96px; height: 54px; }
+  .media-workspace > .media-main > #jarvisPlayer { padding: 8px; }
 }
