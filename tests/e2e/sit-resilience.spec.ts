@@ -48,17 +48,6 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('video search resolves keyword results and has a real player path', async ({ page }) => {
-    const cors = { 'access-control-allow-origin': '*' };
-    const result = {
-      type: 'video', title: 'SAP Cloud Integration Tutorial', videoId: 'dQw4w9WgXcQ',
-      author: 'JARVIS Test Channel', viewCount: 12345, publishedText: 'today', lengthSeconds: 212,
-      videoThumbnails: [{ quality: 'medium', url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', width: 480, height: 360 }]
-    };
-    await page.route('**/api/v1/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify([result]) }));
-    await page.route('**/api/v1/videos/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoId: 'dQw4w9WgXcQ', videoThumbnails: [], formatStreams: [] }) }));
-    await page.route('**/pipedapi.*/search*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ items: [result] }) }));
-    await page.route('**/pipedapi.*/streams/dQw4w9WgXcQ*', async route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ videoStreams: [] }) }));
-
     await expectInternalApp(page, 'media', 'Media Center');
     await expect(page.locator('#mediaState, #jvcStatus').first()).toBeVisible({ timeout: 3000 });
     await page.locator('#videoQuery').fill('SAP CPI tutorial');
@@ -66,10 +55,21 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.getByText('SAP Cloud Integration Tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('RESULTS');
     await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1);
+    await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
 
     await page.locator('#videoResults .jvc-card').click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /dQw4w9WgXcQ/);
     await expect(page.locator('#mediaState, #jvcStatus').first()).not.toContainText(/DEGRADED|INDEX UNAVAILABLE|NO REDIRECT/i);
+    expect(page.context().pages().length).toBe(1);
+  });
+
+  test('pasted mobile YouTube URL resolves to the same internal player resource', async ({ page }) => {
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoUrl').fill('https://m.youtube.com/watch?v=limjpmSRrdE&si=1t1qckOxWZmxUGmZ');
+    await page.locator('#playVideo').click();
+    await expect(page.locator('#jarvisPlayer iframe')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /limjpmSRrdE/);
     expect(page.context().pages().length).toBe(1);
   });
 
@@ -99,6 +99,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.locator('#videoQuery')).toHaveValue('trending videos India');
     await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE INDEX');
+    await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
     await page.locator('#videoResults .jvc-card').first().click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     expect(page.context().pages().length).toBe(1);
