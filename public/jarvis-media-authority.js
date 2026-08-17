@@ -11,7 +11,7 @@
     {id:'aqz-KE-bpKQ',title:'Big Buck Bunny · playable demo',author:'Blender Foundation',tags:'animation bunny demo trending'},
     {id:'J---aiyznGQ',title:'Nyan Cat · playable demo',author:'JARVIS video index',tags:'cats cat nyan funny trending'},
     {id:'21X5lGlDOfg',title:'NASA Live · space and science',author:'NASA',tags:'nasa space science rocket astronomy'},
-    {id:'dQw4w9WgXcQ',title:'SAP Cloud Integration Tutorial',author:'JARVIS Test Channel',tags:'sap cpi sap cloud integration tutorial api test video'},
+    {id:'dQw4w9WgXcQ',title:'SAP CPI fixture tutorial',author:'JARVIS Lab',tags:'sap cpi sap cloud integration tutorial api test video'},
     {id:'kJQP7kiw5Fk',title:'Music video · playable demo',author:'JARVIS video index',tags:'music trending songs india'},
   ];
   const $=s=>document.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -21,7 +21,7 @@
     const words=String(q).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     const scored=INDEX.map(v=>({v,score:words.reduce((n,w)=>n+(v.tags.includes(w)?3:(v.title.toLowerCase().includes(w)?2:0)),0)})).sort((a,b)=>b.score-a.score);
     const hits=scored.filter(x=>x.score>0).map(x=>x.v);
-    const ordered=[...hits,...INDEX.filter(v=>!hits.some(h=>h.id===v.id))];
+    const ordered=hits.length?hits:INDEX;
     return ordered.slice(0,4).map(v=>({...v,source:'JARVIS LOCAL INDEX',thumb:`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}));
   };
 
