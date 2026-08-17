@@ -20,7 +20,11 @@
     results.innerHTML=`<button class="place-result" type="button"><strong>${esc(alias.name)}</strong><small>${esc(alias.detail)}</small><small>JARVIS local geo alias · Bhubaneswar</small></button>`;
     frame.innerHTML=`<iframe title="${esc(alias.name)} map" loading="lazy" src="${embed(alias.lat,alias.lon)}"></iframe>`;
   };
-  const run=()=>reconcile();
+  const run=()=>{
+    const q=document.querySelector('#mapQuery')?.value?.trim()||'';
+    if(resolve(q)) reconcile();
+    else if(window.jarvisMapSearch) void window.jarvisMapSearch(q);
+  };
   const bind=()=>{
     const button=document.querySelector('#mapSearch');if(!button||button.dataset.jarvisMapBound==='1')return;
     setTimeout(()=>{
