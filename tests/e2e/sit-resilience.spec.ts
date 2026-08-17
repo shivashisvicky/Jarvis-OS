@@ -52,7 +52,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.locator('#mediaState, #jvcStatus').first()).toBeVisible({ timeout: 3000 });
     await page.locator('#videoQuery').fill('SAP CPI tutorial');
     await page.locator('#videoSearch').click();
-    await expect(page.getByText('SAP Cloud Integration Tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText('SAP CPI fixture tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('RESULTS');
     await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1);
     await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
