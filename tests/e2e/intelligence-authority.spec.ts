@@ -30,8 +30,8 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await expect(page.locator('.jv4-video-card').first()).toContainText('Dogs training live result');
     const dogs = await page.locator('.jv4-video-card').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-jv4-video')));
     expect(dogs).not.toEqual(cats);
-    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026','all'))).toBe('https://m.youtube.com/results?search_query=India%202026');
-    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats','shorts'))).toBe('https://m.youtube.com/results?search_query=Cats');
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026','all'))).toBe('https://www.youtube.com/results?search_query=India%202026');
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats','shorts'))).toBe('https://www.youtube.com/results?search_query=Cats');
     expect(page.context().pages()).toHaveLength(1);
   });
 
