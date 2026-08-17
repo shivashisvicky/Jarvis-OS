@@ -1,159 +1,34 @@
-(() => {
+(()=>{
   'use strict';
+  if(window.__JARVIS_MEDIA_FINAL_V7__) return;
+  window.__JARVIS_MEDIA_FINAL_V7__=1;
 
-  const INVIDIOUS = [
-    'https://inv.nadeko.net',
-    'https://invidious.nerdvpn.de',
-    'https://yt.chocolatemoo53.com',
-    'https://invidious.tiekoetter.com',
-    'https://invidious.f5.si',
-  ];
-  const PIPED = [
-    'https://pipedapi.kavin.rocks',
-    'https://pipedapi.leptons.xyz',
-    'https://pipedapi.adminforge.de',
-    'https://api.piped.yt',
-    'https://pipedapi.tokhmi.xyz',
-    'https://pipedapi.moomoo.me',
-    'https://pipedapi.syncpundit.io',
-    'https://api-piped.mha.fi',
-  ];
-  const CORS_PROXIES = [
-    target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
-    target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
-  ];
-  const REQUEST_TIMEOUT = 6500;
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const findId = v => String(v?.videoId || String(v?.url || '').match(/[?&]v=([^&]+)/)?.[1] || '');
-
-  const fetchJson = async (url, proxy = false) => {
-    const target = proxy ? url : url;
-    const response = await Promise.race([
-      fetch(target, { headers: { Accept: 'application/json' }, cache: 'no-store', mode: 'cors' }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), REQUEST_TIMEOUT)),
-    ]);
-    if (!response.ok) throw new Error(String(response.status));
-    return response.json();
-  };
-
-  async function json(url) {
-    try {
-      return await fetchJson(url);
-    } catch {
-      for (const makeProxy of CORS_PROXIES) {
-        try { return await fetchJson(makeProxy(url), true); } catch {}
-      }
-      throw new Error('all transports failed');
-    }
-  }
-
-  const normalize = items => (Array.isArray(items) ? items : []).map(v => ({
-    id: findId(v),
-    title: v.title || 'Untitled video',
-    author: v.author || v.uploader || v.uploaderName || 'Unknown channel',
-    views: Number(v.viewCount ?? v.views ?? 0),
-    published: v.publishedText || v.uploadedDate || '',
-    thumb: v.videoThumbnails?.find(x => x.quality === 'medium')?.url || v.videoThumbnails?.[0]?.url || v.thumbnail || '',
-  })).filter(v => v.id);
-
-  async function searchInvidious(base, q) {
-    const d = await json(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&page=1`);
-    return normalize(d.filter?.(v => v.type === 'video' || v.videoId) || d);
-  }
-
-  async function searchPiped(base, q) {
-    const d = await json(`${base}/search?q=${encodeURIComponent(q)}&filter=videos`);
-    return normalize(Array.isArray(d) ? d : d.items);
-  }
-
-  async function firstSuccessful(tasks) {
-    return new Promise(resolve => {
-      let remaining = tasks.length;
-      if (!remaining) return resolve([]);
-      let done = false;
-      tasks.forEach(task => Promise.resolve().then(task).then(items => {
-        if (!done && items?.length) { done = true; resolve(items); return; }
-        if (--remaining === 0 && !done) resolve([]);
-      }).catch(() => {
-        if (--remaining === 0 && !done) resolve([]);
-      }));
-    });
-  }
-
-  async function search(q) {
-    return firstSuccessful([
-      ...INVIDIOUS.map(base => () => searchInvidious(base, q)),
-      ...PIPED.map(base => () => searchPiped(base, q)),
-    ]);
-  }
-
-  const youtubeUrl = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-  const bingUrl = q => `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}`;
-
-  function install() {
-    const input = document.querySelector('#videoQuery');
-    const button = document.querySelector('#videoSearch');
-    const results = document.querySelector('#videoResults');
-    const player = document.querySelector('#jarvisPlayer');
-    if (!input || !button || !results || !player || button.dataset.finalMedia === '3') return;
-    button.dataset.finalMedia = '3';
-
-    let status = document.querySelector('#jvcStatus');
-    if (!status) {
-      status = document.createElement('div');
-      status.id = 'jvcStatus';
-      status.className = 'jvc-status';
-      results.parentElement.insertBefore(status, results);
-    }
-    const set = s => {
-      status.textContent = s;
-      const ms = document.querySelector('#mediaState');
-      if (ms) ms.textContent = s.split('·')[0].trim();
-    };
-    const play = id => {
-      player.innerHTML = `<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1"></iframe>`;
-      set('PLAYING · JARVIS PLAYER');
-    };
-    const render = items => {
-      results.innerHTML = items.slice(0, 8).map(v => `<button class="jvc-card" data-id="${esc(v.id)}"><img src="${esc(v.thumb)}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.views ? ' · ' + v.views.toLocaleString() + ' views' : ''}</small><small>${esc(v.published)}</small></span><b>▶</b></button>`).join('');
-      results.querySelectorAll('.jvc-card').forEach(b => b.addEventListener('click', () => play(b.dataset.id)));
-    };
-    const liveFallback = q => {
-      results.innerHTML = `<div class="video-context jvc-live-fallback"><strong>LIVE SEARCH READY · CHOOSE A SEARCH ENGINE</strong><p>JARVIS could not reach a public video index. Use a live provider search without losing your JARVIS session.</p><div class="jvc-provider-actions"><button id="jvcYoutube" type="button">YOUTUBE SEARCH</button><button id="jvcBing" type="button">BING VIDEO SEARCH</button></div></div>`;
-      results.querySelector('#jvcYoutube').onclick = () => window.open(youtubeUrl(q), '_blank', 'noopener,noreferrer');
-      results.querySelector('#jvcBing').onclick = () => window.open(bingUrl(q), '_blank', 'noopener,noreferrer');
-      set('LIVE SEARCH READY · CHOOSE A SEARCH ENGINE');
-    };
-    const run = async () => {
-      const q = input.value.trim();
-      if (!q) { set('READY · ENTER A VIDEO SEARCH TERM'); return; }
-      set('SEARCHING · MULTI-SOURCE VIDEO INDEX');
-      results.innerHTML = '<div class="empty">JARVIS is searching multiple video sources…</div>';
-      const items = await search(q);
-      if (items.length) { render(items); set(`RESULTS · ${items.length} · JARVIS`); }
-      else liveFallback(q);
-    };
-
-    const fresh = button.cloneNode(true);
-    button.replaceWith(fresh);
-    fresh.dataset.finalMedia = '3';
-    fresh.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); void run(); }, true);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); void run(); }
-    }, true);
-    document.querySelectorAll('[data-video-provider]').forEach(x => {
-      const b = x.cloneNode(true);
-      x.replaceWith(b);
-      b.addEventListener('click', e => {
-        e.preventDefault(); e.stopImmediatePropagation();
-        if (b.dataset.videoProvider === 'trending') input.value = 'trending videos India';
-        void run();
-      }, true);
-    });
-    set('READY · MULTI-SOURCE VIDEO SEARCH');
-  }
-
-  const observer = new MutationObserver(() => install());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  install();
+  const INVIDIOUS=['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yt.chocolatemoo53.com','https://invidious.tiekoetter.com','https://invidious.f5.si','https://inv.zoomerville.com'];
+  const PIPED=['https://pipedapi.kavin.rocks','https://pipedapi.leptons.xyz','https://pipedapi.adminforge.de','https://api.piped.yt','https://pipedapi.tokhmi.xyz','https://pipedapi.moomoo.me','https://pipedapi.syncpundit.io','https://api-piped.mha.fi'];
+  const PROXIES=[u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];
+  const TIMEOUT=6500;
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const videoId=raw=>{try{const u=new URL(raw);if(u.hostname.includes('youtu.be'))return u.pathname.split('/').filter(Boolean)[0]||'';if(u.hostname.includes('youtube.com'))return u.searchParams.get('v')||''}catch{}return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():''};
+  async function fetchJson(url,timeout=TIMEOUT){const c=new AbortController(),t=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{cache:'no-store',mode:'cors',headers:{Accept:'application/json'},signal:c.signal});if(!r.ok)throw Error(String(r.status));return await r.json()}finally{clearTimeout(t)}}
+  async function getJson(url){try{return await fetchJson(url)}catch{for(const proxy of PROXIES){try{return await fetchJson(proxy(url))}catch{}}throw Error('all transports failed')}}
+  const normalize=(items,source)=>(Array.isArray(items)?items:[]).map(v=>({id:String(v.videoId||v.id||videoId(v.url||'')),title:String(v.title||'Untitled video'),author:String(v.author||v.uploader||v.uploaderName||v.channelName||'Unknown channel'),views:Number(v.viewCount??v.views??0),published:String(v.publishedText||v.uploadedDate||''),thumb:String(v.videoThumbnails?.find(x=>x.quality==='medium')?.url||v.videoThumbnails?.[0]?.url||v.thumbnail||''),source,stream:String(v.stream||v.videoUrl||'')})).filter(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
+  async function invidiousSearch(base,q){return normalize(await getJson(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&page=1&sort_by=relevance`),'INVIDIOUS')}
+  async function pipedSearch(base,q){const d=await getJson(`${base}/search?q=${encodeURIComponent(q)}&filter=videos&region=IN`);return normalize(Array.isArray(d)?d:d?.items,'PIPED')}
+  async function invidiousTrending(base){return normalize(await getJson(`${base}/api/v1/trending?region=IN&type=default`),'INVIDIOUS TRENDING')}
+  async function pipedTrending(base){const d=await getJson(`${base}/trending?region=IN`);return normalize(Array.isArray(d)?d:d?.items,'PIPED TRENDING')}
+  async function firstUseful(tasks){return new Promise(resolve=>{let left=tasks.length,done=false;if(!left)return resolve([]);tasks.forEach(task=>Promise.resolve().then(task).then(items=>{if(!done&&items?.length){done=true;resolve(items)}else if(--left===0&&!done)resolve([])}).catch(()=>{if(--left===0&&!done)resolve([])}))})}
+  async function liveSearch(q){return firstUseful([...INVIDIOUS.map(b=>()=>invidiousSearch(b,q)),...PIPED.map(b=>()=>pipedSearch(b,q))])}
+  async function liveTrending(){return firstUseful([...INVIDIOUS.map(invidiousTrending),...PIPED.map(pipedTrending)])}
+  function parseYouTube(html,q){const ids=[...new Set([...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map(m=>m[1]))].slice(0,12);return ids.map((id,i)=>({id,title:`${q} · JARVIS result ${i+1}`,author:'YouTube',published:'LIVE SEARCH',thumb:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`,source:'YOUTUBE SEARCH PROXY',views:0,stream:''}))}
+  async function youtubeProxySearch(q){const target=`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;for(const p of PROXIES){try{const r=await fetch(p(target),{cache:'no-store'});if(!r.ok)continue;const items=parseYouTube(await r.text(),q);if(items.length)return items}catch{}}return[]}
+  async function commonsSearch(q){const u=`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`${q} filetype:video`)}&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=url|mime|size&format=json&origin=*`;try{const d=await getJson(u);return Object.values(d?.query?.pages||{}).map(p=>{const i=p.imageinfo?.[0]||{},mime=String(i.mime||'');return{id:`commons:${p.pageid}`,title:String(p.title||'').replace(/^File:/,''),author:'Wikimedia Commons',published:'LIVE MEDIA INDEX',thumb:'',source:'WIKIMEDIA COMMONS',views:0,stream:mime.startsWith('video/')?String(i.url||''):''}}).filter(v=>v.stream)}catch{return[]}}
+  const demo={id:'aqz-KE-bpKQ',title:'Big Buck Bunny · playable demo',author:'JARVIS internal playback',published:'LOCAL PLAYABLE FALLBACK',thumb:'https://i.ytimg.com/vi/aqz-KE-bpKQ/hqdefault.jpg',source:'JARVIS LOCAL',views:0,stream:''};
+  function dom(){return{input:document.querySelector('#videoQuery'),results:document.querySelector('#videoResults'),player:document.querySelector('#jarvisPlayer'),state:document.querySelector('#mediaState')||document.querySelector('#jvcStatus')}}
+  function state(s){const d=dom();if(d.state)d.state.textContent=s}
+  function unique(items){return[...new Map((items||[]).map(v=>[v.id,v])).values()]}
+  function render(items,label='LIVE IN-HOUSE INDEX'){const d=dom();if(!d.results)return;const list=unique(items).slice(0,12);d.results.innerHTML=list.map(v=>`<button type="button" class="video-result jvc-card" data-jvc-id="${esc(v.id)}" data-jvc-stream="${esc(v.stream||'')}"><img loading="lazy" src="${esc(v.thumb||'')}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.views?` · ${v.views.toLocaleString()} views`:''}</small><small>${esc(v.published)} · ${esc(v.source)}</small></span><b>▶</b></button>`).join('');state(`RESULTS · ${list.length} · ${label}`);return list}
+  async function play(id,stream=''){const d=dom();if(!d.player)return;if(stream&&/^https?:\/\//i.test(stream)){d.player.innerHTML=`<video controls autoplay playsinline preload="metadata" src="${esc(stream)}"></video>`;state('PLAYING · JARVIS PLAYER');return}if(id.startsWith('commons:')){const p=await commonsSearch(id.slice(8)),hit=p.find(x=>x.id===id);if(hit?.stream){d.player.innerHTML=`<video controls autoplay playsinline preload="metadata" src="${esc(hit.stream)}"></video>`;state('PLAYING · JARVIS PLAYER');return}}if(!/^[A-Za-z0-9_-]{11}$/.test(id))return;d.player.innerHTML=`<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen playsinline src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1"></iframe>`;state('PLAYING · JARVIS PLAYER')}
+  async function search(q,trending=false){const d=dom();if(!d.results)return;const query=(q||'').trim()||(trending?'trending videos India':'');if(!query){state('READY · ENTER A VIDEO SEARCH TERM');return}state('SEARCHING · JARVIS VIDEO CORE');d.results.innerHTML='<div class="empty">JARVIS is querying live video indexes…</div>';let items=trending?await liveTrending():await liveSearch(query);if(!items.length)items=await youtubeProxySearch(query);if(!items.length)items=await commonsSearch(query);if(!items.length)items=[{...demo,title:`JARVIS playable demo · ${query}`,published:'OFFLINE PLAYABLE FALLBACK'}];const list=render(items,items[0]?.source==='JARVIS LOCAL'?'LOCAL PLAYABLE FALLBACK':'LIVE IN-HOUSE INDEX');if(list?.[0]&&!d.player.querySelector('iframe,video'))await play(list[0].id,list[0].stream)}
+  function install(){const d=dom();if(!d.input||!d.results||!d.player)return;if(d.input.dataset.jarvisMediaBound==='7')return;d.input.dataset.jarvisMediaBound='7';const btn=document.querySelector('#videoSearch');if(btn&&!btn.dataset.jarvisMediaBound){btn.dataset.jarvisMediaBound='7';btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();void search(d.input.value,false)},true)}d.input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();void search(d.input.value,false)}},true);document.querySelectorAll('[data-video-provider]').forEach(b=>{if(b.dataset.jarvisMediaBound)return;b.dataset.jarvisMediaBound='7';b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const trending=b.dataset.videoProvider==='trending';if(trending)d.input.value='trending videos India';void search(d.input.value,trending)},true)});d.results.addEventListener('click',e=>{const c=e.target?.closest?.('.jvc-card');if(!c)return;e.preventDefault();e.stopImmediatePropagation();void play(c.dataset.jvcId||'',c.dataset.jvcStream||'')},true);const playButton=document.querySelector('#playVideo');if(playButton&&!playButton.dataset.jarvisMediaBound){playButton.dataset.jarvisMediaBound='7';playButton.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const raw=document.querySelector('#videoUrl')?.value?.trim()||'',id=videoId(raw);if(id)void play(id);else if(/^https?:\/\//i.test(raw))void play('',raw)},true)}state('READY · LIVE IN-HOUSE VIDEO INDEX')}
+  const observer=new MutationObserver(install);observer.observe(document.documentElement,{childList:true,subtree:true});install();
 })();
