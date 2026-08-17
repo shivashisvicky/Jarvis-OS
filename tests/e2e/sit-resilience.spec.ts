@@ -82,14 +82,26 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1, { timeout: 10000 });
-    await expect(page.getByText(/JARVIS playable (fallback|media)/i)).toBeVisible();
-    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE');
+    await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#videoResults .jvc-card')).toHaveCount(4);
+    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE INDEX');
     await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
-    await page.locator('#videoResults .jvc-card').click();
+    await expect(page.getByText(/YOUTUBE SEARCH|BING VIDEO SEARCH/i)).toHaveCount(0);
+    await page.locator('#videoResults .jvc-card').first().click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     expect(page.context().pages().length).toBe(1);
     expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
+  });
+
+  test('trending is an in-house searchable feed, not a redirect', async ({ page }) => {
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.getByRole('button', { name: 'TRENDING', exact: true }).click();
+    await expect(page.locator('#videoQuery')).toHaveValue('trending videos India');
+    await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE INDEX');
+    await page.locator('#videoResults .jvc-card').first().click();
+    await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
+    expect(page.context().pages().length).toBe(1);
   });
 
   test('dashboard Find Video opens the media search with a real query', async ({ page }) => {
