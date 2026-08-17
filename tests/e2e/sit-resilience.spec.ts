@@ -48,6 +48,9 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('video search resolves keyword results and has a real player path', async ({ page }) => {
+    await page.route('**/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+      { type:'video', videoId:'dQw4w9WgXcQ', title:'SAP CPI fixture tutorial', author:'JARVIS Integration Lab' },
+    ]}) }));
     await expectInternalApp(page, 'media', 'Media Center');
     await expect(page.locator('#mediaState, #jvcStatus').first()).toBeVisible({ timeout: 3000 });
     await page.locator('#videoQuery').fill('SAP CPI tutorial');
@@ -55,12 +58,12 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.getByText('SAP CPI fixture tutorial', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('RESULTS');
     await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1);
-    await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
+    await expect(page.getByText(/LIVE VIDEO INDEX UNAVAILABLE|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
 
     await page.locator('#videoResults .jvc-card').click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /dQw4w9WgXcQ/);
-    await expect(page.locator('#mediaState, #jvcStatus').first()).not.toContainText(/DEGRADED|INDEX UNAVAILABLE|NO REDIRECT/i);
+    await expect(page.locator('#mediaState, #jvcStatus').first()).not.toContainText(/DEGRADED|INDEX UNAVAILABLE/i);
     expect(page.context().pages().length).toBe(1);
   });
 
@@ -73,33 +76,34 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     expect(page.context().pages().length).toBe(1);
   });
 
-  test('video search stays playable inside JARVIS when every public index fails', async ({ page }) => {
+  test('video search fails cleanly when every public index fails without canned results or redirect', async ({ page }) => {
     await page.route('**/pipedapi.*/**', route => route.abort());
     await page.route('**/api/v1/**', route => route.abort());
-    await page.route('https://commons.wikimedia.org/**', route => route.abort());
-    await page.route('https://api.allorigins.win/**', route => route.abort());
-    await page.route('https://corsproxy.io/**', route => route.abort());
+    await page.route('https://api.invidious.io/**', route => route.abort());
     await expectInternalApp(page, 'media', 'Media Center');
-    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoQuery').fill('quantum waffles 987654321');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#videoResults .jvc-card')).toHaveCount(4);
-    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE INDEX');
-    await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
-    await expect(page.getByText(/YOUTUBE SEARCH|BING VIDEO SEARCH/i)).toHaveCount(0);
-    await page.locator('#videoResults .jvc-card').first().click();
-    await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
-    expect(page.context().pages().length).toBe(1);
-    expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
+    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 10000 });
+    await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
+    await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
+    await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
+    await expect(page.context().pages()).toHaveLength(1);
+    await expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
   });
 
-  test('trending is an in-house searchable feed, not a redirect', async ({ page }) => {
+  test('trending is a dynamic in-house feed backed by live provider data', async ({ page }) => {
+    await page.route('**/trending**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+      { videoId:'21X5lGlDOfg', title:'Trending space update', author:'Science Channel' },
+      { videoId:'J---aiyznGQ', title:'Trending cats compilation', author:'Animals Now' },
+      { videoId:'kJQP7kiw5Fk', title:'Trending music now', author:'Music Channel' },
+    ]) }));
     await expectInternalApp(page, 'media', 'Media Center');
     await page.getByRole('button', { name: 'TRENDING', exact: true }).click();
     await expect(page.locator('#videoQuery')).toHaveValue('trending videos India');
     await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE INDEX');
-    await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
+    await expect(page.locator('#videoResults')).toContainText('Trending space update');
+    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE');
+    await expect(page.getByText(/LIVE VIDEO INDEX UNAVAILABLE|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
     await page.locator('#videoResults .jvc-card').first().click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     expect(page.context().pages().length).toBe(1);
