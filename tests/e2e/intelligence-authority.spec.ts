@@ -34,6 +34,23 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     expect(page.context().pages()).toHaveLength(1);
   });
 
+  test('provider exhaustion never renders canned videos', async ({ page }) => {
+    await page.route('**/*', async route => {
+      const u = route.request().url();
+      if (/pipedapi|invidious|youtube\.com\/results|allorigins\.win|corsproxy\.io|r\.jina\.ai/.test(u)) return route.abort();
+      return route.continue();
+    });
+    await page.goto('/');
+    await page.locator('button.nav[data-app="media"]').click();
+    await page.locator('#videoQuery').fill('quantum waffles 987654321');
+    await page.locator('#videoSearch').click();
+    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE');
+    await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
+    await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
+    await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
+    await expect(page.locator('#videoResults')).not.toContainText('India 2026');
+  });
+
   test('generic map search uses provider failover and changes location', async ({ page }) => {
     await page.route('https://photon.komoot.io/api/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ geometry:{coordinates:[2.2945,48.8584]}, properties:{name:'Eiffel Tower',city:'Paris',country:'France'} }] }) }));
     await page.goto('/');
