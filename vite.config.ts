@@ -24,4 +24,19 @@ function mediaPlugin(): Plugin {
   };
 }
 
-export default defineConfig({ base: './', plugins: [mediaPlugin()] });
+function cssEscapeRepairPlugin(): Plugin {
+  return {
+    name: 'jarvis-css-escape-repair',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('.css')) return null;
+      if (!code.includes('\\n')) return null;
+      return code.replaceAll('\\n', '\n');
+    }
+  };
+}
+
+export default defineConfig({
+  base: './',
+  plugins: [cssEscapeRepairPlugin(), mediaPlugin()]
+});
