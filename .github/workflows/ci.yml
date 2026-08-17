@@ -82,7 +82,7 @@ jobs:
         id: test
         if: always()
         continue-on-error: true
-        run: npm run test:browser:chromium
+        run: npm run test:browser:smoke -- --project=chromium
       - name: Upload Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4
