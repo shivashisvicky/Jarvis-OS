@@ -66,7 +66,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     expect(page.context().pages().length).toBe(1);
   });
 
-  test('keyword search is query-specific and exposes the YouTube mobile search contract', async ({ page }) => {
+  test('keyword search is query-specific and exposes the canonical YouTube search contract', async ({ page }) => {
     await page.route('**/__jarvis/video/search**', route => {
       const q = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() || '';
       const item = q.includes('cats')
@@ -83,7 +83,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.getByText('Cats fixture result', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.getByText('India 2026 fixture result', { exact: true })).toHaveCount(0);
     const allUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026'));
-    expect(allUrl).toBe('https://m.youtube.com/results?search_query=India%202026');
+    expect(allUrl).toBe('https://www.youtube.com/results?search_query=India%202026');
   });
 
   test('pasted mobile YouTube URL resolves to the same internal player resource', async ({ page }) => {
