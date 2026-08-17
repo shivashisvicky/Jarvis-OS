@@ -3,6 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": {"dev":"vite","build":"tsc -b && vite build","preview":"vite preview","test":"vitest run","test:browser":"playwright test","test:browser:debug":"playwright test --reporter=list,html"},
-  "devDependencies": {"@playwright/test":"^1.55.0","@types/node":"^22.10.0","typescript":"^5.7.2","vite":"^6.0.0","vitest":"^2.1.8"}
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:browser:smoke": "playwright test tests/e2e/ci-smoke.spec.ts",
+    "test:browser:chromium": "playwright test --project=chromium",
+    "test:browser:debug": "playwright test --reporter=list,html"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "22.10.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  }
 }
