@@ -67,6 +67,33 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     expect(page.context().pages().length).toBe(1);
   });
 
+  test('keyword search is query-specific and exposes the YouTube mobile search contract', async ({ page }) => {
+    await page.route('**/search**', route => {
+      const q = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() || '';
+      const item = q.includes('cats')
+        ? { videoId:'J---aiyznGQ', title:'Cats fixture result', author:'JARVIS Test Index' }
+        : { videoId:'21X5lGlDOfg', title:'India 2026 fixture result', author:'JARVIS Test Index' };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items:[item] }) });
+    });
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoQuery').fill('India 2026');
+    await page.locator('#videoSearch').click();
+    await expect(page.getByText('India 2026 fixture result', { exact: true })).toBeVisible({ timeout: 8000 });
+    await page.locator('#videoQuery').fill('Cats');
+    await page.locator('#videoSearch').click();
+    await expect(page.getByText('Cats fixture result', { exact: true })).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText('India 2026 fixture result', { exact: true })).toHaveCount(0);
+    const allUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('India 2026', 'all'));
+    const videoUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('Cats', 'videos'));
+    const shortsUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('Cats', 'shorts'));
+    expect(allUrl).toBe('https://m.youtube.com/results?sp=mAEA&search_query=India%202026');
+    expect(videoUrl).toBe('https://m.youtube.com/results?sp=EgIQAQ%3D%3D&search_query=Cats');
+    expect(shortsUrl).toBe('https://m.youtube.com/results?sp=EgIQCQ%3D%3D&search_query=Cats');
+    await expect(page.locator('#jvsFilters')).toContainText('ALL');
+    await expect(page.locator('#jvsFilters')).toContainText('VIDEOS');
+    await expect(page.locator('#jvsFilters')).toContainText('SHORTS');
+  });
+
   test('pasted mobile YouTube URL resolves to the same internal player resource', async ({ page }) => {
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoUrl').fill('https://m.youtube.com/watch?v=limjpmSRrdE&si=1t1qckOxWZmxUGmZ');
@@ -76,14 +103,17 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     expect(page.context().pages().length).toBe(1);
   });
 
-  test('video search fails cleanly when every public index fails without canned results or redirect', async ({ page }) => {
+  test('video search stays internal when every live source fails', async ({ page }) => {
     await page.route('**/pipedapi.*/**', route => route.abort());
     await page.route('**/api/v1/**', route => route.abort());
     await page.route('https://api.invidious.io/**', route => route.abort());
+    await page.route('https://r.jina.ai/**', route => route.abort());
+    await page.route('https://api.allorigins.win/**', route => route.abort());
+    await page.route('https://corsproxy.io/**', route => route.abort());
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoQuery').fill('quantum waffles 987654321');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 10000 });
+    await expect(page.locator('#videoResults')).not.toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 10000 });
     await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
     await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
     await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
@@ -91,17 +121,19 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
   });
 
-  test('trending is a dynamic in-house feed backed by live provider data', async ({ page }) => {
-    await page.route('**/trending**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+  test('trending is a dynamic in-house feed, not a canned four-video list', async ({ page }) => {
+    await page.route('**/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
       { videoId:'21X5lGlDOfg', title:'Trending space update', author:'Science Channel' },
       { videoId:'J---aiyznGQ', title:'Trending cats compilation', author:'Animals Now' },
       { videoId:'kJQP7kiw5Fk', title:'Trending music now', author:'Music Channel' },
-    ]) }));
+    ]}) }));
     await expectInternalApp(page, 'media', 'Media Center');
     await page.getByRole('button', { name: 'TRENDING', exact: true }).click();
     await expect(page.locator('#videoQuery')).toHaveValue('trending videos India');
     await expect(page.locator('#videoResults .jvc-card').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#videoResults')).toContainText('Trending space update');
+    await expect(page.locator('#videoResults')).toContainText('Trending cats compilation');
+    await expect(page.locator('#videoResults')).toContainText('Trending music now');
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE');
     await expect(page.getByText(/LIVE VIDEO INDEX UNAVAILABLE|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
     await page.locator('#videoResults .jvc-card').first().click();
