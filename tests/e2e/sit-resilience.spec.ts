@@ -59,7 +59,6 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('RESULTS');
     await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1);
     await expect(page.getByText(/LIVE VIDEO INDEX UNAVAILABLE|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
-
     await page.locator('#videoResults .jvc-card').click();
     await expect(page.locator('#jarvisPlayer iframe, #jarvisPlayer video')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /dQw4w9WgXcQ/);
@@ -83,9 +82,9 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.locator('#videoSearch').click();
     await expect(page.getByText('Cats fixture result', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.getByText('India 2026 fixture result', { exact: true })).toHaveCount(0);
-    const allUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('India 2026', 'all'));
-    const videoUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('Cats', 'videos'));
-    const shortsUrl = await page.evaluate(() => window.jarvisVideoSearchUrl('Cats', 'shorts'));
+    const allUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026', 'all'));
+    const videoUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats', 'videos'));
+    const shortsUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats', 'shorts'));
     expect(allUrl).toBe('https://m.youtube.com/results?sp=mAEA&search_query=India%202026');
     expect(videoUrl).toBe('https://m.youtube.com/results?sp=EgIQAQ%3D%3D&search_query=Cats');
     expect(shortsUrl).toBe('https://m.youtube.com/results?sp=EgIQCQ%3D%3D&search_query=Cats');
