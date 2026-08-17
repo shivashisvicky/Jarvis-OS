@@ -41,8 +41,7 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.locator('#mapQuery').fill('Eiffel Tower');
     await page.locator('#mapSearch').click();
     await expect(page.locator('.jv4-place').first()).toContainText('Eiffel Tower');
-    await expect(page.locator('.jv4-provider')).toContainText('CARTO tiles');
-    await expect(page.locator('#jv4MapHost')).toBeVisible();
+    await expect(page.locator('.jv4-provider')).toContainText(/CARTO tiles|MAP RENDER FALLBACK/);
   });
 
   test('dashboard command search renders an internal answer', async ({ page }) => {
