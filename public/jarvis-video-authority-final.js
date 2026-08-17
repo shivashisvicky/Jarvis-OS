@@ -1,25 +1,18 @@
 (() => {
   'use strict';
 
-  // JARVIS Video Authority v6
-  // Contract: live search only, real result IDs only, no canned/fake media.
+  // JARVIS Video Authority v7
+  // Live search only. No canned catalog, demo video, or synthetic result is ever returned.
   const INVIDIOUS = [
-    'https://inv.nadeko.net',
-    'https://invidious.nerdvpn.de',
-    'https://yt.chocolatemoo53.com',
-    'https://invidious.tiekoetter.com',
-    'https://invidious.f5.si',
-    'https://inv.zoomerville.com',
+    'https://inv.nadeko.net', 'https://invidious.nerdvpn.de',
+    'https://yt.chocolatemoo53.com', 'https://invidious.tiekoetter.com',
+    'https://invidious.f5.si', 'https://inv.zoomerville.com',
   ];
   const PIPED = [
-    'https://pipedapi.tokhmi.xyz',
-    'https://pipedapi.moomoo.me',
-    'https://piped-api.garudalinux.org',
-    'https://api.piped.privacydev.net',
-    'https://pipedapi.smnz.de',
-    'https://pipedapi.adminforge.de',
-    'https://pipedapi.qdi.fi',
-    'https://piped-api.hostux.net',
+    'https://pipedapi.tokhmi.xyz', 'https://pipedapi.moomoo.me',
+    'https://piped-api.garudalinux.org', 'https://api.piped.privacydev.net',
+    'https://pipedapi.smnz.de', 'https://pipedapi.adminforge.de',
+    'https://pipedapi.qdi.fi', 'https://piped-api.hostux.net',
   ];
   const CORS_PROXIES = [
     target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
@@ -34,36 +27,18 @@
 
   const $ = s => document.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
-  }[c]));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[c]));
   const validId = id => /^[A-Za-z0-9_-]{11}$/.test(String(id || ''));
-  const youtubeUrl = (q, m = mode) =>
-    `https://www.youtube.com/results?search_query=${encodeURIComponent(String(q || '').trim())}${FILTERS[m] || ''}`;
+  const youtubeUrl = (q, m = mode) => `https://www.youtube.com/results?search_query=${encodeURIComponent(String(q || '').trim())}${FILTERS[m] || ''}`;
 
   async function request(url, ms = TIMEOUT) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
     try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-        mode: 'cors',
-      });
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' }, mode: 'cors' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  async function requestWithProxy(url) {
-    try { return await request(url); } catch (_) {}
-    for (const makeProxy of CORS_PROXIES) {
-      try { return await request(makeProxy(url), 5000); } catch (_) {}
-    }
-    throw new Error('all transports failed');
+    } finally { clearTimeout(timer); }
   }
 
   function normalizeVideo(v, source) {
@@ -74,7 +49,7 @@
       id,
       title: String(v?.title || 'Untitled video'),
       author: String(v?.author || v?.uploader || v?.uploaderName || v?.channelName || 'YouTube'),
-      views: Number(v?.viewCount ?? v?.views ?? v?.viewCountText?.replace(/[^0-9]/g, '') ?? 0) || 0,
+      views: Number(v?.viewCount ?? v?.views ?? 0) || 0,
       date: String(v?.publishedText || v?.uploadedDate || v?.published || ''),
       thumb: String(v?.thumbnailUrl || v?.thumbnail || thumbs.at(-1)?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
       source,
@@ -90,11 +65,8 @@
 
   function rank(items, query) {
     const terms = String(query).toLowerCase().split(/\s+/).filter(x => x.length > 1);
-    return unique(items)
-      .map(item => ({ item, score: terms.reduce((n, term) =>
-        n + (String(`${item.title} ${item.author}`).toLowerCase().includes(term) ? 1 : 0), 0) }))
-      .sort((a, b) => b.score - a.score)
-      .map(x => x.item);
+    return unique(items).map(item => ({ item, score: terms.reduce((n, term) => n + (String(`${item.title} ${item.author}`).toLowerCase().includes(term) ? 1 : 0), 0) }))
+      .sort((a, b) => b.score - a.score).map(x => x.item);
   }
 
   async function searchInvidious(base, q) {
@@ -110,12 +82,7 @@
 
   function parseYouTubeSearch(html) {
     return unique([...String(html).matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)]
-      .map(m => normalizeVideo({
-        videoId: m[1],
-        title: 'YouTube result',
-        author: 'YouTube',
-        thumbnailUrl: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg`,
-      }, 'YOUTUBE'))
+      .map(m => normalizeVideo({ videoId:m[1], title:'YouTube result', author:'YouTube', thumbnailUrl:`https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` }, 'YOUTUBE'))
       .filter(Boolean));
   }
 
@@ -123,26 +90,36 @@
     const target = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
     for (const makeProxy of CORS_PROXIES) {
       try {
-        const html = await fetch(makeProxy(target), { cache:'no-store' }).then(r => {
-          if (!r.ok) throw new Error(String(r.status));
-          return r.text();
-        });
-        const results = parseYouTubeSearch(html);
+        const response = await fetch(makeProxy(target), { cache:'no-store' });
+        if (!response.ok) continue;
+        const results = parseYouTubeSearch(await response.text());
         if (results.length) return results;
       } catch (_) {}
     }
     return [];
   }
 
-  async function liveSearch(query) {
+  async function firstLiveResults(query) {
     const tasks = [
       ...INVIDIOUS.map(base => () => searchInvidious(base, query)),
       ...PIPED.map(base => () => searchPiped(base, query)),
     ];
-    const settled = await Promise.allSettled(tasks.map(task => task()));
-    const indexed = settled.flatMap(x => x.status === 'fulfilled' ? x.value : []);
-    if (indexed.length) return rank(indexed, query);
-    return rank(await searchYouTube(query), query);
+    return new Promise(resolve => {
+      let remaining = tasks.length;
+      let settled = false;
+      const finish = items => { if (!settled && items?.length) { settled = true; resolve(rank(items, query)); } };
+      for (const task of tasks) {
+        task().then(finish).catch(() => {}).finally(() => {
+          remaining -= 1;
+          if (remaining === 0 && !settled) resolve([]);
+        });
+      }
+    });
+  }
+
+  async function liveSearch(query) {
+    const indexed = await firstLiveResults(query);
+    return indexed.length ? indexed : rank(await searchYouTube(query), query);
   }
 
   function status(text) {
@@ -155,9 +132,7 @@
     if (!results) return;
     let bar = $('#jvsFilters');
     if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'jvsFilters';
-      bar.className = 'jvs-filters';
+      bar = document.createElement('div'); bar.id = 'jvsFilters'; bar.className = 'jvs-filters';
       bar.innerHTML = '<button type="button" data-jvs-mode="all">ALL</button><button type="button" data-jvs-mode="videos">VIDEOS</button><button type="button" data-jvs-mode="shorts">SHORTS</button>';
       results.parentElement?.insertBefore(bar, results);
     }
@@ -165,49 +140,24 @@
       button.classList.toggle('active', button.dataset.jvsMode === mode);
       if (button.dataset.jvsBound) return;
       button.dataset.jvsBound = '1';
-      button.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        mode = button.dataset.jvsMode || 'all';
-        void search(lastQuery);
-      }, true);
+      button.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); mode = button.dataset.jvsMode || 'all'; void search(lastQuery); }, true);
     });
   }
 
   function render(items, query) {
-    const results = $('#videoResults');
-    if (!results) return;
+    const results = $('#videoResults'); if (!results) return;
     let shown = unique(items);
     if (mode === 'shorts') shown = shown.filter(v => v.kind === 'short');
     if (mode === 'videos') shown = shown.filter(v => v.kind !== 'short');
     shown = shown.slice(0, 12);
-    results.innerHTML = shown.length ? shown.map(v => `
-      <button type="button" class="jvc-card jv4-video-card jvs-card" data-jvs-id="${esc(v.id)}">
-        <img loading="lazy" src="${esc(v.thumb)}" alt="">
-        <span class="video-meta">
-          <strong>${esc(v.title)}</strong>
-          <small>${esc(v.author)}${v.views ? ` · ${v.views.toLocaleString()} views` : ''}</small>
-          <small>${esc(v.date)} · ${esc(v.source)}</small>
-        </span>
-        <b>▶</b>
-      </button>`).join('') : `
-      <div class="empty">
-        <strong>NO LIVE RESULTS</strong><br>
-        JARVIS could not obtain a verified video index for “${esc(query)}”.<br>
-        <a class="secondary" href="${esc(youtubeUrl(query))}" target="_blank" rel="noopener noreferrer">OPEN LIVE YOUTUBE RESULTS ↗</a>
-      </div>`;
+    results.innerHTML = shown.length ? shown.map(v => `<button type="button" class="jvc-card jv4-video-card jvs-card" data-jvs-id="${esc(v.id)}"><img loading="lazy" src="${esc(v.thumb)}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.views ? ` · ${v.views.toLocaleString()} views` : ''}</small><small>${esc(v.date)} · ${esc(v.source)}</small></span><b>▶</b></button>`).join('') : `<div class="empty"><strong>NO LIVE RESULTS</strong><br>JARVIS could not obtain a verified video index for “${esc(query)}”.<br><a class="secondary" href="${esc(youtubeUrl(query))}" target="_blank" rel="noopener noreferrer">OPEN LIVE YOUTUBE RESULTS ↗</a></div>`;
     status(shown.length ? `RESULTS · ${shown.length} · LIVE` : 'LIVE VIDEO SEARCH UNAVAILABLE');
-    $$('.jvs-card', results).forEach(card => card.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      play(card.dataset.jvsId || '');
-    }, true));
+    $$('.jvs-card', results).forEach(card => card.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); play(card.dataset.jvsId || ''); }, true));
   }
 
   function play(id) {
     if (!validId(id)) return false;
-    const player = $('#jarvisPlayer');
-    if (!player) return false;
+    const player = $('#jarvisPlayer'); if (!player) return false;
     player.innerHTML = `<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen playsinline src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1&modestbranding=1"></iframe>`;
     status('PLAYING · JARVIS PLAYER');
     return true;
@@ -216,42 +166,21 @@
   async function search(q) {
     const query = String(q || '').trim() || 'trending videos India';
     lastQuery = query;
-    const input = $('#videoQuery');
-    if (input) input.value = query;
-    ensureFilters();
-    status(`SEARCHING · LIVE VIDEO SOURCES · ${query}`);
-    const results = $('#videoResults');
-    if (results) results.innerHTML = '<div class="empty">JARVIS is racing live video indexes…</div>';
-    try {
-      const items = await liveSearch(query);
-      render(items, query);
-    } catch (_) {
-      render([], query);
-    }
+    const input = $('#videoQuery'); if (input) input.value = query;
+    ensureFilters(); status(`SEARCHING · LIVE VIDEO SOURCES · ${query}`);
+    const results = $('#videoResults'); if (results) results.innerHTML = '<div class="empty">JARVIS is racing live video indexes…</div>';
+    try { render(await liveSearch(query), query); } catch (_) { render([], query); }
   }
 
   function install() {
-    const input = $('#videoQuery');
-    const button = $('#videoSearch');
+    const input = $('#videoQuery'), button = $('#videoSearch');
     if (input && input !== boundInput) {
       boundInput = input;
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          void search(input.value);
-        }
-      }, true);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); void search(input.value); } }, true);
     }
     if (button && button !== boundButton) {
-      const replacement = button.cloneNode(true);
-      button.replaceWith(replacement);
-      boundButton = replacement;
-      replacement.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        void search(input?.value || '');
-      }, true);
+      const replacement = button.cloneNode(true); button.replaceWith(replacement); boundButton = replacement;
+      replacement.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); void search(input?.value || ''); }, true);
     }
     if (input) {
       window.jarvisVideoSearch = search;
