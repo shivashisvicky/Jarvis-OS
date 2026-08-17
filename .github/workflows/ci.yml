@@ -1,18 +1,83 @@
 name: Jarvis OS CI
+
 on:
   push:
     branches: [main, 'build/**']
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  quality:
+    name: Quality / Build / Unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+      - run: npm install --no-audit --no-fund
       - run: npm run build
+      - run: npm test -- --reporter=dot
+      - run: npm audit --audit-level=high
+
+  e2e-chromium:
+    name: E2E / Chromium
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm run build
+      - run: npm run test:browser:chromium
+      - name: Upload Chromium evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-chromium-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e-cross-browser:
+    name: E2E / Firefox + WebKit Smoke
+    needs: quality
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npm run build
+      - run: npx playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
+      - name: Upload cross-browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-${{ matrix.browser }}-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
