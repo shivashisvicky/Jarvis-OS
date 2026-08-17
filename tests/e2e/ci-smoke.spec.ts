@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-const openMedia = async (page: Parameters<Parameters<typeof test>[2]>[0]['page']) => {
+const openMedia = async (page: Page) => {
   await page.goto('/');
   await page.locator('button.nav[data-app="media"]').click();
   await expect(page.locator('#videoQuery')).toBeVisible();
