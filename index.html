@@ -7,7 +7,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="J.A.R.V.I.S. personal intelligence workspace">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260817-2">
+  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260817-3">
   <title>J.A.R.V.I.S. OS</title>
 </head>
 <body>
@@ -26,12 +26,5 @@
   <script src="./jarvis-media-final.js?v=20260817-3"></script>
   <script src="./jarvis-media-authority.js?v=20260817-5"></script>
   <script src="./jarvis-map-final.js?v=20260816-1"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const apply = () => document.querySelectorAll('.media-workspace').forEach(el => el.classList.add('media-flow-v2'));
-      new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
-      apply();
-    }, { once: true });
-  </script>
 </body>
 </html>
