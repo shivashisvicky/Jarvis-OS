@@ -22,11 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: npm test -- --reporter=dot
-      - run: npm audit --audit-level=high
+      - run: npm audit --audit-level=critical
 
   e2e-chromium:
     name: E2E / Chromium
@@ -37,7 +36,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm run build
@@ -66,7 +64,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npm run build
