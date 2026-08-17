@@ -12,13 +12,34 @@
     const el = $(selector); if (!el || el.dataset.jlfHard === '1') return;
     const n = clone(el); n.dataset.jlfHard='1'; n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); void handler(e); } }, true);
   };
-  function command() {
+  async function command() {
     const form=$('#commandForm'); if(!form || form.dataset.jlfHard==='1')return;
-    const n=clone(form); n.dataset.jlfHard='1'; n.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();const q=$('#commandInput')?.value?.trim();if(q){log('command intercepted',{query:q});window.jarvisCentralSearch?.(q,$('#jarvisReply'));}},true);
+    const n=clone(form); n.dataset.jlfHard='1'; n.addEventListener('submit',async e=>{e.preventDefault();e.stopImmediatePropagation();const q=$('#commandInput')?.value?.trim();if(!q)return;log('command intercepted',{query:q});const target=$('#jarvisReply');try{await window.jarvisCentralSearch?.(q,target)}catch{}if(target&&!/IN-HOUSE/i.test(target.textContent||'')){target.insertAdjacentHTML('beforeend','<small class="jv4-authority-badge">IN-HOUSE · JARVIS KNOWLEDGE AUTHORITY</small>');}},true);
+  }
+  function ensureSearchControls() {
+    const host=$('.search-workspace'); if(!host)return;
+    const bar=$('.search-bar',host); if(bar&&!$('#webProvider',bar)){
+      const select=document.createElement('select');select.id='webProvider';select.setAttribute('aria-label','Search provider');select.innerHTML='<option value="brave">BRAVE</option><option value="bing">BING</option>';bar.prepend(select);
+    }
+    let actions=$('.search-actions',host);if(!actions){actions=document.createElement('div');actions.className='search-actions';actions.innerHTML='<button type="button" data-provider="brave">BRAVE</button><button type="button" data-provider="bing">BING</button>';bar?.insertAdjacentElement('afterend',actions)}
+    if(!actions.querySelector('[data-provider="brave"]'))actions.insertAdjacentHTML('beforeend','<button type="button" data-provider="brave">BRAVE</button>');
+    if(!actions.querySelector('[data-provider="bing"]'))actions.insertAdjacentHTML('beforeend','<button type="button" data-provider="bing">BING</button>');
+    if(!actions.querySelector('[data-provider="youtube"]'))actions.insertAdjacentHTML('beforeend','<button type="button" data-provider="youtube">YOUTUBE</button>');
+    if(!actions.querySelector('[data-provider="news"]'))actions.insertAdjacentHTML('beforeend','<button type="button" data-provider="news">NEWS</button>');
+  }
+  async function webSearch(){
+    ensureSearchControls();
+    const q=$('#webQuery')?.value?.trim()||'';if(!q)return;
+    const host=$('.search-workspace');if(!host)return;
+    let target=$('#jv4SearchAnswer')||$('#jv3SearchAnswer');if(!target){target=document.createElement('section');target.id='jv4SearchAnswer';target.className='jv4-answer';host.insertAdjacentElement('afterend',target)}
+    try{await window.jarvisCentralSearch?.(q,target)}catch{}
+    if(target.textContent?.trim()&&!/IN-HOUSE/i.test(target.textContent||''))target.insertAdjacentHTML('beforeend','<small class="jv4-authority-badge">IN-HOUSE · JARVIS SEARCH AUTHORITY</small>');
   }
   function web() {
-    armButton('#webSearch',()=>window.jarvisCentralSearch?.($('#webQuery')?.value||'', $('#jv3SearchAnswer')||null));
-    armInput('#webQuery',()=>window.jarvisCentralSearch?.($('#webQuery')?.value||'', $('#jv3SearchAnswer')||null));
+    ensureSearchControls();
+    armButton('#webSearch',webSearch);
+    armInput('#webQuery',webSearch);
+    $$('.search-actions [data-provider]').forEach(b=>{if(b.dataset.jlfHard==='1')return;const n=clone(b);n.dataset.jlfHard='1';n.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const p=n.dataset.provider;if(p==='youtube'){const q=$('#webQuery')?.value||'';window.open?.(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,'_blank','noopener,noreferrer');return}if(p==='news'){const q=$('#webQuery')?.value||'';window.open?.(`https://www.google.com/search?tbm=nws&q=${encodeURIComponent(q)}`,'_blank','noopener,noreferrer');return}const sel=$('#webProvider');if(sel)sel.value=p;void webSearch()},true)});
   }
   function maps() {
     armButton('#mapSearch',()=>window.jarvisMapSearch?.($('#mapQuery')?.value||''));

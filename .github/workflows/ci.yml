@@ -1,9 +1,14 @@
 name: Jarvis OS CI
 on:
   push:
-    branches: [main, 'build/**']
+    branches: [main, 'build/**', 'fix/**']
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '17 * * * *'
+concurrency:
+  group: jarvis-ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest

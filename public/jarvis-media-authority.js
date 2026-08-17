@@ -19,11 +19,26 @@
   const play=id=>{const p=$('#jarvisPlayer');if(!p||!id)return false;p.innerHTML=`<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen playsinline src="https://www.youtube-nocookie.com/embed/${esc(id)}?rel=0&playsinline=1"></iframe>`;state('PLAYING · JARVIS PLAYER');return true};
   let desired='trending videos India', expected='';
   const render=items=>{const r=$('#videoResults');if(!r)return false;desired=$('#videoQuery')?.value?.trim()||desired;expected=signature(items);r.innerHTML=items.map(v=>`<button type="button" class="jvc-card" data-jvc-id="${esc(v.id)}"><img src="https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)} · JARVIS LOCAL INDEX</small></span><b>▶</b></button>`).join('');state(`RESULTS · ${items.length} · IN-HOUSE INDEX`);return true};
-  const search=q=>{desired=String(q||'trending videos India').trim();const items=find(desired);return render(items)};
-  document.addEventListener('click',e=>{const target=e.target;const sb=target?.closest?.('#videoSearch'),provider=target?.closest?.('[data-video-provider]'),pb=target?.closest?.('#playVideo'),card=target?.closest?.('.jvc-card');if(sb){e.preventDefault();e.stopImmediatePropagation();search($('#videoQuery')?.value||'trending videos India');return}if(provider){e.preventDefault();e.stopImmediatePropagation();const q=provider.dataset.videoProvider==='trending'?'trending videos India':($('#videoQuery')?.value||'trending videos India');const input=$('#videoQuery');if(input)input.value=q;search(q);return}if(pb){e.preventDefault();e.stopImmediatePropagation();const raw=$('#videoUrl')?.value?.trim()||'',id=getId(raw);if(id){play(id);return}if(/^https?:\/\//i.test(raw)&&/\.(mp4|webm|ogg)(\?.*)?$/i.test(raw)){const p=$('#jarvisPlayer');if(p){p.innerHTML=`<video controls playsinline src="${esc(raw)}"></video>`;state('PLAYING · DIRECT MEDIA')}return}state('READY · PASTE A YOUTUBE URL OR VIDEO ID');return}if(card){e.preventDefault();e.stopImmediatePropagation();play(card.dataset.jvcId||'')}},true);
-  document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target?.matches?.('#videoQuery')){e.preventDefault();e.stopImmediatePropagation();search(e.target.value)}},true);
+  const localFallback=()=>{const r=$('#videoResults');if(r?.querySelector('.jv4-video-card,.jvc-card'))return true;return render(find(desired))};
+  const search=async q=>{
+    desired=String(q||'trending videos India').trim();
+    if(window.jarvisVideoSearch){
+      state('SEARCHING · LIVE VIDEO INDEXES');
+      try{await window.jarvisVideoSearch(desired)}catch{}
+      await new Promise(r=>setTimeout(r,60));
+      const live=$('#videoResults')?.querySelectorAll('.jv4-video-card').length||0;
+      if(live){
+        $('#videoResults')?.querySelectorAll('.jv4-video-card').forEach(card=>{card.classList.add('jvc-card');const id=card.getAttribute('data-jv4-video')||'';if(id)card.setAttribute('data-jvc-id',id)});
+        state(`RESULTS · ${live} · LIVE · IN-HOUSE INDEX`);
+        return true;
+      }
+    }
+    return localFallback();
+  };
+  document.addEventListener('click',e=>{const target=e.target;const sb=target?.closest?.('#videoSearch'),provider=target?.closest?.('[data-video-provider]'),pb=target?.closest?.('#playVideo'),card=target?.closest?.('.jvc-card,.jv4-video-card');if(sb){e.preventDefault();e.stopImmediatePropagation();void search($('#videoQuery')?.value||'trending videos India');return}if(provider){e.preventDefault();e.stopImmediatePropagation();const q=provider.dataset.videoProvider==='trending'?'trending videos India':($('#videoQuery')?.value||'trending videos India');const input=$('#videoQuery');if(input)input.value=q;void search(q);return}if(pb){e.preventDefault();e.stopImmediatePropagation();const raw=$('#videoUrl')?.value?.trim()||'',id=getId(raw);if(id){play(id);return}if(/^https?:\/\//i.test(raw)&&/\.(mp4|webm|ogg)(\?.*)?$/i.test(raw)){const p=$('#jarvisPlayer');if(p){p.innerHTML=`<video controls playsinline src="${esc(raw)}"></video>`;state('PLAYING · DIRECT MEDIA')}return}state('READY · PASTE A YOUTUBE URL OR VIDEO ID');return}if(card){e.preventDefault();e.stopImmediatePropagation();play(card.dataset.jvcId||card.dataset.jv4Video||'')}},true);
+  document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target?.matches?.('#videoQuery')){e.preventDefault();e.stopImmediatePropagation();void search(e.target.value)}},true);
   let lastResults=null,lastPlayer=null,boot;
-  const reconcile=()=>{const r=$('#videoResults'),p=$('#jarvisPlayer');if(!r||!p)return;if(r!==lastResults){lastResults=r;search($('#videoQuery')?.value||desired);return}const actual=[...r.querySelectorAll('.jvc-card')].map(x=>x.dataset.jvcId||'').join('|');const bad=/No public video index responded|No video index responded|VIDEO INDEX DEGRADED|VIDEO INDEX OFFLINE|JARVIS will not redirect you|OPEN YOUTUBE SEARCH|SEARCHING VIDEO INDEX|Video index unavailable/i.test(r.textContent||'');if(actual!==expected||bad)render(find(desired));if(p!==lastPlayer){lastPlayer=p;if(!p.querySelector('iframe,video'))play(find(desired)[0].id)}};
-  const observer=new MutationObserver(()=>{clearTimeout(observer.__t);observer.__t=setTimeout(reconcile,25)});observer.observe(document.documentElement,{childList:true,subtree:true});boot=setInterval(()=>{reconcile();if($('#videoResults'))clearInterval(boot)},50);
+  const reconcile=()=>{const r=$('#videoResults'),p=$('#jarvisPlayer');if(!r||!p)return;if(r!==lastResults){lastResults=r;if(!r.querySelector('.jv4-video-card,.jvc-card'))void search($('#videoQuery')?.value||desired);return}const cards=[...r.querySelectorAll('.jvc-card,.jv4-video-card')];const actual=cards.map(x=>x.dataset.jvcId||x.dataset.jv4Video||'').join('|');if(cards.length&&actual!==expected){expected=actual}if(p!==lastPlayer){lastPlayer=p;if(!p.querySelector('iframe,video')&&cards[0])play(cards[0].dataset.jvcId||cards[0].dataset.jv4Video||'')}};
+  const observer=new MutationObserver(()=>{clearTimeout(observer.__t);observer.__t=setTimeout(reconcile,40)});observer.observe(document.documentElement,{childList:true,subtree:true});boot=setInterval(()=>{reconcile();if($('#videoResults'))clearInterval(boot)},50);
   state('READY · IN-HOUSE VIDEO INDEX');
 })();
