@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // JARVIS Video Authority v7
+  // JARVIS Video Authority v8
   // Live search only. No canned catalog, demo video, or synthetic result is ever returned.
   const INVIDIOUS = [
     'https://inv.nadeko.net', 'https://invidious.nerdvpn.de',
@@ -19,7 +19,6 @@
     target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
   ];
   const TIMEOUT = 4500;
-  const FILTERS = { all:'', videos:'&sp=EgIQAQ%3D%3D', shorts:'&sp=EgIQCQ%3D%3D' };
   let mode = 'all';
   let lastQuery = '';
   let boundInput = null;
@@ -29,7 +28,10 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[c]));
   const validId = id => /^[A-Za-z0-9_-]{11}$/.test(String(id || ''));
-  const youtubeUrl = (q, m = mode) => `https://www.youtube.com/results?search_query=${encodeURIComponent(String(q || '').trim())}${FILTERS[m] || ''}`;
+
+  // Contract: this is the real YouTube search endpoint. Filters are applied
+  // inside JARVIS and must never mutate this canonical URL shape.
+  const youtubeUrl = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(String(q || '').trim())}`;
 
   async function request(url, ms = TIMEOUT) {
     const controller = new AbortController();
@@ -87,7 +89,7 @@
   }
 
   async function searchYouTube(q) {
-    const target = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    const target = youtubeUrl(q);
     for (const makeProxy of CORS_PROXIES) {
       try {
         const response = await fetch(makeProxy(target), { cache:'no-store' });
