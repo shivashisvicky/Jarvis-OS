@@ -9,9 +9,10 @@ on:
 permissions:
   contents: read
 
-# Never cancel an in-flight validation run. Every pushed revision gets its full evidence set.
+# Every pushed revision gets its own full validation run. A slow browser lane
+# on an older revision must never block validation of the current revision.
 concurrency:
-  group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}
+  group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 # Every validation lane is intentionally independent. A broken install/build/test
