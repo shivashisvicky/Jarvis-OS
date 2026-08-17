@@ -24,7 +24,7 @@ describe('JARVIS command core', () => {
   test('classifies the primary command families', () => {
     expect(jarvis.classifyCommand('what time is it')).toBe('time');
     expect(jarvis.classifyCommand('open maps')).toBe('maps');
-    expect(jarvis.classifyCommand('find videos about SAP CPI')).toBe('media');
+    expect(jarvis.classifyCommand('find a video about SAP CPI')).toBe('media');
     expect(jarvis.classifyCommand('open REST client')).toBe('api');
     expect(jarvis.classifyCommand('connect to remote server')).toBe('remote');
     expect(jarvis.classifyCommand('search the internet for TypeScript')).toBe('search');
@@ -33,7 +33,7 @@ describe('JARVIS command core', () => {
   test('returns module actions without redirecting the application', () => {
     expect(jarvis.runCommand('open maps', telemetry)).toMatchObject({ intent: 'maps', value: 'maps' });
     expect(jarvis.runCommand('open API Lab', telemetry)).toMatchObject({ intent: 'api', value: 'api' });
-    expect(jarvis.runCommand('open media', telemetry)).toMatchObject({ intent: 'media', value: 'media' });
+    expect(jarvis.runCommand('play a video', telemetry)).toMatchObject({ intent: 'media', value: 'media' });
   });
 
   test('reports telemetry through the status command', () => {
