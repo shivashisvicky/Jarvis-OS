@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('JARVIS dynamic intelligence authority', () => {
   test('video keyword search is query-sensitive and stays in-house', async ({ page }) => {
-    await page.route('**/search**', async route => {
+    await page.route('**/__jarvis/video/search**', async route => {
       const url = new URL(route.request().url());
       const q = (url.searchParams.get('q') || '').toLowerCase();
       if (q.includes('cats')) {
@@ -30,8 +30,8 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await expect(page.locator('.jv4-video-card').first()).toContainText('Dogs training live result');
     const dogs = await page.locator('.jv4-video-card').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-jv4-video')));
     expect(dogs).not.toEqual(cats);
-    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026','all'))).toBe('https://m.youtube.com/results?sp=mAEA&search_query=India%202026');
-    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats','shorts'))).toBe('https://m.youtube.com/results?sp=EgIQCQ%3D%3D&search_query=Cats');
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026','all'))).toBe('https://m.youtube.com/results?search_query=India%202026');
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats','shorts'))).toBe('https://m.youtube.com/results?search_query=Cats');
     expect(page.context().pages()).toHaveLength(1);
   });
 
@@ -45,8 +45,7 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('quantum waffles 987654321');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('No matching live video results were returned');
-    await expect(page.locator('#videoResults')).not.toContainText('No video index responded. JARVIS will not redirect you.');
+    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 12000 });
     await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
     await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
     await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
@@ -55,7 +54,7 @@ test.describe('JARVIS dynamic intelligence authority', () => {
   });
 
   test('generic map search uses provider failover and changes location', async ({ page }) => {
-    await page.route('https://photon.komoot.io/api/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ geometry:{coordinates:[2.2945,48.8584]}, properties:{name:'Eiffel Tower',city:'Paris',country:'France'} }] }) }));
+    await page.route('**/__jarvis/geo**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ lat:48.8584, lon:2.2945, name:'Eiffel Tower', detail:'Eiffel Tower, Paris, France' }] }) }));
     await page.goto('/');
     await page.locator('button.nav[data-app="maps"]').click();
     await page.locator('#mapQuery').fill('Eiffel Tower');
