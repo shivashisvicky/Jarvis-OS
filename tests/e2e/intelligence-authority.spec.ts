@@ -25,16 +25,17 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.locator('#videoSearch').click();
     await expect(page.locator('.jv4-video-card').first()).toContainText('Cats compilation live result');
     const cats = await page.locator('.jv4-video-card').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-jv4-video')));
-
     await page.locator('#videoQuery').fill('dogs');
     await page.locator('#videoSearch').click();
     await expect(page.locator('.jv4-video-card').first()).toContainText('Dogs training live result');
     const dogs = await page.locator('.jv4-video-card').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-jv4-video')));
     expect(dogs).not.toEqual(cats);
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026','all'))).toBe('https://m.youtube.com/results?sp=mAEA&search_query=India%202026');
+    expect(await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats','shorts'))).toBe('https://m.youtube.com/results?sp=EgIQCQ%3D%3D&search_query=Cats');
     expect(page.context().pages()).toHaveLength(1);
   });
 
-  test('provider exhaustion never renders canned videos', async ({ page }) => {
+  test('provider exhaustion never renders canned videos or redirects', async ({ page }) => {
     await page.route('**/*', async route => {
       const u = route.request().url();
       if (/pipedapi|invidious|youtube\.com\/results|allorigins\.win|corsproxy\.io|r\.jina\.ai/.test(u)) return route.abort();
@@ -44,11 +45,13 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('quantum waffles 987654321');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE');
+    await expect(page.locator('#videoResults')).toContainText('No matching live video results were returned');
+    await expect(page.locator('#videoResults')).not.toContainText('No video index responded. JARVIS will not redirect you.');
     await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
     await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
     await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
     await expect(page.locator('#videoResults')).not.toContainText('India 2026');
+    await expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
   });
 
   test('generic map search uses provider failover and changes location', async ({ page }) => {
@@ -58,7 +61,7 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.locator('#mapQuery').fill('Eiffel Tower');
     await page.locator('#mapSearch').click();
     await expect(page.locator('.jv4-place').first()).toContainText('Eiffel Tower');
-    await expect(page.locator('.jv4-provider')).toContainText('Photon → ArcGIS → Nominatim');
+    await expect(page.locator('.jv4-provider')).toContainText('PHOTON → ARCGIS → NOMINATIM');
     await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
   });
 
