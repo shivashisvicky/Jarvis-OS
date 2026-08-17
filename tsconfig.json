@@ -1,4 +1,15 @@
 {
-  "compilerOptions": {"target":"ES2022","useDefineForClassFields":true,"module":"ESNext","moduleResolution":"Bundler","strict":true,"noUnusedLocals":false,"noUnusedParameters":false,"skipLibCheck":true,"types":["vitest/globals"]},
-  "include":["src","tests","vite.config.ts","playwright.config.ts"]
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "types": ["vitest/globals", "vite/client"]
+  },
+  "include": ["src", "tests", "vite.config.ts", "playwright.config.ts"],
+  "exclude": ["tests/e2e"]
 }
