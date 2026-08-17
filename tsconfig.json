@@ -6,7 +6,6 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noEmit": true,
-    "useDefineForClassFields": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
