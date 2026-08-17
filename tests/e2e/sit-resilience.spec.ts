@@ -86,6 +86,29 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     expect(allUrl).toBe('https://www.youtube.com/results?search_query=India%202026');
   });
 
+  test('provider failover uses the next live Piped source when the primary is unavailable', async ({ page }) => {
+    await page.route('**/__jarvis/video/**', route => route.abort());
+    await page.route('https://pipedapi.kavin.rocks/**', route => route.abort());
+    await page.route('https://pipedapi.adminforge.de/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+      { videoId:'J---aiyznGQ', title:'Failover cats result', uploaderName:'Failover Test Channel', type:'stream' },
+    ]}) }));
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoQuery').fill('cats failover');
+    await page.locator('#videoSearch').click();
+    await expect(page.getByText('Failover cats result', { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('RESULTS');
+    expect(page.context().pages()).toHaveLength(1);
+  });
+
+  test('pasted direct media URL remains playable inside the JARVIS player', async ({ page }) => {
+    await expectInternalApp(page, 'media', 'Media Center');
+    await page.locator('#videoUrl').fill('https://cdn.example.test/jarvis-sample.mp4');
+    await page.locator('#playVideo').click();
+    await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.test/jarvis-sample.mp4');
+    await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('DIRECT MEDIA');
+    expect(page.context().pages()).toHaveLength(1);
+  });
+
   test('pasted mobile YouTube URL resolves to the same internal player resource', async ({ page }) => {
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoUrl').fill('https://m.youtube.com/watch?v=limjpmSRrdE&si=1t1qckOxWZmxUGmZ');
