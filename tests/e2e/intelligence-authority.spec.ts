@@ -50,8 +50,8 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await page.goto('/');
     await page.locator('#commandInput').fill('What is an API gateway?');
     await page.locator('#commandForm').locator('button[type="submit"]').click();
-    await expect(page.locator('#jv4CentralAnswer')).toContainText('An API gateway is a service');
-    await expect(page.locator('#jv4CentralAnswer')).toContainText('IN-HOUSE');
+    await expect(page.locator('#jarvisReply')).toContainText('An API gateway is a service');
+    await expect(page.locator('#jarvisReply')).toContainText('IN-HOUSE');
   });
 
   test('Research workspace displays results instead of redirecting', async ({ page }) => {
@@ -61,7 +61,7 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await expect(page.getByRole('heading', { name: 'Search Hub', exact: true })).toBeVisible();
     await page.locator('#webQuery').fill('OAuth 2.0');
     await page.locator('#webSearch').click();
-    await expect(page.locator('#jv4SearchAnswer')).toContainText('OAuth 2.0 is an authorization framework');
+    await expect(page.locator('#jv3SearchAnswer, #jv4SearchAnswer').filter({ hasText: 'OAuth 2.0 is an authorization framework' })).toBeVisible();
     expect(page.context().pages()).toHaveLength(1);
   });
 });
