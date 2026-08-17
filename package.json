@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run tests/unit --reporter=dot",
     "test:browser": "playwright test",
     "test:browser:smoke": "playwright test tests/e2e/ci-smoke.spec.ts",
     "test:browser:chromium": "playwright test --project=chromium",
