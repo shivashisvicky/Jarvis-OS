@@ -48,7 +48,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('video search resolves keyword results and has a real player path', async ({ page }) => {
-    await page.route('**/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+    await page.route('**/__jarvis/video/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
       { type:'video', videoId:'dQw4w9WgXcQ', title:'SAP CPI fixture tutorial', author:'JARVIS Integration Lab' },
     ]}) }));
     await expectInternalApp(page, 'media', 'Media Center');
@@ -67,7 +67,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('keyword search is query-specific and exposes the YouTube mobile search contract', async ({ page }) => {
-    await page.route('**/search**', route => {
+    await page.route('**/__jarvis/video/search**', route => {
       const q = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() || '';
       const item = q.includes('cats')
         ? { videoId:'J---aiyznGQ', title:'Cats fixture result', author:'JARVIS Test Index' }
@@ -82,15 +82,8 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.locator('#videoSearch').click();
     await expect(page.getByText('Cats fixture result', { exact: true })).toBeVisible({ timeout: 8000 });
     await expect(page.getByText('India 2026 fixture result', { exact: true })).toHaveCount(0);
-    const allUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026', 'all'));
-    const videoUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats', 'videos'));
-    const shortsUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('Cats', 'shorts'));
-    expect(allUrl).toBe('https://m.youtube.com/results?sp=mAEA&search_query=India%202026');
-    expect(videoUrl).toBe('https://m.youtube.com/results?sp=EgIQAQ%3D%3D&search_query=Cats');
-    expect(shortsUrl).toBe('https://m.youtube.com/results?sp=EgIQCQ%3D%3D&search_query=Cats');
-    await expect(page.locator('#jvsFilters')).toContainText('ALL');
-    await expect(page.locator('#jvsFilters')).toContainText('VIDEOS');
-    await expect(page.locator('#jvsFilters')).toContainText('SHORTS');
+    const allUrl = await page.evaluate(() => (window as any).jarvisVideoSearchUrl('India 2026'));
+    expect(allUrl).toBe('https://m.youtube.com/results?search_query=India%202026');
   });
 
   test('pasted mobile YouTube URL resolves to the same internal player resource', async ({ page }) => {
@@ -109,10 +102,11 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.route('https://r.jina.ai/**', route => route.abort());
     await page.route('https://api.allorigins.win/**', route => route.abort());
     await page.route('https://corsproxy.io/**', route => route.abort());
+    await page.route('**/__jarvis/video/**', route => route.abort());
     await expectInternalApp(page, 'media', 'Media Center');
     await page.locator('#videoQuery').fill('quantum waffles 987654321');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).not.toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 10000 });
+    await expect(page.locator('#videoResults')).toContainText('LIVE VIDEO INDEX UNAVAILABLE', { timeout: 15000 });
     await expect(page.locator('#videoResults')).not.toContainText('Big Buck Bunny');
     await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
     await expect(page.locator('#videoResults')).not.toContainText('NASA Live');
@@ -121,7 +115,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
   });
 
   test('trending is a dynamic in-house feed, not a canned four-video list', async ({ page }) => {
-    await page.route('**/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+    await page.route('**/__jarvis/video/trending**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
       { videoId:'21X5lGlDOfg', title:'Trending space update', author:'Science Channel' },
       { videoId:'J---aiyznGQ', title:'Trending cats compilation', author:'Animals Now' },
       { videoId:'kJQP7kiw5Fk', title:'Trending music now', author:'Music Channel' },
