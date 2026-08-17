@@ -9,13 +9,10 @@ on:
 permissions:
   contents: read
 
-# Never cancel an in-flight validation run. Every pushed revision gets its full evidence set.
 concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Every validation lane is intentionally independent. A broken install/build/test
-# in one lane must never prevent the other lanes from collecting evidence.
 jobs:
   quality:
     name: Quality / Build / Unit
@@ -47,14 +44,11 @@ jobs:
       - name: Quality verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.build.outcome }}" "${{ steps.unit.outcome }}" "${{ steps.audit.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then
-            echo "Quality lane collected all checks, but one or more checks failed."
-            exit 1
-          fi
+          echo "install=${{ steps.install.outcome }} build=${{ steps.build.outcome }} unit=${{ steps.unit.outcome }} audit=${{ steps.audit.outcome }}"
+          test "${{ steps.install.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.unit.outcome }}" = success
+          test "${{ steps.audit.outcome }}" = success
 
   e2e-chromium:
     name: E2E / Chromium
@@ -96,11 +90,11 @@ jobs:
       - name: Chromium verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          echo "install=${{ steps.install.outcome }} browser=${{ steps.browser.outcome }} build=${{ steps.build.outcome }} test=${{ steps.test.outcome }}"
+          test "${{ steps.install.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.test.outcome }}" = success
 
   e2e-cross-browser:
     name: E2E / ${{ matrix.browser }} Smoke
@@ -146,8 +140,8 @@ jobs:
       - name: ${{ matrix.browser }} verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          echo "install=${{ steps.install.outcome }} browser=${{ steps.browser.outcome }} build=${{ steps.build.outcome }} test=${{ steps.test.outcome }}"
+          test "${{ steps.install.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.test.outcome }}" = success
