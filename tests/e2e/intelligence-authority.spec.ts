@@ -34,14 +34,15 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     expect(page.context().pages()).toHaveLength(1);
   });
 
-  test('generic map search uses non-hardcoded provider chain and changes location', async ({ page }) => {
+  test('generic map search uses provider failover and changes location', async ({ page }) => {
     await page.route('https://photon.komoot.io/api/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ geometry:{coordinates:[2.2945,48.8584]}, properties:{name:'Eiffel Tower',city:'Paris',country:'France'} }] }) }));
     await page.goto('/');
     await page.locator('button.nav[data-app="maps"]').click();
     await page.locator('#mapQuery').fill('Eiffel Tower');
     await page.locator('#mapSearch').click();
     await expect(page.locator('.jv4-place').first()).toContainText('Eiffel Tower');
-    await expect(page.locator('.jv4-provider')).toContainText(/CARTO tiles|MAP RENDER FALLBACK/);
+    await expect(page.locator('.jv4-provider')).toContainText('Photon → ArcGIS → Nominatim');
+    await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
   });
 
   test('dashboard command search renders an internal answer', async ({ page }) => {
