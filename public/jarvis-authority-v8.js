@@ -3,9 +3,9 @@
 if(window.__JARVIS_AUTHORITY_V8__)return;window.__JARVIS_AUTHORITY_V8__=1;
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const VID=/^[A-Za-z0-9_-]{11}$/;
 const json=async(url,ms=6000)=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{cache:'no-store',signal:c.signal,headers:{Accept:'application/json'}});if(!r.ok)throw Error(String(r.status));return await r.json()}finally{clearTimeout(t)}};
 const escId=x=>String(x||'').match(/^[A-Za-z0-9_-]{11}$/)?.[0]||'';
+function installRenderSafety(){const native=window.setInterval.bind(window);window.setInterval=(fn,delay,...args)=>{if(delay===15000&&typeof fn==='function'){const src=Function.prototype.toString.call(fn);if(src.includes("active==='home'")&&src.includes('render()'))return 0}return native(fn,delay,...args)}}
 function play(id,title='JARVIS video'){id=escId(id);if(!id)return false;const p=$('#jarvisPlayer');if(!p)return false;p.innerHTML=`<iframe title="${esc(title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen playsinline src="https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1&modestbranding=1"></iframe>`;const s=$('#mediaState')||$('#jvcStatus');if(s)s.textContent='PLAYING · JARVIS PLAYER';return true}
 function markVideoStatus(){const s=$('#mediaState')||$('#jvcStatus');if(s&&!/PLAYING/i.test(s.textContent||''))s.textContent=`${s.textContent||'RESULTS'} · IN-HOUSE`}
 function addSearchCompatibility(){const answer=$('#jv4SearchAnswer')||$('#jv3SearchAnswer');if(answer){$$('.jv4-result',answer).forEach(x=>x.classList.add('jlf-result'));if(!$('#jlfSearchInternet',answer)){const b=document.createElement('button');b.id='jlfSearchInternet';b.className='secondary';b.type='button';b.textContent='SEARCH INTERNET';b.addEventListener('click',()=>{const q=$('#webQuery')?.value?.trim();if(q)window.open(`https://search.brave.com/search?q=${encodeURIComponent(q)}`,'_blank','noopener,noreferrer')});answer.appendChild(b)}}}
@@ -30,7 +30,6 @@ async function mapSearch(q){const query=String(q||'').trim(),r=$('#mapResults'),
 }
 function video(q){const fn=window.jarvisVideoSearch;if(typeof fn!=='function')return;return Promise.resolve(fn(q)).then(()=>markVideoStatus())}
 function installSnakePad(){const install=()=>{const c=$('#snakeCanvas');if(!c||c.dataset.jv8Pad==='1')return;c.dataset.jv8Pad='1';const host=c.parentElement;if(!host)return;const p=document.createElement('div');p.className='jlf-pad';p.innerHTML='<button class="blank">·</button><button data-d="up">▲</button><button class="blank">·</button><button data-d="left">◀</button><button data-d="down">▼</button><button data-d="right">▶</button>';host.appendChild(p);const keys={up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'};p.querySelectorAll('[data-d]').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();window.dispatchEvent(new KeyboardEvent('keydown',{key:keys[b.dataset.d]}))},{passive:false}))};new MutationObserver(install).observe(document.body,{childList:true,subtree:true});install()}
-function nav(app){document.querySelector(`button.nav[data-app="${app}"]`)?.click()}
 function install(){
  document.addEventListener('submit',e=>{const form=e.target instanceof Element?e.target.closest('#commandForm'):null;if(!form)return;e.preventDefault();e.stopImmediatePropagation();const q=$('#commandInput')?.value?.trim();if(q)void central(q,$('#jarvisReply'))},true);
  document.addEventListener('click',e=>{const el=e.target instanceof Element?e.target:null;if(!el)return;
@@ -46,5 +45,5 @@ function install(){
  document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const el=e.target;if(!(el instanceof HTMLInputElement))return;if(el.id==='videoQuery'){e.preventDefault();e.stopImmediatePropagation();void video(el.value)}else if(el.id==='mapQuery'){e.preventDefault();e.stopImmediatePropagation();void mapSearch(el.value)}else if(el.id==='webQuery'){e.preventDefault();e.stopImmediatePropagation();void central(el.value,null).then(addSearchCompatibility)}},true);
  installSnakePad();
 }
-install();
+installRenderSafety();install();
 })();
