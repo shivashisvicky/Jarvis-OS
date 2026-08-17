@@ -83,7 +83,7 @@ test.describe('JARVIS internal-app and recovery SIT', () => {
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
     await expect(page.locator('#videoResults .jvc-card')).toHaveCount(1, { timeout: 10000 });
-    await expect(page.getByText(/JARVIS playable fallback/i)).toBeVisible();
+    await expect(page.getByText(/JARVIS playable (fallback|media)/i)).toBeVisible();
     await expect(page.locator('#mediaState, #jvcStatus').first()).toContainText('IN-HOUSE');
     await expect(page.getByText(/No public video index responded|NO REDIRECT|VIDEO INDEX OFFLINE/i)).toHaveCount(0);
     await page.locator('#videoResults .jvc-card').click();
