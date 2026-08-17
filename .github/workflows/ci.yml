@@ -1,7 +1,7 @@
 name: Jarvis OS CI
 on:
   push:
-    branches: [main, 'build/**']
+    branches: [main, 'build/**', 'fix/**']
   pull_request:
     branches: [main]
   schedule:
