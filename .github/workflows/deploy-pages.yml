@@ -49,3 +49,23 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  live-media-smoke:
+    name: Live / Media Search
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify deployed media search
+        env:
+          JARVIS_LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: npx playwright test tests/e2e/live-media.spec.ts --project=chromium
