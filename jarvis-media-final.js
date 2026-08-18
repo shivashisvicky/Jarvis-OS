@@ -5,8 +5,15 @@
   window.__JARVIS_FINAL_MEDIA_AUTHORITY__ = true;
 
   const PEERTUBE = 'https://peertube.cpy.re';
-  const INVIDIOUS = ['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yt.chocolatemoo53.com'];
+  // Keep this list aligned with the current official/public instance lists.
+  const INVIDIOUS = ['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yt.chocolatemoo53.com','https://invidious.tiekoetter.com'];
   const PIPED = ['https://pipedapi.kavin.rocks','https://pipedapi.tokhmi.xyz','https://pipedapi.moomoo.me','https://pipedapi.syncpundit.io','https://api-piped.mha.fi','https://piped-api.garudalinux.org','https://pipedapi.rivo.lol','https://pipedapi.leptons.xyz'];
+  // Static GitHub Pages has no server runtime. These are last-resort discovery
+  // transports only. Playback still uses the official embedded player.
+  const CORS_PROXIES = [
+    target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+    target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+  ];
   const TIMEOUT = 7000;
   let mounted = false;
   let generation = 0;
@@ -20,14 +27,27 @@
   const replaceResults = html => { const x = dom().results; if (!x) return; ownMutation = true; x.innerHTML = html; ownMutation = false; };
   const replacePlayer = html => { const x = dom().player; if (!x) return; ownMutation = true; x.innerHTML = html; ownMutation = false; };
 
-  async function json(url) {
+  async function request(url, accept = 'application/json') {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), TIMEOUT);
     try {
-      const r = await fetch(url, { signal: c.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+      const r = await fetch(url, { signal: c.signal, cache: 'no-store', headers: { Accept: accept } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
+      return r;
     } finally { clearTimeout(t); }
+  }
+
+  async function json(url) { return request(url, 'application/json').then(r => r.json()); }
+
+  async function proxiedText(target) {
+    for (const makeProxy of CORS_PROXIES) {
+      try {
+        const r = await request(makeProxy(target), 'text/html,text/plain,*/*');
+        const text = await r.text();
+        if (text.length > 1000) return text;
+      } catch {}
+    }
+    throw new Error('all discovery transports failed');
   }
 
   function youtubeId(raw) {
@@ -43,7 +63,7 @@
   function normalize(v, source) {
     const id = String(v?.uuid || v?.shortUUID || v?.videoId || v?.id || youtubeId(v?.url || '') || '').trim();
     if (!id) return null;
-    const thumb = (v?.videoThumbnails || []).find(x => x.quality === 'medium')?.url || v?.thumbnailPath || v?.thumbnail || '';
+    const thumb = (v?.videoThumbnails || []).find(x => x.quality === 'medium')?.url || v?.thumbnailPath || v?.thumbnail || (youtubeId(v?.url || '') ? `https://i.ytimg.com/vi/${youtubeId(v.url)}/hqdefault.jpg` : '');
     return {
       id,
       title: String(v?.name || v?.title || v?.displayName || 'Untitled video'),
@@ -66,8 +86,38 @@
   }
 
   async function pipedSearch(base, q) {
-    const d = await json(`${base}/search?q=${encodeURIComponent(q)}&filter=videos`);
-    return (Array.isArray(d?.items) ? d.items : []).map(v => normalize(v, 'YouTube / Piped')).filter(Boolean);
+    const d = await json(`${base}/search?q=${encodeURIComponent(q)}&filter=videos&region=IN`);
+    return (Array.isArray(d?.items) ? d.items : Array.isArray(d) ? d : []).map(v => normalize(v, 'YouTube / Piped')).filter(Boolean);
+  }
+
+  function parseYouTubeSearch(html, query) {
+    const found = [];
+    const seen = new Set();
+    for (const match of html.matchAll(/\"videoId\":\"([A-Za-z0-9_-]{11})\"/g)) {
+      const id = match[1];
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const start = Math.max(0, match.index - 2500);
+      const windowText = html.slice(start, Math.min(html.length, match.index + 5000));
+      const titleMatch = windowText.match(/\"title\":\{\"runs\":\[\{\"text\":\"([^\"]+)/);
+      const authorMatch = windowText.match(/\"ownerText\":\{\"runs\":\[\{\"text\":\"([^\"]+)/);
+      found.push({
+        id,
+        title: titleMatch ? titleMatch[1].replace(/\\u0026/g, '&') : `${query} · YouTube result`,
+        author: authorMatch ? authorMatch[1] : 'YouTube',
+        duration: 0,
+        thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+        source: 'YouTube / live web',
+        direct: ''
+      });
+      if (found.length >= 12) break;
+    }
+    return found;
+  }
+
+  async function youtubeWebSearch(q) {
+    const target = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    return parseYouTubeSearch(await proxiedText(target), q);
   }
 
   async function searchIndexes(q) {
@@ -87,7 +137,10 @@
     replaceResults('<div class="media-loading-indicator">SEARCHING LIVE VIDEO SOURCES…</div>');
     setState('SEARCHING', query.toUpperCase());
     try {
-      const items = unique(await searchIndexes(query));
+      let items = unique(await searchIndexes(query));
+      if (!items.length) {
+        try { items = unique(await youtubeWebSearch(query)); } catch {}
+      }
       if (run !== generation) return;
       if (!items.length) {
         replaceResults(`<div class="empty media-degraded-state"><strong>NO LIVE RESULTS</strong><small>No real indexed video matched “${esc(query)}”. Nothing fabricated or substituted.</small></div>`);
@@ -116,7 +169,7 @@
       setState('PLAYING', 'PEERTUBE');
       return;
     }
-    // Invidious/Piped results are YouTube IDs. Playback stays inside JARVIS.
+    // All YouTube-derived IDs stay inside the official YouTube embed player.
     replacePlayer(`<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1"></iframe>`);
     setState('PLAYING', 'YOUTUBE EMBED');
   }
@@ -157,8 +210,7 @@
         event.preventDefault(); event.stopImmediatePropagation(); void search(d.input.value);
       } else if (provider) {
         event.preventDefault(); event.stopImmediatePropagation();
-        // All provider buttons resolve through internal indexes. No external redirect.
-        void search(d.input.value || 'cats');
+        void search(d.input.value || 'trending videos India');
       } else if (card) {
         event.preventDefault(); event.stopImmediatePropagation(); void play(card.getAttribute('data-jvc-id') || '', card.getAttribute('data-jvc-source') || '');
       } else if (legacy) {
