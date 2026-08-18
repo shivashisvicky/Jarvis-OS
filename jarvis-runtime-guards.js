@@ -50,10 +50,17 @@
     if (!authority || !input || !results) return;
 
     const legacyCards = results.querySelectorAll('.video-result[data-video-id]:not([data-embed-url])');
-    if (legacyCards.length || /Loading trending|SEARCHING VIDEO INDEX|Video index unavailable|SEARCH FAILED/i.test(results.textContent || '')) {
+    const legacyState = /Loading trending|SEARCHING VIDEO INDEX|Video index unavailable|SEARCH FAILED/i.test(results.textContent || '');
+    if (legacyCards.length || legacyState) {
       results.replaceChildren();
-      if (input.value.trim()) void authority.executeSearch(input.value.trim());
-      else void authority.executeSearch('trending videos');
+      if (input.value.trim()) {
+        void authority.executeSearch(input.value.trim());
+      } else {
+        const ready = document.createElement('div');
+        ready.className = 'empty';
+        ready.textContent = 'Ready · search for videos to begin.';
+        results.appendChild(ready);
+      }
     }
   };
 
