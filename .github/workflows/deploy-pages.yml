@@ -67,5 +67,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify deployed media search
         env:
-          JARVIS_LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
         run: npx playwright test tests/e2e/live-media.spec.ts --project=chromium
