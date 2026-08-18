@@ -15,13 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Keep CI on the stable npm 10 line. The repository intentionally has no
-  # package-lock, so dependency installation is explicit and reproducible in
-  # flags rather than relying on a runner-generated lockfile.
-  NPM_VERSION: 10.9.7
-  npm_config_legacy_peer_deps: true
-  npm_config_audit: false
-  npm_config_fund: false
+  PNPM_VERSION: 10.15.0
 
 jobs:
   quality:
@@ -32,16 +26,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pin npm
-        run: npm install --global npm@${NPM_VERSION} && npm --version
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
       - name: Build
-        run: npm run build
+        run: pnpm run build
       - name: Unit tests
-        run: npm test -- --reporter=dot
+        run: pnpm test -- --reporter=dot
       - name: Security audit
-        run: npm audit --audit-level=critical
+        run: pnpm audit --audit-level=critical
 
   python-media:
     name: Local Media / Python Contract
@@ -67,16 +61,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pin npm
-        run: npm install --global npm@${NPM_VERSION} && npm --version
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Build
-        run: npm run build
+        run: pnpm run build
       - name: Browser smoke
-        run: npm run test:browser:smoke -- --project=chromium
+        run: pnpm run test:browser:smoke -- --project=chromium
       - name: Upload Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -100,16 +94,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pin npm
-        run: npm install --global npm@${NPM_VERSION} && npm --version
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
       - name: Install browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - name: Build
-        run: npm run build
+        run: pnpm run build
       - name: Browser smoke
-        run: npx playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
+        run: pnpm exec playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
       - name: Upload cross-browser evidence
         if: always()
         uses: actions/upload-artifact@v4
