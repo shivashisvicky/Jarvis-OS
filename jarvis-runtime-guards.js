@@ -3,64 +3,44 @@
   if (window.__JARVIS_RUNTIME_GUARDS__) return;
   window.__JARVIS_RUNTIME_GUARDS__ = true;
 
-  // Legacy Piped instances are no longer part of the media authority.
-  // Keep the network quarantine, but do not clone/replace media controls.
-  // Replacing #videoQuery/#videoSearch can detach the unified authority's
-  // direct listeners and creates a timing race in the SPA render cycle.
   const nativeFetch = window.fetch.bind(window);
-  const blocked = /^https:\/\/pipedapi(?:-[^./]+)?\.[^/]+/i;
+  const blockedHosts = /(?:pipedapi|invidious|allorigins|corsproxy)\./i;
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
-    if (blocked.test(url)) {
-      return Promise.reject(new Error('Legacy Piped media provider disabled: unified media authority is active'));
+    if (blockedHosts.test(url)) {
+      return Promise.reject(new Error('Legacy browser media provider disabled: local media authority is active'));
     }
     return nativeFetch(input, init);
   };
 
-  const mediaSelectors = '#media-center,[data-app-container="media"],.media-center-root,section[data-app="media"],#media';
   let repairTimer = 0;
-  let rootObserver = null;
-
   const repairMedia = () => {
-    const root = document.querySelector(mediaSelectors);
-    if (!root) return;
-
-    const authority = window.JarvisMedia;
-    const input = root.querySelector('#videoQuery');
-    const results = root.querySelector('#videoResults');
-    if (!authority || !input || !results) return;
-
-    // Only clean up output produced by a legacy renderer. Never replace the
-    // input/search controls because the unified authority owns those nodes.
-    const legacyCards = results.querySelectorAll('.video-result[data-video-id]:not([data-embed-url])');
-    const legacyState = /Loading trending|SEARCHING VIDEO INDEX|Video index unavailable|SEARCH FAILED/i.test(results.textContent || '');
-    if (legacyCards.length || legacyState) {
-      results.replaceChildren();
-      if (input.value.trim()) {
-        void authority.executeSearch(input.value.trim());
-      } else {
-        const ready = document.createElement('div');
-        ready.className = 'empty';
-        ready.textContent = 'Ready · search for videos to begin.';
-        results.appendChild(ready);
-      }
+    const results = document.querySelector('#videoResults');
+    if (!results) return;
+    const legacy = results.querySelectorAll(
+      '.jyt-card,.jvc-card,.jff-video,.jff-video-results,.jarvis-video-card,' +
+      '.jarvis-video-result,.jarvis-final-card,.jarvis-video-results,' +
+      '.video-result[data-video-id],.video-results-grid,[data-video-index]'
+    );
+    if (!legacy.length) return;
+    legacy.forEach(node => node.remove());
+    console.warn('[JARVIS MEDIA GUARD] Removed legacy browser-rendered media results', { count: legacy.length });
+    if (!results.querySelector('.media-local-success,.media-degraded-state,.media-loading-indicator')) {
+      const empty = document.createElement('div');
+      empty.className = 'empty media-authority-ready';
+      empty.textContent = 'LOCAL MEDIA AUTHORITY ACTIVE · SEARCH TO BEGIN';
+      results.replaceChildren(empty);
     }
   };
-
   const scheduleRepair = () => {
     clearTimeout(repairTimer);
-    repairTimer = window.setTimeout(repairMedia, 20);
+    repairTimer = window.setTimeout(repairMedia, 25);
   };
-
   const boot = () => {
     repairMedia();
-    rootObserver = new MutationObserver(scheduleRepair);
-    rootObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    const observer = new MutationObserver(scheduleRepair);
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
-  } else {
-    boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
