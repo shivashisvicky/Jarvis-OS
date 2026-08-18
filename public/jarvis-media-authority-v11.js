@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_MEDIA_AUTHORITY_V11__) return;
-  window.__JARVIS_MEDIA_AUTHORITY_V11__ = true;
+  if (window.__JARVIS_MEDIA_AUTHORITY_V12__) return;
+  window.__JARVIS_MEDIA_AUTHORITY_V12__ = true;
 
   const HOST = 'https://peertube.cpy.re';
   const TIMEOUT_MS = 7000;
@@ -20,7 +20,7 @@
 
   const setStatus = (text, detail = '') => {
     const state = document.querySelector('#mediaState');
-    const status = document.querySelector('#jarvisMediaV11Status');
+    const status = document.querySelector('#jarvisMediaV12Status');
     if (state) state.textContent = text;
     if (status) status.textContent = detail ? `${text} · ${detail}` : text;
   };
@@ -80,10 +80,9 @@
     const iframe = document.createElement('iframe'); iframe.title = 'YouTube video'; iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(match[1])}?rel=0&playsinline=1`; iframe.allow = 'autoplay; fullscreen; picture-in-picture'; iframe.allowFullscreen = true; iframe.referrerPolicy = 'strict-origin-when-cross-origin'; player.replaceChildren(iframe); setStatus('PLAYING', 'YOUTUBE EMBED');
   };
 
-  // Capture phase is intentional: jarvis-core-authority registers a document-level
-  // capture listener later in index.html. v11 must own media events before it can
-  // reach the legacy handler. This is the actual single-owner boundary.
-  document.addEventListener('click', event => {
+  // V12 owns the media surface at WINDOW capture level. This runs before
+  // document-level capture listeners, including jarvis-core-authority.
+  const handleClick = event => {
     const target = event.target?.closest?.(mediaTarget);
     if (!target) return;
     event.preventDefault(); event.stopImmediatePropagation();
@@ -94,19 +93,23 @@
       const id = target.dataset.videoId; const title = target.querySelector('strong')?.textContent || 'PeerTube video';
       if (id) play({ id, title, author: 'PeerTube', duration: 0, thumbnail: '', embed: `${HOST}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0` });
     }
-  }, true);
-  document.addEventListener('keydown', event => {
+  };
+  const handleKeydown = event => {
     if (event.key !== 'Enter' || !event.target?.matches?.('#videoQuery')) return;
     event.preventDefault(); event.stopImmediatePropagation(); void runSearch();
-  }, true);
+  };
+
+  // The ordering here is the important fix: window capture precedes document capture.
+  window.addEventListener('click', handleClick, true);
+  window.addEventListener('keydown', handleKeydown, true);
 
   const install = () => {
     const results = document.querySelector('#videoResults');
     if (!results) return false;
-    if (!document.querySelector('#jarvisMediaV11Status')) {
-      const status = document.createElement('div'); status.id = 'jarvisMediaV11Status'; status.className = 'jyt-status'; results.parentElement?.insertBefore(status, results);
+    if (!document.querySelector('#jarvisMediaV12Status')) {
+      const status = document.createElement('div'); status.id = 'jarvisMediaV12Status'; status.className = 'jyt-status'; results.parentElement?.insertBefore(status, results);
     }
-    setStatus('READY', 'LIVE VIDEO SEARCH');
+    setStatus('READY', 'LIVE VIDEO SEARCH · V12');
     return true;
   };
   const observer = new MutationObserver(install); observer.observe(document.documentElement, { childList: true, subtree: true }); install();
