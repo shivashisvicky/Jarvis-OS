@@ -17,20 +17,17 @@
   <script src="./jarvis-preboot.js?v=20260816-2"></script>
   <script type="module" src="./src/main.ts?v=20260818-core-authority-3"></script>
   <script src="./jarvis-games.js?v=20260816-7"></script>
-  <script src="./jarvis-v3-runtime.js?v=20260816-3"></script>
+  <script src="./jarvis-v3-runtime.js?v=20260818-video-recovery-1"></script>
   <script src="./jarvis-news-compat.js?v=20260816-1"></script>
   <script src="./jarvis-news-summary-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-core-authority.js?v=20260818-2"></script>
   <script src="./jarvis-mobile-controls.js?v=20260818-1"></script>
   <script src="./jarvis-map-authority-final.js?v=20260818-2"></script>
   <script src="./jarvis-intelligence-authority-final.js?v=20260818-2"></script>
-  <script src="./jarvis-media-core-v7.js?v=20260818-2"></script>
-  <script src="./jarvis-media-compat-v7.js?v=20260818-2"></script>
   <script>
-    // Media Core v7 is the sole owner of media search, result rendering and playback.
-    // Legacy video authority scripts are intentionally not loaded because their
-    // competing listeners caused duplicate searches and stale/fixed result output.
-    window.__JARVIS_RUNTIME_AUTHORITY__ = '2026-08-18-media-v7-single-owner';
+    // Video recovery: keep the previously working JARVIS v3 media runtime as the
+    // sole media renderer until the new Media Core has been proven end-to-end.
+    window.__JARVIS_RUNTIME_AUTHORITY__ = '2026-08-18-video-recovery-v3';
   </script>
 </body>
 </html>
