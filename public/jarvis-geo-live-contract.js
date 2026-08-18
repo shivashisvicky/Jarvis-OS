@@ -1,0 +1,10 @@
+(()=>{
+'use strict';
+if(window.__JARVIS_GEO_LIVE_CONTRACT__)return;window.__JARVIS_GEO_LIVE_CONTRACT__=1;
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
+async function internal(q){try{const r=await fetch(`/__jarvis/geo?q=${encodeURIComponent(q)}`,{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error(String(r.status));const d=await r.json();return(d?.items||[]).filter(x=>Number.isFinite(+x.lat)&&Number.isFinite(+x.lon))}catch{return[]}}
+function render(xs){const r=$('#mapResults'),f=$('#mapFrame');if(!r||!f)return;const places=xs||[];if(!places.length){r.innerHTML='<div class="empty">NO GEO RESULT · ALL PROVIDERS FAILED</div>';f.innerHTML='';return}r.innerHTML=places.map((x,i)=>`<button type="button" class="place-result jv4-place" data-jv4-place="${i}"><strong>${esc(x.name||'Place')}</strong><small>${esc(x.detail||x.display_name||'')}</small></button>`).join('')+'<div class="jv4-provider">GEO PROVIDER · PHOTON → ARCGIS → NOMINATIM · OpenStreetMap renderer</div>';const show=x=>{const dx=.035,dy=.025;f.innerHTML=`<iframe title="JARVIS OpenStreetMap" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${x.lon-dx},${x.lat-dy},${x.lon+dx},${x.lat+dy}&layer=mapnik&marker=${x.lat},${x.lon}"></iframe>`};places.forEach((x,i)=>r.querySelector(`[data-jv4-place="${i}"]`)?.addEventListener('click',()=>show(x)));show(places[0])}
+async function run(q){const query=String(q||$('#mapQuery')?.value||'').trim();if(!query)return;const xs=await internal(query);if(xs.length){render(xs);return true}if(typeof window.jarvisMapSearch==='function'){await window.jarvisMapSearch(query);return true}render([]);return false}
+document.addEventListener('click',e=>{const t=e.target?.closest?.('#mapSearch');if(!t)return;e.preventDefault();e.stopImmediatePropagation();void run($('#mapQuery')?.value)},true);
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target?.matches?.('#mapQuery')){e.preventDefault();e.stopImmediatePropagation();void run(e.target.value)}},true);
+})();
