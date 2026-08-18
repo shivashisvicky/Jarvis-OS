@@ -5,13 +5,11 @@ on:
     branches: [main, 'build/**', 'fix/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Never serialize commits on a branch. Every commit gets its own validation slot.
-# This is deliberate for active stabilization: a new fix must execute immediately
-# instead of waiting behind an older browser run.
 concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
