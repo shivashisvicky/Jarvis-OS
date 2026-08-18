@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PT = /https:\/\/(?:peertube\.cpy\.re|framatube\.org|peertube\.uno)\//;
+const PT = /https:\/\/peertube\.cpy\.re\//;
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,OPTIONS', 'Access-Control-Allow-Headers': 'Accept,Content-Type' };
 const VIDEO_ID = '9c9de5e8-0a1e-484a-b099-e80766180a6d';
 
@@ -45,7 +45,8 @@ test.describe('JARVIS CI smoke contract', () => {
     await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
     await expect(page.locator('script[src*="jarvis-media-core-v7"]')).toHaveCount(0);
     await expect(page.locator('script[src*="jarvis-media-authority-v8"]')).toHaveCount(0);
-    await expect(page.locator('script[src*="jarvis-media-authority-v10"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="jarvis-media-authority-v10"]')).toHaveCount(0);
+    await expect(page.locator('script[src*="jarvis-media-authority-v11"]')).toHaveCount(1);
     await page.locator('button.nav[data-app="media"]').click();
     await expect(page.locator('#videoQuery')).toBeVisible();
     expect(page.url()).toMatch(/\/$/);
@@ -81,7 +82,7 @@ test.describe('JARVIS CI smoke contract', () => {
     expect(page.url()).toMatch(/\/$/);
   });
 
-  test('failed PeerTube services never fabricate results', async ({ page }) => {
+  test('failed PeerTube service never fabricates results', async ({ page }) => {
     await page.route(PT, route => route.abort('failed'));
     await openMedia(page);
     await page.locator('#videoQuery').fill('unreachable test query');
