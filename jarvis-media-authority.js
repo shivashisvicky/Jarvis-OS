@@ -9,12 +9,10 @@
     { name: 'PeerTube TV', baseUrl: 'https://peertube.tv' },
     { name: 'FramaTube', baseUrl: 'https://framatube.org' }
   ];
-
   const CORS_PROXIES = [
     { name: 'AllOrigins', buildUrl: url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
     { name: 'CorsProxy', buildUrl: url => `https://corsproxy.io/?url=${encodeURIComponent(url)}` }
   ];
-
   const DIRECT_TIMEOUT_MS = 5000;
   const PROXY_TIMEOUT_MS = 7000;
   const MEDIA_ROOTS = ['#media-center','[data-app-container="media"]','.media-center-root','section[data-app="media"]','#media'];
@@ -26,6 +24,10 @@
       this.container = null;
       this.activeSearch = 0;
       this.mediaObserver = null;
+      this.resultsObserver = null;
+      this.authoritativeResults = null;
+      this.authoritativeProvider = '';
+      this.authoritativeDegraded = null;
       this.initSPAObserver();
     }
 
@@ -42,7 +44,21 @@
       if (!el || this.container === el) return;
       this.container = el;
       this.bindDelegatedEvents();
+      this.watchResultsContainer();
       console.log('[JARVIS Media Authority] Bound to dynamic Media Center root.');
+    }
+
+    watchResultsContainer() {
+      const results = this.getResultsContainer();
+      if (!results) return;
+      if (this.resultsObserver) this.resultsObserver.disconnect();
+      this.resultsObserver = new MutationObserver(() => {
+        if (!this.activeSearch) return;
+        if (results.querySelector('.jyt-card') || results.querySelector('.media-degraded-state')) return;
+        if (this.authoritativeResults) this.renderResults(this.authoritativeResults, this.authoritativeProvider);
+        else if (this.authoritativeDegraded) this.renderDegradedState(this.authoritativeDegraded.query, this.authoritativeDegraded.reason);
+      });
+      this.resultsObserver.observe(results, { childList: true, subtree: true });
     }
 
     resolve(selectors, parent = document) {
@@ -59,12 +75,9 @@
     getStatusLabel() { return this.container ? this.resolve(['#mediaState','.video-status','.media-status','#videoStatus'], this.container) : null; }
 
     bindDelegatedEvents() {
-      // Capture only inside the Media Center. This prevents the legacy setupMedia()
-      // listeners in main.ts from racing the unified authority.
       this.container.addEventListener('click', e => {
         const target = e.target;
         if (!(target instanceof Element) || !this.container.contains(target)) return;
-
         const search = target.closest(SEARCH_BUTTONS.join(','));
         if (search && this.container.contains(search)) {
           e.preventDefault();
@@ -72,7 +85,6 @@
           this.handleSearchTrigger();
           return;
         }
-
         const card = target.closest('.jyt-card, .video-result');
         if (card && this.container.contains(card)) {
           const embedUrl = card.getAttribute('data-embed-url');
@@ -118,7 +130,6 @@
       if (!path) return '';
       try { return new URL(path, base).href; } catch { return ''; }
     }
-
     clear(el) { while (el && el.firstChild) el.removeChild(el.firstChild); }
     setStatus(text) { const el = this.getStatusLabel(); if (el) el.textContent = text; }
 
@@ -126,21 +137,24 @@
       const results = this.getResultsContainer();
       if (!results) return;
       this.clear(results);
-      const box = document.createElement('div');
-      box.className = 'media-loading-indicator';
-      const text = document.createElement('span');
-      text.textContent = `JARVIS LIVE VIDEO INDEX · RACING PROVIDERS FOR: "${query}"...`;
-      box.appendChild(text);
-      results.appendChild(box);
+      results.dataset.jarvisAuthorityState = 'loading';
+      const box = document.createElement('div'); box.className = 'media-loading-indicator';
+      const text = document.createElement('span'); text.textContent = `JARVIS LIVE VIDEO INDEX · RACING PROVIDERS FOR: "${query}"...`;
+      box.appendChild(text); results.appendChild(box);
       this.setStatus(`SEARCHING · LIVE VIDEO INDEXES · ${query.toUpperCase()}`);
     }
 
     async executeSearch(query) {
+      this.activeSearch += 1;
+      const searchId = this.activeSearch;
+      this.authoritativeResults = null;
+      this.authoritativeDegraded = null;
       this.setLoading(query);
-      const searchId = ++this.activeSearch;
       try {
         const result = await Promise.any(PROVIDERS.map(provider => this.fetchProvider(provider, query)));
         if (searchId !== this.activeSearch) return;
+        this.authoritativeResults = result.results;
+        this.authoritativeProvider = result.providerName;
         this.renderResults(result.results, result.providerName);
       } catch (aggregateError) {
         if (searchId !== this.activeSearch) return;
@@ -148,6 +162,7 @@
           ? aggregateError.errors.map(error => error?.message || String(error)).join('\n')
           : (aggregateError?.message || 'All video providers failed');
         console.warn('[JARVIS Media] All providers failed.', errorDetails);
+        this.authoritativeDegraded = { query, reason: errorDetails };
         this.renderDegradedState(query, errorDetails);
       }
     }
@@ -170,15 +185,11 @@
     async fetchProvider(provider, query) {
       const targetUrl = `${provider.baseUrl}/api/v1/search/videos?search=${encodeURIComponent(query)}&count=12`;
       const errors = [];
-      try {
-        const data = await this.fetchJson(targetUrl, DIRECT_TIMEOUT_MS);
-        return this.normalizeProviderResults(data, provider, 'direct');
-      } catch (error) { errors.push(`${provider.name}: direct ${this.errorMessage(error)}`); }
+      try { return this.normalizeProviderResults(await this.fetchJson(targetUrl, DIRECT_TIMEOUT_MS), provider, 'direct'); }
+      catch (error) { errors.push(`${provider.name}: direct ${this.errorMessage(error)}`); }
       for (const proxy of CORS_PROXIES) {
-        try {
-          const data = await this.fetchJson(proxy.buildUrl(targetUrl), PROXY_TIMEOUT_MS);
-          return this.normalizeProviderResults(data, provider, proxy.name);
-        } catch (error) { errors.push(`${provider.name}: ${proxy.name} ${this.errorMessage(error)}`); }
+        try { return this.normalizeProviderResults(await this.fetchJson(proxy.buildUrl(targetUrl), PROXY_TIMEOUT_MS), provider, proxy.name); }
+        catch (error) { errors.push(`${provider.name}: ${proxy.name} ${this.errorMessage(error)}`); }
       }
       throw new Error(errors.join(' | '));
     }
@@ -187,15 +198,7 @@
       if (!data || !Array.isArray(data.data) || data.data.length === 0) throw new Error(`${provider.name}: zero results via ${route}`);
       const results = data.data.map(item => {
         const id = String(item.uuid || item.id || '');
-        return {
-          id,
-          title: item.name || 'Untitled Video',
-          author: item.channel?.displayName || item.channel?.name || item.videoChannel?.displayName || 'Unknown',
-          thumbnailUrl: this.safeUrl(item.thumbnailPath || item.thumbnailUrl, provider.baseUrl),
-          pageUrl: this.safeUrl(item.url || `/w/${id}`, provider.baseUrl),
-          embedUrl: this.safeUrl(item.embedUrl || item.embedPath || `/videos/embed/${id}`, provider.baseUrl),
-          provider: 'peertube', playable: true, route
-        };
+        return { id, title: item.name || 'Untitled Video', author: item.channel?.displayName || item.channel?.name || item.videoChannel?.displayName || 'Unknown', thumbnailUrl: this.safeUrl(item.thumbnailPath || item.thumbnailUrl, provider.baseUrl), pageUrl: this.safeUrl(item.url || `/w/${id}`, provider.baseUrl), embedUrl: this.safeUrl(item.embedUrl || item.embedPath || `/videos/embed/${id}`, provider.baseUrl), provider: 'peertube', playable: true, route };
       }).filter(item => item.id && item.embedUrl);
       if (!results.length) throw new Error(`${provider.name}: unusable results via ${route}`);
       return { providerName: provider.name, results };
@@ -207,19 +210,12 @@
       const container = this.getResultsContainer();
       if (!container) return;
       this.clear(container);
+      container.dataset.jarvisAuthorityState = 'results';
       this.setStatus(`ONLINE · ${results.length} RESULTS VIA ${providerName.toUpperCase()}`);
       for (const item of results) {
-        const card = document.createElement('div');
-        card.className = 'jyt-card video-result';
-        card.dataset.id = item.id;
-        card.dataset.provider = item.provider;
-        card.dataset.embedUrl = item.embedUrl;
-        card.dataset.title = item.title;
-        if (item.thumbnailUrl) {
-          const img = document.createElement('img');
-          img.className = 'card-thumb'; img.src = item.thumbnailUrl; img.alt = item.title; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
-          card.appendChild(img);
-        }
+        const card = document.createElement('div'); card.className = 'jyt-card video-result';
+        card.dataset.id = item.id; card.dataset.provider = item.provider; card.dataset.embedUrl = item.embedUrl; card.dataset.title = item.title;
+        if (item.thumbnailUrl) { const img = document.createElement('img'); img.className = 'card-thumb'; img.src = item.thumbnailUrl; img.alt = item.title; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; card.appendChild(img); }
         const meta = document.createElement('div'); meta.className = 'card-meta';
         const title = document.createElement('h4'); title.className = 'card-title'; title.textContent = item.title;
         const author = document.createElement('span'); author.className = 'card-author'; author.textContent = item.author;
@@ -230,7 +226,7 @@
     renderDegradedState(query, errorReason = 'Unknown network failure') {
       const container = this.getResultsContainer();
       if (!container) return;
-      this.clear(container);
+      this.clear(container); container.dataset.jarvisAuthorityState = 'degraded';
       this.setStatus('VIDEO INDEX DEGRADED · NO REDIRECT');
       const wrapper = document.createElement('div'); wrapper.className = 'media-degraded-state';
       const msg = document.createElement('p'); msg.textContent = 'No video index responded. JARVIS will not redirect you. Try SEARCH again or paste a video URL.';
@@ -242,12 +238,9 @@
       const container = this.getPlayerContainer();
       if (!container || !embedUrl) return;
       this.clear(container);
-      const frame = document.createElement('iframe');
-      frame.className = 'jarvis-video-frame'; frame.src = embedUrl; frame.allowFullscreen = true;
-      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-      frame.title = title || `${provider} video`; frame.loading = 'lazy'; frame.referrerPolicy = 'no-referrer';
-      container.appendChild(frame);
-      this.setStatus(`PLAYING · ${String(provider || 'video').toUpperCase()}`);
+      const frame = document.createElement('iframe'); frame.className = 'jarvis-video-frame'; frame.src = embedUrl; frame.allowFullscreen = true;
+      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'; frame.title = title || `${provider} video`; frame.loading = 'lazy'; frame.referrerPolicy = 'no-referrer';
+      container.appendChild(frame); this.setStatus(`PLAYING · ${String(provider || 'video').toUpperCase()}`);
     }
   }
 
