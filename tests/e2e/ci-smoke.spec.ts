@@ -1,18 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const YT_API = 'https://www.googleapis.com/youtube/v3';
+const PEERTUBE = /https:\/\/(?:peertube\.cpy\.re|framatube\.org|peertube\.uno)\//;
+const INVIDIOUS = /https:\/\/(?:inv\.nadeko\.net|invidious\.nerdvpn\.de|yt\.chocolatemoo53\.com)\//;
 
-const mockYouTube = async (page: Page, title: string, secondTitle = title) => {
-  await page.addInitScript(() => localStorage.setItem('jarvis.youtubeApiKey', 'ci-test-key'));
-  await page.route(`${YT_API}/**`, async route => {
-    const url = new URL(route.request().url());
-    const path = url.pathname.split('/').pop();
-    if (path === 'search') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title, channelTitle: 'Test Channel', thumbnails: { high: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' } } } }] }) });
+const mockOpenVideo = async (page: Page, title: string) => {
+  await page.route(PEERTUBE, async route => {
+    const url = route.request().url();
+    if (url.includes('/api/v1/search/videos')) {
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ data:[{
+        uuid:'9c9de5e8-0a1e-484a-b099-e80766180a6d', name:title, duration:42, views:1234,
+        publishedAt:'2026-08-18T00:00:00Z', thumbnailPath:'/lazy-static/previews/test.jpg',
+        channel:{displayName:'PeerTube Test Channel'}
+      }] }) });
       return;
     }
-    if (path === 'videos') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'dQw4w9WgXcQ', snippet: { title: secondTitle, channelTitle: 'Test Channel', thumbnails: { high: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' } } }, status: { embeddable: true }, contentDetails: {} }] }) });
+    await route.abort('failed');
+  });
+  await page.route(INVIDIOUS, async route => {
+    const url = route.request().url();
+    if (url.includes('/api/v1/search')) {
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify([{
+        type:'video', videoId:'invidious-test-1', title:'Invidious backup result', author:'Open Video',
+        lengthSeconds:55, viewCount:99, videoThumbnails:[]
+      }]) });
       return;
     }
     await route.abort('failed');
@@ -36,40 +46,42 @@ test.describe('JARVIS CI smoke contract', () => {
     expect(page.context().pages()).toHaveLength(1);
   });
 
-  test('YouTube keyword search returns live API metadata', async ({ page }) => {
-    await mockYouTube(page, 'Live YouTube result');
+  test('open-platform keyword search returns dynamic metadata', async ({ page }) => {
+    await mockOpenVideo(page, 'Live PeerTube result');
     await openMedia(page);
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('.jyt-card')).toHaveCount(1);
-    await expect(page.locator('.jyt-card strong')).toHaveText('Live YouTube result');
+    await expect(page.locator('.jom-card')).toHaveCount(2);
+    await expect(page.locator('.jom-card strong').first()).toHaveText('Live PeerTube result');
     await expect(page.locator('#videoResults')).not.toContainText('LOCAL INDEX');
   });
 
-  test('selected result opens the official YouTube embed in-shell', async ({ page }) => {
-    await mockYouTube(page, 'Playable YouTube result');
+  test('selected open-platform result opens its native player in-shell', async ({ page }) => {
+    await mockOpenVideo(page, 'Playable PeerTube result');
     await openMedia(page);
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await page.locator('.jyt-card[data-video-id="dQw4w9WgXcQ"]').click();
-    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube\.com\/embed\/dQw4w9WgXcQ/);
-    await expect(page.locator('#mediaState')).toContainText('PLAYING · YOUTUBE EMBED');
+    await page.locator('.jom-card[data-platform="PeerTube"]').first().click();
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /peertube\.cpy\.re\/videos\/embed\//);
+    await expect(page.locator('#mediaState')).toContainText('PLAYING');
     expect(page.url()).toMatch(/\/$/);
   });
 
-  test('direct YouTube URL plays without search', async ({ page }) => {
+  test('direct YouTube URL remains a supported fallback player', async ({ page }) => {
     await openMedia(page);
     await page.locator('#videoUrl').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     await page.locator('#playVideo').click();
     await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube\.com\/embed\/dQw4w9WgXcQ/);
-    await expect(page.locator('#mediaState')).toContainText('PLAYING · YOUTUBE EMBED');
+    await expect(page.locator('#mediaState')).toContainText('PLAYING');
   });
 
-  test('missing API key is explicit and never fabricates results', async ({ page }) => {
+  test('failed open indexes never fabricate results', async ({ page }) => {
+    await page.route(PEERTUBE, route => route.abort('failed'));
+    await page.route(INVIDIOUS, route => route.abort('failed'));
     await openMedia(page);
-    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoQuery').fill('unreachable test query');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('YouTube search needs a Data API key');
+    await expect(page.locator('#videoResults')).toContainText('VIDEO SEARCH TEMPORARILY UNAVAILABLE');
     await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
     await expect(page.locator('#videoResults')).not.toContainText('JARVIS playable fallback');
   });
