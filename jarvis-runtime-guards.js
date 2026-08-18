@@ -3,6 +3,10 @@
   if (window.__JARVIS_RUNTIME_GUARDS__) return;
   window.__JARVIS_RUNTIME_GUARDS__ = true;
 
+  // Legacy Piped instances are no longer part of the media authority.
+  // Keep the network quarantine, but do not clone/replace media controls.
+  // Replacing #videoQuery/#videoSearch can detach the unified authority's
+  // direct listeners and creates a timing race in the SPA render cycle.
   const nativeFetch = window.fetch.bind(window);
   const blocked = /^https:\/\/pipedapi(?:-[^./]+)?\.[^/]+/i;
   window.fetch = (input, init) => {
@@ -14,41 +18,20 @@
   };
 
   const mediaSelectors = '#media-center,[data-app-container="media"],.media-center-root,section[data-app="media"],#media';
-  let lastRoot = null;
   let repairTimer = 0;
-  let observer = null;
-
-  const cloneControl = (root, selector) => {
-    const el = root.querySelector(selector);
-    if (!el || el.dataset.jarvisGuarded === '1') return;
-    const clone = el.cloneNode(true);
-    clone.dataset.jarvisGuarded = '1';
-    el.replaceWith(clone);
-  };
+  let rootObserver = null;
 
   const repairMedia = () => {
     const root = document.querySelector(mediaSelectors);
     if (!root) return;
-    if (root !== lastRoot) {
-      lastRoot = root;
-      if (observer) observer.disconnect();
-      observer = new MutationObserver(() => {
-        clearTimeout(repairTimer);
-        repairTimer = window.setTimeout(repairMedia, 20);
-      });
-      observer.observe(root, { childList: true, subtree: true });
-    }
-
-    cloneControl(root, '#videoQuery');
-    cloneControl(root, '#videoSearch');
-    cloneControl(root, '#videoUrl');
-    cloneControl(root, '#playVideo');
 
     const authority = window.JarvisMedia;
     const input = root.querySelector('#videoQuery');
     const results = root.querySelector('#videoResults');
     if (!authority || !input || !results) return;
 
+    // Only clean up output produced by a legacy renderer. Never replace the
+    // input/search controls because the unified authority owns those nodes.
     const legacyCards = results.querySelectorAll('.video-result[data-video-id]:not([data-embed-url])');
     const legacyState = /Loading trending|SEARCHING VIDEO INDEX|Video index unavailable|SEARCH FAILED/i.test(results.textContent || '');
     if (legacyCards.length || legacyState) {
@@ -64,15 +47,20 @@
     }
   };
 
+  const scheduleRepair = () => {
+    clearTimeout(repairTimer);
+    repairTimer = window.setTimeout(repairMedia, 20);
+  };
+
   const boot = () => {
     repairMedia();
-    const rootObserver = new MutationObserver(() => {
-      clearTimeout(repairTimer);
-      repairTimer = window.setTimeout(repairMedia, 30);
-    });
+    rootObserver = new MutationObserver(scheduleRepair);
     rootObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
 })();
