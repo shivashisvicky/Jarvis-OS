@@ -1,22 +1,30 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const YT_API = 'https://www.googleapis.com/youtube/v3';
-
-const mockYouTube = async (page: Page, title: string, secondTitle = title) => {
-  await page.addInitScript(() => localStorage.setItem('jarvis.youtubeApiKey', 'ci-test-key'));
-  await page.route(`${YT_API}/**`, async route => {
-    const url = new URL(route.request().url());
-    const path = url.pathname.split('/').pop();
-    if (path === 'search') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title, channelTitle: 'Test Channel', thumbnails: { high: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' } } } }] }) });
-      return;
-    }
-    if (path === 'videos') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'dQw4w9WgXcQ', snippet: { title: secondTitle, channelTitle: 'Test Channel', thumbnails: { high: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' } } }, status: { embeddable: true }, contentDetails: {} }] }) });
-      return;
-    }
-    await route.abort('failed');
+const mockVideoProvider = async (page: Page, title = 'Live video result') => {
+  await page.route('https://pipedapi.kavin.rocks/search**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [{
+        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        title,
+        uploader: 'Test Channel',
+        views: 1234,
+        thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      }] }),
+    });
   });
+};
+
+const failVideoProviders = async (page: Page) => {
+  for (const host of [
+    'https://pipedapi.kavin.rocks/**',
+    'https://pipedapi.tokhmi.xyz/**',
+    'https://pipedapi.adminforge.de/**',
+    'https://pipedapi.rivo.lol/**',
+    'https://inv.nadeko.net/**',
+    'https://yewtu.be/**',
+  ]) await page.route(host, route => route.abort('failed'));
 };
 
 const openMedia = async (page: Page) => {
@@ -36,18 +44,18 @@ test.describe('JARVIS CI smoke contract', () => {
     expect(page.context().pages()).toHaveLength(1);
   });
 
-  test('YouTube keyword search returns live API metadata', async ({ page }) => {
-    await mockYouTube(page, 'Live YouTube result');
+  test('keyword video search returns a real normalized result card', async ({ page }) => {
+    await mockVideoProvider(page, 'Live video result');
     await openMedia(page);
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
     await expect(page.locator('.jyt-card')).toHaveCount(1);
-    await expect(page.locator('.jyt-card strong')).toHaveText('Live YouTube result');
+    await expect(page.locator('.jyt-card strong')).toHaveText('Live video result');
     await expect(page.locator('#videoResults')).not.toContainText('LOCAL INDEX');
   });
 
   test('selected result opens the official YouTube embed in-shell', async ({ page }) => {
-    await mockYouTube(page, 'Playable YouTube result');
+    await mockVideoProvider(page, 'Playable video result');
     await openMedia(page);
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
@@ -65,12 +73,14 @@ test.describe('JARVIS CI smoke contract', () => {
     await expect(page.locator('#mediaState')).toContainText('PLAYING · YOUTUBE EMBED');
   });
 
-  test('missing API key is explicit and never fabricates results', async ({ page }) => {
+  test('provider outage never fabricates a result and gives authoritative fallback', async ({ page }) => {
+    await failVideoProviders(page);
     await openMedia(page);
-    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoQuery').fill('unreachable test query');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#videoResults')).toContainText('YouTube search needs a Data API key');
-    await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
+    await expect(page.locator('#videoResults')).toContainText('VIDEO SEARCH DEGRADED');
+    await expect(page.locator('#videoResults a[href*="youtube.com/results"]')).toHaveAttribute('href', /search_query=unreachable%20test%20query/);
     await expect(page.locator('#videoResults')).not.toContainText('JARVIS playable fallback');
+    await expect(page.locator('#videoResults')).not.toContainText('Nyan Cat');
   });
 });
