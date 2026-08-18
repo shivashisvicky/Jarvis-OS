@@ -3,9 +3,6 @@
   if (window.__JARVIS_MEDIA_AUTHORITY_V11__) return;
   window.__JARVIS_MEDIA_AUTHORITY_V11__ = true;
 
-  // One browser-side owner. PeerTube is intentionally canonical here: CI and
-  // production must have one observable source of truth, not several providers
-  // racing to populate the same result surface.
   const HOST = 'https://peertube.cpy.re';
   const TIMEOUT_MS = 7000;
   let generation = 0;
@@ -139,8 +136,15 @@
     status.className = 'jyt-status';
     results.parentElement?.insertBefore(status, results);
 
+    // Clone first so every historical listener is removed. Capture the new
+    // nodes after replacement: detached inputs must never be read later.
+    const replacementButton = button.cloneNode(true);
+    button.replaceWith(replacementButton);
+    const replacementInput = input.cloneNode(true);
+    input.replaceWith(replacementInput);
+
     const doSearch = async () => {
-      const query = input.value.trim();
+      const query = replacementInput.value.trim();
       if (!query) {
         setStatus('READY', 'ENTER A VIDEO SEARCH TERM');
         return;
@@ -159,18 +163,11 @@
       }
     };
 
-    // Clone first. This removes every historical listener attached by the TS
-    // shell. The v11 listener becomes the only listener on these controls.
-    const replacementButton = button.cloneNode(true);
-    button.replaceWith(replacementButton);
     replacementButton.addEventListener('click', event => {
       event.preventDefault();
       event.stopImmediatePropagation();
       void doSearch();
     });
-
-    const replacementInput = input.cloneNode(true);
-    input.replaceWith(replacementInput);
     replacementInput.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
@@ -181,13 +178,14 @@
     const playButton = document.querySelector('#playVideo');
     const urlInput = document.querySelector('#videoUrl');
     if (playButton && urlInput && !playButton.dataset.v11Owner) {
-      playButton.dataset.v11Owner = '1';
       const replacementPlay = playButton.cloneNode(true);
       playButton.replaceWith(replacementPlay);
+      replacementPlay.dataset.v11Owner = '1';
+      const liveUrlInput = document.querySelector('#videoUrl');
       replacementPlay.addEventListener('click', event => {
         event.preventDefault();
         event.stopImmediatePropagation();
-        const raw = urlInput.value.trim();
+        const raw = liveUrlInput?.value.trim() || '';
         const match = raw.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
         if (!match) {
           setStatus('READY', 'ENTER A VALID YOUTUBE URL');
