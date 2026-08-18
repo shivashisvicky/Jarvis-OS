@@ -1,22 +1,38 @@
-"""Idempotent JARVIS enhancement pass.
+"""Deterministic JARVIS application enhancement pass.
 
-This workflow is intentionally not allowed to own Media Center behavior.
-The unified browser media authority is the only media runtime. The enhancer
-may add intelligence/news presentation, but it must never recreate the old
-Piped-based setupMedia() implementation.
+Media has one browser authority: jarvis-media-authority.js -> local media service.
+This pass permanently removes the old in-browser Piped/trending runtime from
+src/main.ts and keeps the news setup idempotent.
 """
 from pathlib import Path
 import re
 
 main = Path("src/main.ts")
-s = main.read_text()
+s = main.read_text(encoding="utf-8")
 
-# Remove the retired media runtime if an older revision left it behind.
-s = re.sub(r"\nasync function setupMedia\(\)\{.*?\n\}\n(?=async function setupSettings)", "\n", s, flags=re.S)
-s = s.replace("if(active==='media')setupMedia();", "")
-s = s.replace("if(active==='media')await setupMedia();", "")
+# Retire the entire legacy browser media implementation, regardless of the
+# exact formatting used by the older generated revision.
+s, removed = re.subn(
+    r"\nasync function setupMedia\(\)\{[\s\S]*?\n\}\n(?=\nasync function setupSettings)",
+    "\n",
+    s,
+    count=1,
+)
 
-# Keep the live news surface idempotent.
+# Remove every legacy invocation. The unified authority owns the controls and
+# delegates actual search/extraction/playback to the local service.
+s = re.sub(r"if\(active==='media'\)setupMedia\(\);", "", s)
+s = re.sub(r"if\(active==='media'\)await setupMedia\(\);", "", s)
+
+# Older generated revisions accidentally duplicated the home news bootstrap.
+s = re.sub(
+    r"(?:if\(active==='home'\)await setupNews\(\);\s*){2,}",
+    "if(active==='home')await setupNews();",
+    s,
+)
+
+# The home screen owns the news surface. Add it exactly once if an older
+# revision omitted it.
 if 'id="newsDesk"' not in s:
     hs = s.index("function home(){")
     he = s.index("\nfunction moduleDescription", hs)
@@ -31,7 +47,6 @@ function newsDesk(){return `<section class="news-desk panel" id="newsDesk"><div 
 '''
     s = s.replace(marker, news + marker, 1)
 
-# The home screen owns news loading. Do not duplicate setup calls.
 if "async function setupNews()" not in s:
     news_setup = '''
 async function setupNews(){
@@ -44,4 +59,5 @@ async function setupNews(){
 '''
     s = s.replace("async function setupNotes(){", news_setup + "async function setupNotes(){", 1)
 
-main.write_text(s)
+main.write_text(s, encoding="utf-8")
+print(f"Legacy setupMedia removed: {removed == 1}")
