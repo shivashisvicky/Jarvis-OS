@@ -1,24 +1,26 @@
 (() => {
   'use strict';
 
-  // JARVIS Video Authority v7
-  // Live search only. No canned catalog, demo video, or synthetic result is ever returned.
+  // JARVIS Video Authority v8
+  // Verified live media only. Never fabricate a playable result.
   const INVIDIOUS = [
     'https://inv.nadeko.net', 'https://invidious.nerdvpn.de',
     'https://yt.chocolatemoo53.com', 'https://invidious.tiekoetter.com',
     'https://invidious.f5.si', 'https://inv.zoomerville.com',
   ];
   const PIPED = [
-    'https://pipedapi.tokhmi.xyz', 'https://pipedapi.moomoo.me',
-    'https://piped-api.garudalinux.org', 'https://api.piped.privacydev.net',
-    'https://pipedapi.smnz.de', 'https://pipedapi.adminforge.de',
-    'https://pipedapi.qdi.fi', 'https://piped-api.hostux.net',
+    'https://pipedapi.kavin.rocks', 'https://pipedapi.tokhmi.xyz',
+    'https://pipedapi.moomoo.me', 'https://piped-api.garudalinux.org',
+    'https://api.piped.privacydev.net', 'https://pipedapi.smnz.de',
+    'https://pipedapi.adminforge.de', 'https://pipedapi.qdi.fi',
+    'https://piped-api.hostux.net',
   ];
   const CORS_PROXIES = [
     target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
     target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
   ];
   const TIMEOUT = 4500;
+  const STREAM_TIMEOUT = 5000;
   const FILTERS = { all:'', videos:'&sp=EgIQAQ%3D%3D', shorts:'&sp=EgIQCQ%3D%3D' };
   let mode = 'all';
   let lastQuery = '';
@@ -78,6 +80,30 @@
     const data = await request(`${base}/search?q=${encodeURIComponent(q)}&filter=videos&region=IN&sort_by=relevance`);
     const items = Array.isArray(data) ? data : (data?.items || data?.videos || []);
     return items.map(v => normalizeVideo(v, 'PIPED')).filter(Boolean);
+  }
+
+  async function streamFromPiped(base, id) {
+    const data = await request(`${base}/streams/${encodeURIComponent(id)}`, STREAM_TIMEOUT);
+    const streams = Array.isArray(data?.videoStreams) ? data.videoStreams : [];
+    const playable = streams
+      .filter(s => s && !s.videoOnly && /^https?:\/\//i.test(String(s.url || '')))
+      .filter(s => String(s.mimeType || '').includes('video/') || String(s.format || '').toLowerCase().includes('mp4'))
+      .sort((a, b) => Number(b.height || 0) - Number(a.height || 0));
+    return playable[0]?.url || '';
+  }
+
+  async function resolvePlayableStream(id) {
+    if (!validId(id)) return '';
+    const attempts = PIPED.map(base => streamFromPiped(base, id).catch(() => ''));
+    return new Promise(resolve => {
+      let remaining = attempts.length;
+      let settled = false;
+      const finish = url => { if (!settled && url) { settled = true; resolve(url); } };
+      attempts.forEach(p => p.then(finish).finally(() => {
+        remaining -= 1;
+        if (!remaining && !settled) resolve('');
+      }));
+    });
   }
 
   function parseYouTubeSearch(html) {
@@ -150,14 +176,22 @@
     if (mode === 'shorts') shown = shown.filter(v => v.kind === 'short');
     if (mode === 'videos') shown = shown.filter(v => v.kind !== 'short');
     shown = shown.slice(0, 12);
-    results.innerHTML = shown.length ? shown.map(v => `<button type="button" class="jvc-card jv4-video-card jvs-card" data-jvs-id="${esc(v.id)}"><img loading="lazy" src="${esc(v.thumb)}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.views ? ` · ${v.views.toLocaleString()} views` : ''}</small><small>${esc(v.date)} · ${esc(v.source)}</small></span><b>▶</b></button>`).join('') : `<div class="empty"><strong>NO LIVE RESULTS</strong><br>JARVIS could not obtain a verified video index for “${esc(query)}”.<br><a class="secondary" href="${esc(youtubeUrl(query))}" target="_blank" rel="noopener noreferrer">OPEN LIVE YOUTUBE RESULTS ↗</a></div>`;
-    status(shown.length ? `RESULTS · ${shown.length} · LIVE` : 'LIVE VIDEO SEARCH UNAVAILABLE');
-    $$('.jvs-card', results).forEach(card => card.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); play(card.dataset.jvsId || ''); }, true));
+    results.innerHTML = shown.length ? shown.map(v => `<button type="button" class="video-result jvc-card jv4-video-card jvs-card" data-jvs-id="${esc(v.id)}"><img loading="lazy" src="${esc(v.thumb)}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.views ? ` · ${v.views.toLocaleString()} views` : ''}</small><small>${esc(v.date)} · ${esc(v.source)}</small></span><b>▶</b></button>`).join('') : `<div class="empty"><strong>VIDEO SEARCH DEGRADED</strong><br>JARVIS could not obtain a verified live video index for “${esc(query)}”.<br><a class="secondary" href="${esc(youtubeUrl(query))}" target="_blank" rel="noopener noreferrer">OPEN LIVE YOUTUBE RESULTS ↗</a></div>`;
+    status(shown.length ? `RESULTS · ${shown.length} · LIVE` : 'VIDEO SEARCH DEGRADED');
+    $$('.jvs-card', results).forEach(card => card.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); void play(card.dataset.jvsId || ''); }, true));
   }
 
-  function play(id) {
+  async function play(id) {
     if (!validId(id)) return false;
     const player = $('#jarvisPlayer'); if (!player) return false;
+    status('RESOLVING · JARVIS PLAYER');
+    player.innerHTML = '<div class="player-empty"><span>◌</span><strong>RESOLVING PLAYABLE SOURCE</strong><small>JARVIS is locating a verified media stream.</small></div>';
+    const stream = await resolvePlayableStream(id);
+    if (stream) {
+      player.innerHTML = `<video controls autoplay playsinline preload="metadata" src="${esc(stream)}"></video>`;
+      status('PLAYING · JARVIS PLAYER');
+      return true;
+    }
     player.innerHTML = `<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen playsinline src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1&modestbranding=1"></iframe>`;
     status('PLAYING · JARVIS PLAYER');
     return true;
