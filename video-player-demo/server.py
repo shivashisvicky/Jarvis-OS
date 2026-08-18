@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
-import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -14,36 +13,45 @@ PORT = int(os.environ.get("PORT", "8765"))
 
 
 def search_video(query: str) -> dict:
-    """Search live YouTube and return one browser-playable media stream."""
-    if not query.strip():
-        raise ValueError("query is required")
-
+    """Resolve a keyword or supported URL to one browser-playable media URL."""
+    value = query.strip()
+    is_url = value.startswith(("http://", "https://"))
+    target = value if is_url else f"ytsearch1:{value}"
     opts = [
         sys.executable,
-        "-m", "yt_dlp",
+        "-m",
+        "yt_dlp",
         "--no-playlist",
         "--quiet",
         "--no-warnings",
-        "--format", "best[acodec!=none][vcodec!=none][ext=mp4]/best[acodec!=none][vcodec!=none]/best",
-        "--print", "%(id)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(duration)s",
-        f"ytsearch1:{query.strip()}",
+        "--format",
+        "best[ext=mp4][vcodec!=none][acodec!=none]/best[ext=mp4]/best",
+        "--js-runtimes",
+        "deno",
+        "--print",
+        "%(id)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(duration)s",
+        target,
     ]
-    if shutil.which("node"):
-        opts[8:8] = ["--js-runtimes", "node"]
-
     try:
-        result = subprocess.run(opts, cwd=ROOT, capture_output=True, text=True, timeout=60, check=False)
+        result = subprocess.run(
+            opts,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            check=False,
+        )
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("live video search timed out after 60 seconds") from exc
+        raise RuntimeError("video search timed out after 45 seconds") from exc
 
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
-        raise RuntimeError(detail[-1] if detail else "yt-dlp failed to resolve a video")
+        raise RuntimeError(detail[-1] if detail else "yt-dlp failed")
 
     line = next((x for x in result.stdout.splitlines() if x.strip()), "")
     parts = line.split("\t", 4)
-    if len(parts) != 5 or not parts[0] or not parts[2] or not parts[3].startswith("http"):
-        raise RuntimeError("yt-dlp returned no browser-playable result")
+    if len(parts) != 5 or not parts[0] or not parts[3]:
+        raise RuntimeError("yt-dlp returned no playable result")
 
     video_id, title, webpage_url, media_url, duration = parts
     return {
@@ -56,7 +64,7 @@ def search_video(query: str) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisVideoDemo/1.1"
+    server_version = "JarvisVideoDemo/2.0"
 
     def send_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -64,6 +72,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -71,6 +80,9 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/search":
             query = urllib.parse.parse_qs(parsed.query).get("q", [""])[0].strip()
+            if not query:
+                self.send_json(400, {"error": "query is required"})
+                return
             try:
                 self.send_json(200, {"result": search_video(query)})
             except Exception as exc:
@@ -78,7 +90,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/health":
-            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "mode": "yt-dlp-live-search"})
+            self.send_json(200, {"ok": True, "service": "jarvis-video-demo"})
             return
 
         path = parsed.path.lstrip("/") or "index.html"
@@ -91,10 +103,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(full)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
 
 if __name__ == "__main__":
-    print(f"JARVIS video demo: http://127.0.0.1:{PORT}/")
+    print(f"JARVIS video demo: http://127.0.0.1:{PORT}/", flush=True)
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
