@@ -14,6 +14,11 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Keep every Node 22 job on the same known-good npm line as the main CI.
+# npm 11 can hit an Arborist `edgesOut` crash during dependency resolution.
+env:
+  NPM_VERSION: 10.9.7
+
 jobs:
   build:
     name: Build Pages artifact
@@ -25,8 +30,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Build Jarvis OS
         run: npm run build
       - name: Configure GitHub Pages
@@ -61,8 +68,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify deployed media search
