@@ -1,27 +1,166 @@
+/** J.A.R.V.I.S. OS 2.0 - FINAL MEDIA AUTHORITY */
 (() => {
   'use strict';
-  const INVIDIOUS=['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yt.chocolatemoo53.com','https://invidious.tiekoetter.com','https://invidious.f5.si','https://inv.zoomerville.com'];
-  const PIPED=['https://pipedapi.kavin.rocks','https://pipedapi.tokhmi.xyz','https://pipedapi.moomoo.me','https://pipedapi.syncpundit.io','https://api-piped.mha.fi','https://piped-api.garudalinux.org','https://pipedapi.rivo.lol','https://pipedapi.leptons.xyz'];
-  const CORS_PROXIES=['https://api.allorigins.win/raw?url=','https://corsproxy.io/?url='];
-  const DEMO_VIDEO='aqz-KE-bpKQ';
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  const attr=esc;
-  function videoId(raw){try{const u=new URL(raw);if(u.hostname.includes('youtu.be'))return u.pathname.slice(1).split('/')[0]||null;if(u.hostname.includes('youtube.com'))return u.searchParams.get('v')||u.pathname.split('/').filter(Boolean).pop()||null}catch(_){}return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null}
-  async function fetchJson(url,ms=2500){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{headers:{Accept:'application/json'},signal:c.signal,cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.json()}finally{clearTimeout(t)}}
-  async function fetchText(url,ms=4000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{headers:{Accept:'text/html,text/plain,*/*'},signal:c.signal,cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.text()}finally{clearTimeout(t)}}
-  const normalize=(items,source)=>(items||[]).map(v=>({id:String(v.videoId||v.id||videoId(v.url||'')||''),title:v.title||'Untitled video',author:v.author||v.uploader||v.channelName||'Unknown channel',date:v.publishedText||v.uploadedDate||'',views:v.viewCount||v.views||0,thumbnail:(v.videoThumbnails||[]).find(x=>x.quality==='medium')?.url||v.thumbnail||(v.videoThumbnails||[])[0]?.url||'',source,stream:v.url||v.videoUrl||''})).filter(v=>v.id);
-  async function queryIndex(base,q,type){try{if(type==='piped')return normalize((await fetchJson(`${base}/search?q=${encodeURIComponent(q)}&filter=videos`))?.items,base);return normalize(await fetchJson(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&sort_by=relevance`),base)}catch(_){return[]}}
-  async function searchPublicIndexes(q){return(await Promise.all([...INVIDIOUS.map(b=>queryIndex(b,q,'invidious')),...PIPED.map(b=>queryIndex(b,q,'piped'))])).flat()}
-  async function searchCommons(q){const url=`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`${q} filetype:video`)}&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=url|mime|size&format=json&origin=*`;try{const d=await fetchJson(url);return Object.values(d?.query?.pages||{}).map(p=>{const i=p.imageinfo?.[0]||{},mime=String(i.mime||'');return{id:`commons:${p.pageid}`,title:String(p.title||'').replace(/^File:/,''),author:'Wikimedia Commons',date:'',views:0,thumbnail:'',source:'commons',stream:mime.startsWith('video/')?String(i.url||''):''}}).filter(v=>v.stream)}catch(_){return[]}}
-  function parseYouTubeSearch(html,q){const ids=[...new Set([...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map(m=>m[1]))].slice(0,12);return ids.map((id,i)=>({id,title:`${q} · JARVIS result ${i+1}`,author:'YouTube',date:'',views:0,thumbnail:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`,source:'youtube-proxy',stream:''}))}
-  async function searchYouTubeThroughProxy(q){const target=`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;for(const proxy of CORS_PROXIES){try{const items=parseYouTubeSearch(await fetchText(proxy+encodeURIComponent(target)),q);if(items.length)return items}catch(_){}}return[]}
-  function fallbackItems(q){return[{id:DEMO_VIDEO,title:`JARVIS playable fallback · ${q}`,author:'JARVIS Internal Playback',date:'always available fallback',views:0,thumbnail:`https://i.ytimg.com/vi/${DEMO_VIDEO}/hqdefault.jpg`,source:'jarvis-fallback',stream:''}]}
-  async function trendingAll(){const live=(await Promise.all(INVIDIOUS.map(async b=>{try{return normalize(await fetchJson(`${b}/api/v1/trending?region=IN`),b)}catch(_){return[]}}))).flat();return live.length?live:fallbackItems('trending videos India')}
-  function dom(){return{input:document.querySelector('#videoQuery'),results:document.querySelector('#videoResults'),player:document.querySelector('#jarvisPlayer'),state:document.querySelector('#mediaState')||document.querySelector('#jvcStatus')}}
-  function state(t){const x=dom().state;if(x)x.textContent=t}
-  function showResults(items){const{results}=dom();if(!results)return;const unique=[...new Map(items.map(v=>[v.id,v])).values()].slice(0,12);results.innerHTML=unique.length?unique.map(v=>`<button type="button" class="video-result jvc-card" data-jvc-id="${attr(v.id)}" data-jvc-stream="${attr(v.stream||'')}">${v.thumbnail?`<img loading="lazy" src="${attr(v.thumbnail)}" alt="">`:'<div class="video-thumb">▶</div>'}<span class="video-meta"><strong>${esc(v.title)}</strong><small>${esc(v.author)}${v.date?` · ${esc(v.date)}`:''}</small><small>${v.views?`${Number(v.views).toLocaleString()} views`:''}</small></span><b>▶</b></button>`).join(''):'<div class="empty">JARVIS has no playable media for this query.</div>`;state(`READY · ${Math.min(12,unique.length)} RESULTS · IN-HOUSE`)}
-  function playerHtml(html,text){const{player}=dom();if(player)player.innerHTML=html;state(text)}
-  async function play(id,directStream=''){if(!id&&!directStream)return;if(directStream&&/^https?:\/\//i.test(directStream)){playerHtml(`<video controls autoplay playsinline preload="metadata" src="${attr(directStream)}"></video>`,'PLAYING · JARVIS MEDIA');return}if(id.startsWith('commons:')){try{const d=await fetchJson(`https://commons.wikimedia.org/w/api.php?action=query&pageids=${encodeURIComponent(id.slice(8))}&prop=imageinfo&iiprop=url|mime&format=json&origin=*`),p=Object.values(d?.query?.pages||{})[0],url=p?.imageinfo?.[0]?.url;if(url){playerHtml(`<video controls autoplay playsinline preload="metadata" src="${attr(url)}"></video>`,'PLAYING · JARVIS MEDIA');return}}catch(_){}}playerHtml('<div class="player-empty"><span>◌</span><strong>LOADING JARVIS PLAYER</strong><small>Preparing an embedded playable source.</small></div>','LOADING · IN-HOUSE PLAYER');playerHtml(`<iframe title="JARVIS video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1"></iframe>`,'PLAYING · IN-HOUSE PLAYER')}
-  async function search(q,trending=false){const{results}=dom();if(!results)return;const query=(q||'').trim()||'trending videos India';state('SEARCHING · JARVIS MEDIA CORE');results.innerHTML='<div class="empty">JARVIS is searching for playable media…</div>';let items=[];if(trending)items=await trendingAll();else{items=await searchPublicIndexes(query);if(!items.length)items=await searchCommons(query);if(!items.length)items=await searchYouTubeThroughProxy(query)}if(!items.length)items=fallbackItems(query);showResults(items);state(`READY · ${Math.min(12,new Set(items.map(v=>v.id)).size)} RESULTS · IN-HOUSE`)}
-  let installed=false;function boot(){if(installed)return;installed=true;document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;const searchButton=target.closest('#videoSearch');if(searchButton){e.preventDefault();e.stopImmediatePropagation();void search(dom().input?.value?.trim()||'');return}const provider=target.closest('[data-video-provider]');if(provider){e.preventDefault();e.stopImmediatePropagation();const kind=provider.getAttribute('data-video-provider');const q=dom().input?.value?.trim()||'trending videos India';void(kind==='trending'?search('',true):search(q));return}const card=target.closest('.jvc-card');if(card){e.preventDefault();e.stopImmediatePropagation();void play(card.getAttribute('data-jvc-id')||'',card.getAttribute('data-jvc-stream')||'');return}const playButton=target.closest('#playVideo');if(playButton){e.preventDefault();e.stopImmediatePropagation();const raw=document.querySelector('#videoUrl')?.value?.trim()||'',id=videoId(raw);if(id)void play(id);else if(/^https?:\/\//i.test(raw))void play('',raw);return}},true);document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target instanceof Element&&e.target.matches('#videoQuery')){e.preventDefault();e.stopImmediatePropagation();void search(e.target.value.trim())}},true)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+  if (window.__JARVIS_FINAL_MEDIA_AUTHORITY__) return;
+  window.__JARVIS_FINAL_MEDIA_AUTHORITY__ = true;
+
+  const HOST = 'https://peertube.cpy.re';
+  const TIMEOUT = 9000;
+  let mounted = false;
+  let generation = 0;
+  let ownMutation = false;
+
+  const $ = s => document.querySelector(s);
+  const esc = v => String(v ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
+  const attr = esc;
+  const dom = () => ({ input: $('#videoQuery'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
+  const setState = (label, detail = '') => { const x = dom().state; if (x) x.textContent = detail ? `${label} · ${detail}` : label; };
+  const replaceResults = html => { const x = dom().results; if (!x) return; ownMutation = true; x.innerHTML = html; ownMutation = false; };
+  const replacePlayer = html => { const x = dom().player; if (!x) return; ownMutation = true; x.innerHTML = html; ownMutation = false; };
+
+  async function json(url) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), TIMEOUT);
+    try {
+      const r = await fetch(url, { signal: c.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
+
+  function normalize(v) {
+    const id = String(v?.uuid || v?.shortUUID || v?.videoId || v?.id || '').trim();
+    if (!id) return null;
+    const thumbnail = typeof v?.thumbnailPath === 'string' ? (v.thumbnailPath.startsWith('http') ? v.thumbnailPath : `${HOST}${v.thumbnailPath}`) : String(v?.thumbnail || '');
+    return { id, title: String(v?.name || v?.title || v?.displayName || 'Untitled video'), author: String(v?.videoChannel?.displayName || v?.channel?.displayName || v?.uploader || v?.account?.displayName || 'PeerTube'), duration: Number(v?.duration) || 0, thumbnail };
+  }
+
+  async function searchPeerTube(q) {
+    const d = await json(`${HOST}/api/v1/search/videos?search=${encodeURIComponent(q)}&count=12&sort=-publishedAt&hasWebVideoFiles=true&nsfw=false`);
+    return (Array.isArray(d?.data) ? d.data : []).map(normalize).filter(Boolean);
+  }
+
+  async function search(q) {
+    const query = String(q || '').trim();
+    if (!query) { setState('READY', 'ENTER A VIDEO SEARCH TERM'); return; }
+    const run = ++generation;
+    replaceResults('<div class="media-loading-indicator">SEARCHING LIVE VIDEO SOURCES…</div>');
+    setState('SEARCHING', query.toUpperCase());
+    try {
+      const items = await searchPeerTube(query);
+      if (run !== generation) return;
+      if (!items.length) {
+        replaceResults(`<div class="empty media-degraded-state"><strong>NO LIVE RESULTS</strong><small>No playable PeerTube result matched “${esc(query)}”. Use YouTube or Bing Video for the wider web.</small></div>`);
+        setState('NO RESULTS', query);
+        return;
+      }
+      replaceResults(items.slice(0, 12).map(v => `<button type="button" class="jvc-card" data-jvc-id="${attr(v.id)}"><img loading="lazy" src="${attr(v.thumbnail)}" alt=""><span class="video-meta"><strong>${esc(v.title)}</strong><small>PeerTube · ${esc(v.author)} · ${Math.floor(v.duration / 60)}:${String(v.duration % 60).padStart(2,'0')}</small></span><b>▶</b></button>`).join(''));
+      setState('READY', `${items.length} LIVE RESULTS`);
+    } catch (e) {
+      if (run !== generation) return;
+      replaceResults(`<div class="video-context"><strong>LIVE VIDEO INDEX UNAVAILABLE</strong><p>${esc(e instanceof Error ? e.message : 'Video service unavailable')}.</p><div class="provider-fallbacks"><button type="button" data-jvc-provider="youtube">OPEN YOUTUBE SEARCH</button><button type="button" data-jvc-provider="bing">OPEN BING VIDEO</button></div></div>`);
+      setState('DEGRADED', 'NO FABRICATED RESULTS');
+    }
+  }
+
+  function youtubeId(raw) {
+    const value = String(raw || '').trim();
+    try {
+      const u = new URL(value);
+      if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0];
+      if (u.hostname.includes('youtube.com')) return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || '';
+    } catch {}
+    return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';
+  }
+
+  function playInput() {
+    const raw = String($('#videoUrl')?.value || '').trim();
+    const id = youtubeId(raw);
+    if (id) {
+      replacePlayer(`<iframe title="YouTube video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1"></iframe>`);
+      setState('PLAYING', 'YOUTUBE');
+      return;
+    }
+    if (/^https?:\/\//i.test(raw) && /\.(mp4|webm|ogg)(?:\?|#|$)/i.test(raw)) {
+      replacePlayer(`<video controls autoplay playsinline preload="metadata" src="${attr(raw)}"></video>`);
+      setState('PLAYING', 'DIRECT MEDIA');
+      return;
+    }
+    setState('INVALID INPUT', 'USE YOUTUBE URL/ID OR DIRECT MP4/WEBM/OGG');
+  }
+
+  function playPeerTube(id, title) {
+    if (!id) return;
+    replacePlayer(`<iframe title="${attr(title || 'JARVIS video')}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" src="${HOST}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0"></iframe>`);
+    setState('PLAYING', title || 'PEERTUBE');
+  }
+
+  function openProvider(kind) {
+    const q = String(dom().input?.value || '').trim();
+    if (!q) { setState('READY', `ENTER A QUERY FOR ${kind.toUpperCase()}`); dom().input?.focus(); return; }
+    const url = kind === 'youtube'
+      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+      : `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setState('OPENED', `${kind.toUpperCase()} SEARCH`);
+  }
+
+  function clearLegacy() {
+    if (ownMutation) return;
+    const x = dom().results;
+    if (!x) return;
+    if (x.querySelector('.video-result, .jyt-card:not([data-jvc-id]), .video-context:not([data-jvc-owned])')) {
+      replaceResults('<div class="empty media-degraded-state"><strong>READY</strong><small>Legacy media feed blocked. Search when you choose.</small></div>');
+      setState('READY', 'NO AUTOMATIC FEED');
+    }
+  }
+
+  function mount() {
+    if (mounted) return;
+    const d = dom();
+    if (!d.input || !d.results || !d.player) return;
+    mounted = true;
+
+    document.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const searchButton = target.closest('#videoSearch');
+      const provider = target.closest('[data-video-provider]');
+      const card = target.closest('#videoResults .jvc-card[data-jvc-id]');
+      const legacy = target.closest('#videoResults .video-result');
+      const play = target.closest('#playVideo');
+      const providerFallback = target.closest('[data-jvc-provider]');
+      if (searchButton) {
+        event.preventDefault(); event.stopImmediatePropagation(); void search(d.input.value);
+      } else if (provider) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const kind = provider.getAttribute('data-video-provider') || '';
+        if (kind === 'trending') void search(d.input.value || 'technology India');
+        else openProvider(kind);
+      } else if (card) {
+        event.preventDefault(); event.stopImmediatePropagation(); void playPeerTube(card.getAttribute('data-jvc-id') || '', card.querySelector('strong')?.textContent || 'JARVIS video');
+      } else if (legacy) {
+        event.preventDefault(); event.stopImmediatePropagation();
+      } else if (play) {
+        event.preventDefault(); event.stopImmediatePropagation(); playInput();
+      } else if (providerFallback) {
+        event.preventDefault(); event.stopImmediatePropagation(); openProvider(providerFallback.getAttribute('data-jvc-provider') || 'youtube');
+      }
+    }, true);
+
+    d.input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault(); event.stopImmediatePropagation(); void search(d.input.value);
+    }, true);
+
+    replaceResults('<div class="empty media-degraded-state"><strong>READY</strong><small>Search first. No automatic video feed is loaded.</small></div>');
+    replacePlayer('<div class="player-empty"><span>▶</span><strong>JARVIS VIDEO CORE</strong><small>Select a real result or paste a playable URL.</small></div>');
+    setState('READY', 'NO AUTOMATIC FEED');
+
+    const observer = new MutationObserver(() => clearLegacy());
+    observer.observe(d.results, { childList: true, subtree: true });
+  }
+
+  const poll = setInterval(() => { mount(); if (mounted) clearInterval(poll); }, 100);
+  mount();
 })();
