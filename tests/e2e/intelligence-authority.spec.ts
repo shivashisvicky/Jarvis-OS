@@ -53,6 +53,19 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await expect(page.url()).not.toMatch(/youtube\.com|bing\.com/i);
   });
 
+  test('selected video plays inside the JARVIS player', async ({ page }) => {
+    await page.route('**/__jarvis/video/search**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+      { videoId:'J---aiyznGQ', title:'Playable cats result', author:'Cat Channel' },
+    ]}) }));
+    await page.goto('/');
+    await page.locator('button.nav[data-app="media"]').click();
+    await page.locator('#videoQuery').fill('cats');
+    await page.locator('#videoSearch').click();
+    await page.locator('.jv4-video-card').first().click();
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/J---aiyznGQ/);
+    expect(page.context().pages()).toHaveLength(1);
+  });
+
   test('generic map search uses provider failover and changes location', async ({ page }) => {
     await page.route('**/__jarvis/geo**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ lat:48.8584, lon:2.2945, name:'Eiffel Tower', detail:'Eiffel Tower, Paris, France' }] }) }));
     await page.goto('/');
@@ -62,6 +75,13 @@ test.describe('JARVIS dynamic intelligence authority', () => {
     await expect(page.locator('.jv4-place').first()).toContainText('Eiffel Tower');
     await expect(page.locator('.jv4-provider')).toContainText('PHOTON → ARCGIS → NOMINATIM');
     await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
+  });
+
+  test('dashboard local commands still route to modules', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#commandInput').fill('Open API Lab');
+    await page.locator('#commandForm').locator('button[type="submit"]').click();
+    await expect(page.locator('button.nav[data-app="api"]')).toHaveClass(/selected/);
   });
 
   test('dashboard command search renders an internal answer', async ({ page }) => {
