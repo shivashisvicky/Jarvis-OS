@@ -2,21 +2,17 @@ name: Jarvis OS CI
 
 on:
   push:
-    branches: [main, 'build/**']
+    branches: [main, 'build/**', 'ci/**']
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
 
-# Every pushed revision gets its own full validation run. A slow browser lane
-# on an older revision must never block validation of the current revision.
 concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
-# Every validation lane is intentionally independent. A broken install/build/test
-# in one lane must never prevent the other lanes from collecting evidence.
 jobs:
   quality:
     name: Quality / Build / Unit
@@ -24,8 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Install dependencies
         id: install
         continue-on-error: true
@@ -50,12 +45,9 @@ jobs:
         run: |
           failed=0
           for outcome in "${{ steps.install.outcome }}" "${{ steps.build.outcome }}" "${{ steps.unit.outcome }}" "${{ steps.audit.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
+            [ "$outcome" = "success" ] || failed=1
           done
-          if [ "$failed" -ne 0 ]; then
-            echo "Quality lane collected all checks, but one or more checks failed."
-            exit 1
-          fi
+          [ "$failed" -eq 0 ] || exit 1
 
   e2e-chromium:
     name: E2E / Chromium
@@ -63,8 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Install dependencies
         id: install
         continue-on-error: true
@@ -88,7 +79,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-chromium-evidence
+          name: jarvis-chromium-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
@@ -99,9 +90,9 @@ jobs:
         run: |
           failed=0
           for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
+            [ "$outcome" = "success" ] || failed=1
           done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          [ "$failed" -eq 0 ] || exit 1
 
   e2e-cross-browser:
     name: E2E / ${{ matrix.browser }} Smoke
@@ -113,8 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Install dependencies
         id: install
         continue-on-error: true
@@ -138,7 +128,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-${{ matrix.browser }}-evidence
+          name: jarvis-${{ matrix.browser }}-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
@@ -149,6 +139,6 @@ jobs:
         run: |
           failed=0
           for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
+            [ "$outcome" = "success" ] || failed=1
           done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          [ "$failed" -eq 0 ] || exit 1
