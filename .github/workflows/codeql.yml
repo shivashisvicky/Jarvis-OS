@@ -1,0 +1,7 @@
+name: CodeQL
+
+# Disabled for this repository because GitHub Code Scanning default setup
+# is already enabled. Keeping a second advanced configuration causes the
+# CodeQL upload to fail with a configuration conflict.
+on:
+  workflow_dispatch:

@@ -9,9 +9,12 @@ on:
 permissions:
   contents: read
 
+# Never serialize commits on a branch. Every commit gets its own validation slot.
+# This is deliberate for active stabilization: a new fix must execute immediately
+# instead of waiting behind an older browser run.
 concurrency:
-  group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: jarvis-ci-${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   quality:
@@ -51,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-chromium-evidence
+          name: jarvis-chromium-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
@@ -82,7 +85,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-${{ matrix.browser }}-evidence
+          name: jarvis-${{ matrix.browser }}-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
