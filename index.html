@@ -26,10 +26,11 @@
   <script src="./jarvis-video-url-final.js?v=20260818-2"></script>
   <script src="./jarvis-map-authority-final.js?v=20260818-2"></script>
   <script src="./jarvis-intelligence-authority-final.js?v=20260818-2"></script>
+  <script src="./jarvis-media-core-v7.js?v=20260818-1"></script>
   <script>
-    // Runtime authority is intentionally loaded last so legacy capture-layer
-    // handlers cannot consume Media/Maps interactions before the active core.
-    window.__JARVIS_RUNTIME_AUTHORITY__ = '2026-08-18';
+    // Media Core v7 is the final media interaction owner. It is intentionally
+    // loaded after legacy authority layers so old capture handlers cannot win.
+    window.__JARVIS_RUNTIME_AUTHORITY__ = '2026-08-18-media-v7';
   </script>
 </body>
 </html>
