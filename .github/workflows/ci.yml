@@ -19,5 +19,8 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      # GitHub-hosted Ubuntu runners already provide the system browser dependencies.
+      # Avoid Playwright's apt dependency bootstrap here because transient Ubuntu mirror
+      # failures can cancel the entire verification job before the browser suite starts.
+      - run: npx playwright install chromium
       - run: npm run test:browser
