@@ -32,6 +32,32 @@ const fulfillJson = async (route: any, payload: unknown) => {
   });
 };
 
+const attachMediaDiagnostics = (page: Page) => {
+  page.on('console', msg => {
+    if (msg.text().includes('[JARVIS MEDIA')) console.log(`[browser] ${msg.text()}`);
+  });
+};
+
+const dumpMediaDiagnostics = async (page: Page, label: string) => {
+  const diagnostics = await page.evaluate((reason) => ({
+    reason,
+    href: location.href,
+    readyState: document.readyState,
+    trace: (window as any).__JARVIS_MEDIA_TRACE__ || [],
+    lastEvent: (window as any).__JARVIS_MEDIA_LAST_EVENT__ || null,
+    dom: {
+      input: (document.querySelector('#videoQuery') as HTMLInputElement | null)?.value || null,
+      searchButton: Boolean(document.querySelector('#videoSearch')),
+      results: document.querySelector('#videoResults')?.innerHTML.slice(0, 3000) || null,
+      cards: document.querySelectorAll('.jyt-card').length,
+      degraded: document.querySelectorAll('.media-degraded-state').length,
+      iframeSrc: document.querySelector('iframe.jarvis-video-frame')?.getAttribute('src') || null,
+      status: document.querySelector('#mediaState, .video-status, .media-status, #videoStatus')?.textContent || null,
+    },
+  }), label);
+  console.log(`[JARVIS MEDIA DIAGNOSTIC] ${JSON.stringify(diagnostics, null, 2)}`);
+};
+
 const mockPeerTube = async (page: Page, title: string) => {
   const payload = providerPayload(title);
 
@@ -44,8 +70,6 @@ const mockPeerTube = async (page: Page, title: string) => {
     await fulfillJson(route, payload);
   });
 
-  // The production authority may fall back to public CORS relays when direct
-  // browser CORS is unavailable. Keep those relays deterministic in CI too.
   await page.route(ALL_ORIGINS, async route => {
     await fulfillJson(route, payload);
   });
@@ -66,14 +90,12 @@ const blockVideoNetwork = async (page: Page) => {
       body: JSON.stringify({ error: 'Service Unavailable' }),
     });
   });
-
-  // Block both proxy paths so a degraded-state test cannot escape to the
-  // public internet and accidentally obtain real video results.
   await page.route(ALL_ORIGINS, route => route.abort('failed'));
   await page.route(CORS_PROXY, route => route.abort('failed'));
 };
 
 const openMedia = async (page: Page) => {
+  attachMediaDiagnostics(page);
   await page.goto('/');
   await page.locator('button.nav[data-app="media"]').click();
   await expect(page.locator('#videoQuery')).toBeVisible();
@@ -81,6 +103,12 @@ const openMedia = async (page: Page) => {
 };
 
 test.describe('JARVIS CI smoke contract', () => {
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await dumpMediaDiagnostics(page, `${testInfo.title} · ${testInfo.status}`);
+    }
+  });
+
   test('shell boots and media has one runtime authority', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
