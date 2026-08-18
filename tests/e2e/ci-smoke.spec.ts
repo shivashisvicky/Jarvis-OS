@@ -40,6 +40,8 @@ test.describe('JARVIS CI smoke contract', () => {
   test('shell boots and media remains inside the workspace', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
+    await expect(page.locator('script[src*="jarvis-media-legacy-shield"]')).toHaveCount(0);
+    await expect(page.locator('script[src*="jarvis-media-core-v7"]')).toHaveCount(1);
     await page.locator('button.nav[data-app="media"]').click();
     await expect(page.locator('#videoQuery')).toBeVisible();
     expect(page.url()).toMatch(/\/$/);
