@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // JARVIS Video Authority v8
+  // JARVIS Video Authority v9
   // Verified live media only. Never fabricate a playable result.
   const INVIDIOUS = [
     'https://inv.nadeko.net', 'https://invidious.nerdvpn.de',
@@ -20,6 +20,7 @@
     target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
   ];
   const TIMEOUT = 4500;
+  const PROXY_TIMEOUT = 2200;
   const STREAM_TIMEOUT = 5000;
   const FILTERS = { all:'', videos:'&sp=EgIQAQ%3D%3D', shorts:'&sp=EgIQCQ%3D%3D' };
   let mode = 'all';
@@ -40,6 +41,16 @@
       const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' }, mode: 'cors' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
+    } finally { clearTimeout(timer); }
+  }
+
+  async function requestText(url, ms = PROXY_TIMEOUT) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.text();
     } finally { clearTimeout(timer); }
   }
 
@@ -116,9 +127,8 @@
     const target = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
     for (const makeProxy of CORS_PROXIES) {
       try {
-        const response = await fetch(makeProxy(target), { cache:'no-store' });
-        if (!response.ok) continue;
-        const results = parseYouTubeSearch(await response.text());
+        const html = await requestText(makeProxy(target));
+        const results = parseYouTubeSearch(html);
         if (results.length) return results;
       } catch (_) {}
     }
