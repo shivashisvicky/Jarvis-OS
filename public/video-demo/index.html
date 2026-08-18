@@ -54,6 +54,7 @@
   const TIMEOUT=12000;
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const safeQuery=s=>String(s||'').replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
   const state={generation:0,items:[]};
   async function fetchJson(url){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),TIMEOUT);try{const r=await fetch(url,{signal:controller.signal,cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(timer)}}
   function setStatus(text){$('status').textContent=text}
@@ -66,10 +67,10 @@
   async function resolveItem(doc){
     const id=String(doc.identifier||'').trim();if(!id)return null;
     const meta=await fetchJson(META+encodeURIComponent(id));const file=candidateVideoFiles(meta)[0];if(!file)return null;
-    return{id,title:String(doc.title||meta.metadata?.title||id),creator:String(doc.creator||meta.metadata?.creator||'Internet Archive'),date:String(doc.date||meta.metadata?.date||''),source:'Internet Archive',url:'https://archive.org/download/'+encodeURIComponent(id)+'/'+file.name,filename:file.name,format:String(file.format||''),detailUrl:'https://archive.org/details/'+encodeURIComponent(id)}
+    return{id,title:String(doc.title||meta.metadata?.title||id),creator:String(doc.creator||meta.metadata?.creator||'Internet Archive'),date:String(doc.date||meta.metadata?.date||''),source:'Internet Archive',url:'https://archive.org/download/'+encodeURIComponent(id)+'/'+encodeURIComponent(file.name),filename:file.name,format:String(file.format||''),detailUrl:'https://archive.org/details/'+encodeURIComponent(id)}
   }
   async function search(query){
-    const q=String(query||'').trim();if(!q){setStatus('READY · ENTER A KEYWORD');return}
+    const q=safeQuery(query);if(!q){setStatus('READY · ENTER A KEYWORD');return}
     const run=++state.generation;$('results').innerHTML='<div class="empty-results">SEARCHING THE LIVE VIDEO CATALOG…</div>';setStatus('SEARCHING · '+q.toUpperCase());
     try{
       const params=new URLSearchParams({q:'('+q+') AND mediatype:movies',fl:'identifier,title,creator,date,downloads',rows:'10',start:'0',output:'json'});
