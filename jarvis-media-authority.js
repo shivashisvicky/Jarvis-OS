@@ -29,27 +29,32 @@
 
   class JarvisMediaAuthority {
     constructor() {
-      this.host = null;
+      this.container = null;
       this.activeSearch = 0;
-      this.bindToPersistentRoot();
+      this.mediaObserver = null;
+      this.initSPAObserver();
     }
 
-    bindToPersistentRoot() {
-      const host = document.querySelector('#app');
-      if (!host) {
-        const observer = new MutationObserver(() => {
-          const root = document.querySelector('#app');
-          if (root) {
-            observer.disconnect();
-            this.bindToPersistentRoot();
-          }
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-        return;
-      }
-      this.host = host;
-      this.bindEvents();
-      console.log('[JARVIS Media Authority] Persistent SPA delegation active.');
+    initSPAObserver() {
+      this.tryBindContainer();
+
+      const root = document.body || document.documentElement;
+      if (!root) return;
+
+      this.mediaObserver = new MutationObserver(() => {
+        this.tryBindContainer();
+      });
+
+      this.mediaObserver.observe(root, { childList: true, subtree: true });
+    }
+
+    tryBindContainer() {
+      const el = this.resolve(MEDIA_ROOTS);
+      if (!el || this.container === el) return;
+
+      this.container = el;
+      this.bindDelegatedEvents();
+      console.log('[JARVIS Media Authority] Bound to dynamic Media Center root.');
     }
 
     resolve(selectors, parent = document) {
@@ -60,48 +65,36 @@
       return null;
     }
 
-    getMediaRoot() {
-      return this.resolve(MEDIA_ROOTS);
-    }
-
     getSearchInput() {
-      const root = this.getMediaRoot();
-      return root ? this.resolve(SEARCH_INPUTS, root) : null;
+      return this.resolve(SEARCH_INPUTS, this.container);
     }
 
     getResultsContainer() {
-      const root = this.getMediaRoot();
-      return root ? this.resolve(['#videoResults','.video-results-container','.jyt-results'], root) : null;
+      return this.resolve(['#videoResults','.video-results-container','.jyt-results'], this.container);
     }
 
     getPlayerContainer() {
-      const root = this.getMediaRoot();
-      return root ? this.resolve(['#jarvisPlayer','.video-player-container','.jyt-player'], root) : null;
+      return this.resolve(['#jarvisPlayer','.video-player-container','.jyt-player'], this.container);
     }
 
     getStatusLabel() {
-      const root = this.getMediaRoot();
-      return root ? this.resolve(['#mediaState','.video-status','.media-status','#videoStatus'], root) : null;
+      return this.resolve(['#mediaState','.video-status','.media-status','#videoStatus'], this.container);
     }
 
-    eventInsideMedia(target) {
-      const root = this.getMediaRoot();
-      return !!(root && target instanceof Node && root.contains(target));
-    }
+    bindDelegatedEvents() {
+      this.container.addEventListener('click', e => {
+        const target = e.target;
+        if (!(target instanceof Element) || !this.container.contains(target)) return;
 
-    bindEvents() {
-      this.host.addEventListener('click', e => {
-        if (!this.eventInsideMedia(e.target)) return;
-
-        const search = e.target.closest(SEARCH_BUTTONS.join(','));
-        if (search) {
+        const search = target.closest(SEARCH_BUTTONS.join(','));
+        if (search && this.container.contains(search)) {
           e.preventDefault();
           this.handleSearchTrigger();
           return;
         }
 
-        const card = e.target.closest('.jyt-card, .video-result');
-        if (card) {
+        const card = target.closest('.jyt-card, .video-result');
+        if (card && this.container.contains(card)) {
           const embedUrl = card.getAttribute('data-embed-url');
           if (embedUrl) {
             this.playVideo(
@@ -113,10 +106,12 @@
         }
       });
 
-      this.host.addEventListener('keydown', e => {
-        if (!this.eventInsideMedia(e.target)) return;
-        const input = e.target.closest(SEARCH_INPUTS.join(','));
-        if (input && e.key === 'Enter') {
+      this.container.addEventListener('keydown', e => {
+        const target = e.target;
+        if (!(target instanceof Element) || !this.container.contains(target)) return;
+
+        const input = target.closest(SEARCH_INPUTS.join(','));
+        if (input && this.container.contains(input) && e.key === 'Enter') {
           e.preventDefault();
           this.handleSearchTrigger();
         }
@@ -252,8 +247,6 @@
 
       const errors = [];
 
-      // First attempt: direct PeerTube API. This is the fastest path when the
-      // provider exposes CORS correctly in the user's browser.
       try {
         const data = await this.fetchJson(targetUrl, DIRECT_TIMEOUT_MS);
         return this.normalizeProviderResults(data, provider, 'direct');
@@ -261,8 +254,6 @@
         errors.push(`${provider.name}: direct ${this.errorMessage(error)}`);
       }
 
-      // Second attempt: independent public CORS relays. A failure of one relay
-      // must never make the other relay or providers appear unavailable.
       for (const proxy of CORS_PROXIES) {
         try {
           const data = await this.fetchJson(
