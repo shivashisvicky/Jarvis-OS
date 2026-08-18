@@ -28,27 +28,6 @@ jobs:
         run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Patch application
         run: python3 scripts/jarvis_enhance.py
-      - name: Add intelligence surface styling and deterministic UI tests
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          main=Path('src/main.ts')
-          m=main.read_text().replace('renderResults(data.items||[])','renderResults(Array.isArray(data)?data:(data.items||[]))')
-          main.write_text(m)
-          css=Path('src/styles.css')
-          text=css.read_text()
-          if '/* JARVIS live intelligence surfaces */' not in text:
-              text += r'''\n/* JARVIS live intelligence surfaces */\n.news-desk{margin:24px 0;overflow:hidden;position:relative;background:linear-gradient(135deg,rgba(9,18,28,.98),rgba(4,9,15,.96))}.news-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding:24px;border-bottom:1px solid rgba(130,210,255,.12)}.news-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.news-live{font-size:11px;letter-spacing:.16em;color:#8de9ff}.news-live i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#8de9ff;box-shadow:0 0 14px #8de9ff;margin-right:6px}.news-ticker{overflow:hidden;white-space:nowrap;border-bottom:1px solid rgba(130,210,255,.1);background:rgba(0,0,0,.2)}.news-track{display:inline-flex;min-width:max-content;gap:42px;padding:12px 0;animation:jarvisTicker 38s linear infinite}.news-track a,.news-track span{color:#bfefff;text-decoration:none;font-size:12px}@keyframes jarvisTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}.news-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px}.news-card{display:grid;grid-template-columns:150px 1fr;min-height:170px;overflow:hidden;border:1px solid rgba(130,210,255,.12);background:rgba(2,7,12,.72)}.news-card img{width:150px;height:100%;min-height:170px;object-fit:cover;background:#061018}.news-card-body{padding:15px}.news-meta{display:flex;gap:10px;color:#6f9bad;font-size:9px;letter-spacing:.12em;text-transform:uppercase}.news-card h3{margin:8px 0;font-size:15px;line-height:1.25}.news-card h3 a{color:#e8fbff;text-decoration:none}.news-card p{margin:0;color:#9eb9c5;font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.news-read{display:inline-block;margin-top:10px;color:#79defa;font-size:10px;text-decoration:none;letter-spacing:.12em}.news-loading{display:flex;gap:10px;padding:24px}.news-loading span{height:120px;flex:1;background:linear-gradient(90deg,rgba(120,200,240,.04),rgba(120,200,240,.1),rgba(120,200,240,.04));background-size:200% 100%;animation:shimmer 1.5s infinite}@keyframes shimmer{to{background-position:-200% 0}}.video-results{display:flex;flex-direction:column;gap:8px}.video-result{display:grid;grid-template-columns:110px 1fr 24px;gap:10px;text-align:left;padding:8px;border:1px solid rgba(130,210,255,.08);background:rgba(0,0,0,.16);color:inherit;cursor:pointer}.video-result img{width:110px;height:62px;object-fit:cover;background:#02060a}.video-meta{display:flex;flex-direction:column;gap:4px;min-width:0}.video-meta strong{font-size:12px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.video-meta small{font-size:9px;color:#7896a4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.video-result>b{align-self:center;color:#79defa}.media-main video{width:100%;height:100%;max-height:560px;display:block;background:#000}.media-main .player{min-height:360px}@media(max-width:760px){.news-head{flex-direction:column}.news-grid{grid-template-columns:1fr}.news-card{grid-template-columns:110px 1fr}.news-card img{width:110px;min-height:150px}.media-main .player{min-height:230px}.video-result{grid-template-columns:92px 1fr 18px}.video-result img{width:92px;height:54px}}\n'''
-              css.write_text(text)
-          css_text=css.read_text().replace('\\n/* JARVIS live intelligence surfaces */','\n/* JARVIS live intelligence surfaces */')
-          css.write_text(css_text)
-          tests=Path('tests/e2e/jarvis.spec.ts')
-          t=tests.read_text()
-          t=t.replace("await expect(page.locator('[data-news-query=\"AI OR artificial intelligence\"]')).toBeVisible();", "await expect(page.locator('#newsGenre')).toBeVisible();")
-          t=t.replace("await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');", "await expect(page.locator('#jarvisPlayer video source')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');")
-          t=t.replace(r'\n','\n')
-          tests.write_text(t)
-          PY
       - name: Build
         run: npm run build
       - name: Browser tests
@@ -60,5 +39,9 @@ jobs:
           git config user.name 'JARVIS Engineering Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add src/main.ts src/styles.css tests/e2e/jarvis.spec.ts
-          git commit -m 'feat: make media keyword-first and add summarized live news [jarvis-enhance]'
+          if git diff --cached --quiet; then
+            echo 'No enhancement changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: apply idempotent JARVIS enhancement [jarvis-enhance]'
           git push
