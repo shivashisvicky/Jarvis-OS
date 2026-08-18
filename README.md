@@ -13,6 +13,7 @@ A lightweight, local-first desktop environment that runs in a browser tab or as 
 - Settings
 - PWA manifest
 - Playwright browser smoke/SIT tests
+- Provider-independent live media and map integrations
 
 ## Development
 ```bash
@@ -24,8 +25,10 @@ npm run dev
 ```bash
 npm run build
 npm run test
-npm run test:browser
+npm run test:browser:smoke
 ```
+
+Every CI lane is intentionally independent so one failure does not prevent the remaining validation lanes from producing evidence.
 
 The project intentionally avoids a heavyweight desktop wrapper at this stage. Electron/Tauri can be introduced later only if native capabilities become necessary.
 
