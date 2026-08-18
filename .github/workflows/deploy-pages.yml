@@ -14,10 +14,8 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
-# Keep every Node 22 job on the same known-good npm line as the main CI.
-# npm 11 can hit an Arborist `edgesOut` crash during dependency resolution.
 env:
-  NPM_VERSION: 10.9.7
+  PNPM_VERSION: 10.15.0
 
 jobs:
   build:
@@ -30,12 +28,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pin npm
-        run: npm install --global npm@${NPM_VERSION} && npm --version
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
       - name: Build Jarvis OS
-        run: npm run build
+        run: pnpm run build
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -68,13 +66,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pin npm
-        run: npm install --global npm@${NPM_VERSION} && npm --version
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Verify deployed media search
         env:
           JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
-        run: npx playwright test tests/e2e/live-media.spec.ts --project=chromium
+        run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
