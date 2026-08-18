@@ -41,6 +41,22 @@ jobs:
       - name: Security audit
         run: npm audit --audit-level=critical
 
+  python-media:
+    name: Local Media / Python Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install media dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r jarvis-media/requirements.txt
+      - name: Compile media service
+        run: python -m compileall -q jarvis-media
+      - name: Run deterministic media contract tests
+        working-directory: jarvis-media
+        run: python -m unittest -v test_media_agent.py
+
   e2e-chromium:
     name: E2E / Chromium
     runs-on: ubuntu-latest
