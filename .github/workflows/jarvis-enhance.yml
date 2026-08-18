@@ -1,12 +1,18 @@
 name: One-shot JARVIS media and news enhancement
+
 on:
   push:
     branches: [main]
     paths:
       - 'scripts/jarvis_enhance.py'
       - '.github/workflows/jarvis-enhance.yml'
+
 permissions:
   contents: write
+
+env:
+  NPM_VERSION: 10.9.7
+
 jobs:
   enhance:
     if: "!contains(github.event.head_commit.message, '[jarvis-enhance]')"
@@ -16,8 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Patch application
         run: python3 scripts/jarvis_enhance.py
       - name: Add intelligence surface styling and deterministic UI tests
@@ -38,9 +46,6 @@ jobs:
           t=tests.read_text()
           t=t.replace("await expect(page.locator('[data-news-query=\"AI OR artificial intelligence\"]')).toBeVisible();", "await expect(page.locator('#newsGenre')).toBeVisible();")
           t=t.replace("await expect(page.locator('#jarvisPlayer video')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');", "await expect(page.locator('#jarvisPlayer video source')).toHaveAttribute('src', 'https://cdn.example.com/video.mp4');")
-          old="""test('media keyword search gives a useful empty-query state', async ({ page }) => {\n  await page.goto('/');\n  await nav(page, 'media').click();\n  await page.locator('#videoSearch').click();\n  await expect(page.getByText('Enter keywords and JARVIS will find videos for you.')).toBeVisible();\n});"""
-          new="""test('media opens with a useful trending feed without requiring a keyword', async ({ page }) => {\n  await page.route('https://pipedapi.kavin.rocks/**', async route => {\n    const url = route.request().url();\n    if (url.includes('/trending')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ title: 'JARVIS trending fixture', url: '/watch?v=trend1234567', thumbnail: 'https://example.com/trend.jpg', uploader: 'JARVIS', uploadedDate: 'today', views: 10 }]) });\n    return route.continue();\n  });\n  await page.goto('/');\n  await nav(page, 'media').click();\n  await expect(page.locator('.video-result')).toContainText('JARVIS trending fixture');\n});"""
-          t=t.replace(old,new)
           t=t.replace(r'\n','\n')
           tests.write_text(t)
           PY
