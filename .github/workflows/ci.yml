@@ -2,21 +2,17 @@ name: Jarvis OS CI
 
 on:
   push:
-    branches: [main, 'build/**']
+    branches: [main, 'build/**', 'fix/**']
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
 
-# Every pushed revision gets its own full validation run. A slow browser lane
-# on an older revision must never block validation of the current revision.
 concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
-# Every validation lane is intentionally independent. A broken install/build/test
-# in one lane must never prevent the other lanes from collecting evidence.
 jobs:
   quality:
     name: Quality / Build / Unit
@@ -28,34 +24,44 @@ jobs:
           node-version: 22
       - name: Install dependencies
         id: install
-        continue-on-error: true
-        run: npm install --no-audit --no-fund
+        if: always()
+        run: |
+          set +e
+          npm install --no-audit --no-fund
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Build
         id: build
         if: always()
-        continue-on-error: true
-        run: npm run build
+        run: |
+          set +e
+          npm run build
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Unit tests
         id: unit
         if: always()
-        continue-on-error: true
-        run: npm test -- --reporter=dot
+        run: |
+          set +e
+          npm test -- --reporter=dot
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Security audit
         id: audit
         if: always()
-        continue-on-error: true
-        run: npm audit --audit-level=critical
+        run: |
+          set +e
+          npm audit --audit-level=critical
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Quality verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.build.outcome }}" "${{ steps.unit.outcome }}" "${{ steps.audit.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then
-            echo "Quality lane collected all checks, but one or more checks failed."
-            exit 1
-          fi
+          echo "install=${{ steps.install.outputs.exit_code }} build=${{ steps.build.outputs.exit_code }} unit=${{ steps.unit.outputs.exit_code }} audit=${{ steps.audit.outputs.exit_code }}"
+          test "${{ steps.install.outputs.exit_code }}" = 0
+          test "${{ steps.build.outputs.exit_code }}" = 0
+          test "${{ steps.unit.outputs.exit_code }}" = 0
+          test "${{ steps.audit.outputs.exit_code }}" = 0
 
   e2e-chromium:
     name: E2E / Chromium
@@ -67,23 +73,36 @@ jobs:
           node-version: 22
       - name: Install dependencies
         id: install
-        continue-on-error: true
-        run: npm install --no-audit --no-fund
+        if: always()
+        run: |
+          set +e
+          npm install --no-audit --no-fund
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Install Chromium
         id: browser
         if: always()
-        continue-on-error: true
-        run: npx playwright install --with-deps chromium
+        run: |
+          set +e
+          npx playwright install --with-deps chromium
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Build
         id: build
         if: always()
-        continue-on-error: true
-        run: npm run build
+        run: |
+          set +e
+          npm run build
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Browser smoke
         id: test
         if: always()
-        continue-on-error: true
-        run: npm run test:browser:smoke -- --project=chromium
+        run: |
+          set +e
+          npm run test:browser:smoke -- --project=chromium
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Upload Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,11 +116,11 @@ jobs:
       - name: Chromium verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          echo "install=${{ steps.install.outputs.exit_code }} browser=${{ steps.browser.outputs.exit_code }} build=${{ steps.build.outputs.exit_code }} test=${{ steps.test.outputs.exit_code }}"
+          test "${{ steps.install.outputs.exit_code }}" = 0
+          test "${{ steps.browser.outputs.exit_code }}" = 0
+          test "${{ steps.build.outputs.exit_code }}" = 0
+          test "${{ steps.test.outputs.exit_code }}" = 0
 
   e2e-cross-browser:
     name: E2E / ${{ matrix.browser }} Smoke
@@ -117,23 +136,36 @@ jobs:
           node-version: 22
       - name: Install dependencies
         id: install
-        continue-on-error: true
-        run: npm install --no-audit --no-fund
+        if: always()
+        run: |
+          set +e
+          npm install --no-audit --no-fund
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Install browser
         id: browser
         if: always()
-        continue-on-error: true
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: |
+          set +e
+          npx playwright install --with-deps ${{ matrix.browser }}
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Build
         id: build
         if: always()
-        continue-on-error: true
-        run: npm run build
+        run: |
+          set +e
+          npm run build
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Browser smoke
         id: test
         if: always()
-        continue-on-error: true
-        run: npx playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
+        run: |
+          set +e
+          npx playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Upload cross-browser evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -147,8 +179,8 @@ jobs:
       - name: ${{ matrix.browser }} verdict
         if: always()
         run: |
-          failed=0
-          for outcome in "${{ steps.install.outcome }}" "${{ steps.browser.outcome }}" "${{ steps.build.outcome }}" "${{ steps.test.outcome }}"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
-          done
-          if [ "$failed" -ne 0 ]; then exit 1; fi
+          echo "install=${{ steps.install.outputs.exit_code }} browser=${{ steps.browser.outputs.exit_code }} build=${{ steps.build.outputs.exit_code }} test=${{ steps.test.outputs.exit_code }}"
+          test "${{ steps.install.outputs.exit_code }}" = 0
+          test "${{ steps.browser.outputs.exit_code }}" = 0
+          test "${{ steps.build.outputs.exit_code }}" = 0
+          test "${{ steps.test.outputs.exit_code }}" = 0
