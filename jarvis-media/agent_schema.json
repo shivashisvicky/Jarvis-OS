@@ -1,0 +1,46 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "search_and_play",
+      "description": "Search YouTube and start playback on the local JARVIS media engine. The operation is asynchronous and returns immediately after the request is queued.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A video, song, channel, or natural-language search query."
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "control_player",
+      "description": "Control the currently playing local JARVIS media session.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["stop", "pause", "resume", "volume"],
+            "description": "The playback operation to perform."
+          },
+          "volume": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Target volume percentage. Required when action is volume."
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      }
+    }
+  }
+]
