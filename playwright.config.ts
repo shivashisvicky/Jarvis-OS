@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.JARVIS_LIVE_URL || 'http://127.0.0.1:4173';
+const useLocalServer = !process.env.JARVIS_LIVE_URL;
+
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.ts',
@@ -19,15 +22,15 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } }
   ],
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  webServer: {
+  webServer: useLocalServer ? {
     command: 'npm run preview -- --host 127.0.0.1 --port 4173',
     port: 4173,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000
-  }
+  } : undefined
 });
