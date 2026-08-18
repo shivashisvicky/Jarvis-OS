@@ -13,7 +13,7 @@ const dumpMediaDiagnostics = async (page: Page, label: string) => console.log(`[
   trace: (window as any).__JARVIS_MEDIA_TRACE__ || [],
   lastEvent: (window as any).__JARVIS_MEDIA_LAST_EVENT__ || null,
   dom: {
-    cards: document.querySelectorAll('.jyt-card').length,
+    cards: document.querySelectorAll('.jyt-card,.jvc-card,.jff-video,.jarvis-video-card,.jarvis-video-result').length,
     degraded: document.querySelectorAll('.media-degraded-state').length,
     results: document.querySelector('#videoResults')?.textContent || null,
     status: document.querySelector('#mediaState, .video-status, .media-status, #videoStatus')?.textContent || null
@@ -21,14 +21,12 @@ const dumpMediaDiagnostics = async (page: Page, label: string) => console.log(`[
 }), label), null, 2)}`);
 
 const prepareLocalMedia = async (page: Page) => {
-  // The deployed UI is allowed to remember a custom endpoint. CI must always
-  // exercise the deterministic local-service contract, never a stale endpoint.
   await page.addInitScript(({ base }) => {
     localStorage.setItem('jarvisMediaService', base);
   }, { base: LOCAL_MEDIA_BASE });
 };
 
-const mockLocalSuccess = async (page: Page, message = "Success: Now playing 'Live PeerTube result'.") => {
+const mockLocalSuccess = async (page: Page, message = "Success: Now playing 'Live local result'.") => {
   await page.route(LOCAL_MEDIA, async route => {
     if (route.request().method() !== 'POST') return route.continue();
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, message }) });
@@ -65,6 +63,16 @@ test.describe('JARVIS CI smoke contract', () => {
     await page.locator('button.nav[data-app="media"]').click();
     await expect(page.locator('#videoQuery')).toBeVisible();
     await expect(page.locator('#videoSearch')).toBeVisible();
+  });
+
+  test('legacy browser renderers are removed instead of taking authority', async ({ page }) => {
+    await openMedia(page);
+    await page.evaluate(() => {
+      const box = document.querySelector('#videoResults')!;
+      box.innerHTML = '<button class="jyt-card"><strong>LEGACY FABRICATED VIDEO</strong></button>';
+    });
+    await expect(page.locator('.jyt-card')).toHaveCount(0);
+    await expect(page.locator('#videoResults')).toContainText('LOCAL MEDIA AUTHORITY ACTIVE');
   });
 
   test('keyword search is delegated to local media service', async ({ page }) => {
