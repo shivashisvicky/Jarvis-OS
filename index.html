@@ -17,8 +17,10 @@
   <script src="./jarvis-preboot.js?v=20260816-2"></script>
   <script src="./jarvis-games.js?v=20260816-7"></script>
   <script src="./jarvis-runtime-guards.js?v=20260818-2"></script>
-  <script type="module" src="./src/main.ts?v=20260818-media-unified"></script>
-  <script src="./jarvis-media-authority.js?v=20260818-unified-5" defer></script>
+  <!-- Unified media authority must load before the SPA module so its direct
+       control handlers are registered before any legacy media hooks. -->
+  <script src="./jarvis-media-authority.js?v=20260818-unified-6" defer></script>
+  <script type="module" src="./src/main.ts?v=20260818-media-unified-2"></script>
   <script src="./jarvis-news-compat.js?v=20260816-1"></script>
   <script src="./jarvis-news-summary-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-mobile-controls.js?v=20260818-1"></script>
