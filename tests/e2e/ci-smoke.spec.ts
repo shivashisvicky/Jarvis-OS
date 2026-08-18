@@ -1,34 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PT = /https:\/\/peertube\.cpy\.re\//;
+const PT_API = /https:\/\/peertube\.cpy\.re\/api\/v1\/search\/videos(?:\?|$)/;
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,OPTIONS', 'Access-Control-Allow-Headers': 'Accept,Content-Type' };
 const VIDEO_ID = '9c9de5e8-0a1e-484a-b099-e80766180a6d';
 
 const mockPeerTube = async (page: Page, title: string) => {
-  await page.route(PT, async route => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === 'OPTIONS') {
+  await page.route(PT_API, async route => {
+    if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ status: 204, headers: CORS });
       return;
     }
-    if (url.pathname === '/api/v1/search/videos') {
-      await route.fulfill({
-        status: 200,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: [{
-          uuid: VIDEO_ID,
-          name: title,
-          duration: 95,
-          views: 1234,
-          publishedAt: '2026-08-18T00:00:00Z',
-          thumbnailPath: '/lazy-static/previews/test.jpg',
-          videoChannel: { displayName: 'PeerTube Test Channel' },
-        }] }),
-      });
-      return;
-    }
-    await route.abort('failed');
+    await route.fulfill({
+      status: 200,
+      headers: { ...CORS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [{
+        uuid: VIDEO_ID,
+        name: title,
+        duration: 95,
+        views: 1234,
+        publishedAt: '2026-08-18T00:00:00Z',
+        thumbnailPath: '/lazy-static/previews/test.jpg',
+        videoChannel: { displayName: 'PeerTube Test Channel' },
+      }] }),
+    });
   });
 };
 
@@ -83,7 +77,7 @@ test.describe('JARVIS CI smoke contract', () => {
   });
 
   test('failed PeerTube service never fabricates results', async ({ page }) => {
-    await page.route(PT, route => route.abort('failed'));
+    await page.route(PT_API, route => route.abort('failed'));
     await openMedia(page);
     await page.locator('#videoQuery').fill('unreachable test query');
     await page.locator('#videoSearch').click();
