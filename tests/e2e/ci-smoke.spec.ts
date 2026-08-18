@@ -3,12 +3,21 @@ import { expect, test, type Page } from '@playwright/test';
 const VIDEO_API = '**/api/v1/search/videos*';
 const VIDEO_ID = '9c9de5e8-0a1e-484a-b099-e80766180a6d';
 const EMBED_URL = `https://sepiasearch.org/videos/embed/${VIDEO_ID}`;
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS',
+  'Access-Control-Allow-Headers': 'Accept,Content-Type',
+};
 
 const mockPeerTube = async (page: Page, title: string) => {
   await page.route(VIDEO_API, async route => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
+      return;
+    }
     await route.fulfill({
       status: 200,
-      contentType: 'application/json',
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         data: [{
           uuid: VIDEO_ID,
@@ -82,9 +91,13 @@ test.describe('JARVIS CI smoke contract', () => {
 
   test('failed video services never fabricate results', async ({ page }) => {
     await page.route(VIDEO_API, async route => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: CORS_HEADERS });
+        return;
+      }
       await route.fulfill({
         status: 503,
-        contentType: 'application/json',
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Service Unavailable' }),
       });
     });
