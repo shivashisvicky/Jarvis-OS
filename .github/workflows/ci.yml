@@ -37,6 +37,51 @@ jobs:
       - name: Security audit
         run: pnpm audit --audit-level=critical
 
+  video-demo:
+    name: Video Demo / Real Keyword Search
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install demo dependencies
+        working-directory: video-player-demo
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Compile demo
+        run: python -m py_compile video-player-demo/server.py
+      - name: Run demo contract tests
+        working-directory: video-player-demo
+        run: python -m unittest -v test_demo.py
+      - name: Start demo service
+        run: python video-player-demo/server.py > /tmp/jarvis-video-demo.log 2>&1 &
+      - name: Health check
+        run: python - <<'PY'
+          import json, urllib.request
+          data=json.load(urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=10))
+          assert data['ok'] is True
+          PY
+      - name: Live keyword search gate
+        run: python - <<'PY'
+          import json, urllib.parse, urllib.request
+          url='http://127.0.0.1:8765/api/search?q='+urllib.parse.quote('cats')
+          with urllib.request.urlopen(url, timeout=60) as response:
+              payload=json.load(response)
+          result=payload['result']
+          assert result['id'], result
+          assert result['webpageUrl'].startswith('https://www.youtube.com/'), result
+          assert result['mediaUrl'].startswith('http'), result
+          print('LIVE_VIDEO_ID=', result['id'])
+          print('LIVE_VIDEO_TITLE=', result['title'])
+          print('LIVE_MEDIA_URL_OK=1')
+          PY
+      - name: Dump demo log on failure
+        if: failure()
+        run: cat /tmp/jarvis-video-demo.log
+
   python-media:
     name: Local Media / Python Contract
     runs-on: ubuntu-latest
