@@ -1,0 +1,124 @@
+(() => {
+  'use strict';
+  if (window.__JARVIS_MEDIA_V9_BOOT__) return;
+  window.__JARVIS_MEDIA_V9_BOOT__ = true;
+
+  const PEERTUBE = [
+    'https://peertube.cpy.re',
+    'https://peertube2.cpy.re',
+    'https://peertube3.cpy.re'
+  ];
+  const sources = new Map();
+  const originalFetch = window.fetch.bind(window);
+  const log = (...a) => { try { console.debug('[JARVIS-MEDIA-V9]', ...a); } catch {} };
+
+  const jsonResponse = value => new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  async function ptFetch(path) {
+    let last;
+    for (const host of PEERTUBE) {
+      const url = `${host}${path}`;
+      const started = performance.now();
+      try {
+        log('HTTP_REQUEST', url);
+        const r = await originalFetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        log('HTTP_RESPONSE', r.status, url, `${Math.round(performance.now() - started)}ms`);
+        if (r.ok) return { host, data: await r.json() };
+        last = new Error(`${r.status} ${r.statusText}`);
+      } catch (e) {
+        last = e;
+        log('HTTP_ERROR', url, e instanceof Error ? e.message : String(e));
+      }
+    }
+    throw last || new Error('PeerTube unavailable');
+  }
+
+  function pipedItem(host, v) {
+    const id = String(v.uuid || v.shortUUID || v.id || '');
+    if (!id) return null;
+    sources.set(id, host);
+    const thumb = v.thumbnailPath ? `${host}${v.thumbnailPath}` : (v.thumbnails?.[0]?.fileUrl || '');
+    return {
+      url: `https://youtube.com/watch?v=${encodeURIComponent(id)}`,
+      videoId: id,
+      title: v.name || v.displayName || 'Untitled video',
+      uploader: v.videoChannel?.displayName || v.ownerAccount?.displayName || 'PeerTube',
+      thumbnail: thumb,
+      uploadedDate: v.publishedAt || '',
+      views: v.views || 0
+    };
+  }
+
+  async function searchPeerTube(query) {
+    const q = encodeURIComponent(query);
+    const { host, data } = await ptFetch(`/api/v1/search/videos?search=${q}&count=12&sort=-trending&hasWebVideoFiles=true&nsfw=false`);
+    const items = (data.data || []).map(v => pipedItem(host, v)).filter(Boolean);
+    log('SEARCH_RESULT', query, items.length);
+    return items;
+  }
+
+  async function trendingPeerTube() {
+    const { host, data } = await ptFetch('/api/v1/videos?count=12&sort=-trending&hasWebVideoFiles=true&nsfw=false');
+    const items = (data.data || []).map(v => pipedItem(host, v)).filter(Boolean);
+    log('TRENDING_RESULT', items.length);
+    return items;
+  }
+
+  async function streamPeerTube(id) {
+    const host = sources.get(id) || PEERTUBE[0];
+    const { data } = await ptFetchFrom(host, `/api/v1/videos/${encodeURIComponent(id)}?include=8`);
+    const files = (data.files || [])
+      .filter(f => f.fileUrl && f.hasVideo !== false && f.hasAudio !== false)
+      .sort((a, b) => Number(b.height || 0) - Number(a.height || 0));
+    const f = files[0];
+    if (!f) throw new Error('PeerTube video has no browser-playable web file');
+    log('STREAM_SELECTED', id, f.fileUrl, f.mimeType || 'video/mp4', f.resolution?.label || `${f.height || ''}p`);
+    return {
+      videoStreams: [{
+        url: f.fileUrl,
+        mimeType: f.mimeType || 'video/mp4',
+        quality: f.resolution?.label || `${f.height || ''}p`,
+        height: f.height || 0,
+        videoOnly: false
+      }],
+      thumbnailUrl: data.thumbnailPath ? `${host}${data.thumbnailPath}` : ''
+    };
+  }
+
+  async function ptFetchFrom(host, path) {
+    const url = `${host}${path}`;
+    const started = performance.now();
+    log('STREAM_HTTP_REQUEST', url);
+    const r = await originalFetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    log('STREAM_HTTP_RESPONSE', r.status, url, `${Math.round(performance.now() - started)}ms`);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return { host, data: await r.json() };
+  }
+
+  window.fetch = async function(input, init) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    try {
+      const u = new URL(url, location.href);
+      if (/pipedapi[^/]*\./i.test(u.hostname)) {
+        const path = u.pathname;
+        if (path === '/search') {
+          const q = u.searchParams.get('q') || '';
+          return jsonResponse(await searchPeerTube(q).then(items => ({ items })));
+        }
+        if (path === '/trending') {
+          return jsonResponse(await trendingPeerTube());
+        }
+        const m = path.match(/^\/streams\/([^/]+)$/);
+        if (m) return jsonResponse(await streamPeerTube(decodeURIComponent(m[1])));
+      }
+    } catch (e) {
+      log('ADAPTER_ERROR', e instanceof Error ? e.message : String(e));
+    }
+    return originalFetch(input, init);
+  };
+
+  log('BOOT', 'PeerTube adapter active before JARVIS media initialization');
+})();
