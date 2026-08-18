@@ -22,14 +22,13 @@
   <script src="./jarvis-news-summary-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-core-authority.js?v=20260818-2"></script>
   <script src="./jarvis-mobile-controls.js?v=20260818-1"></script>
-  <script src="./jarvis-video-authority-final.js?v=20260818-9"></script>
   <script src="./jarvis-map-authority-final.js?v=20260818-2"></script>
   <script src="./jarvis-intelligence-authority-final.js?v=20260818-2"></script>
   <script src="./jarvis-media-core-v7.js?v=20260818-1"></script>
   <script>
-    // Media Core v7 is the sole owner of YouTube search and playback.
-    // The legacy video authority remains loaded only for direct URL compatibility,
-    // while the media core owns the visible search contract.
+    // Media Core v7 is the sole owner of video search, result rendering and playback.
+    // Legacy video authority scripts are intentionally not loaded because competing
+    // listeners caused duplicate searches and stale result output.
     window.__JARVIS_RUNTIME_AUTHORITY__ = '2026-08-18-media-v7-single-owner';
   </script>
 </body>
