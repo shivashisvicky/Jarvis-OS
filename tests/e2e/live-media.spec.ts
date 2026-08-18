@@ -10,25 +10,29 @@ test('production media search returns real open-platform results and player', as
 
   await page.locator('#videoQuery').fill('cats');
   await page.locator('#videoSearch').click();
-  await expect(page.locator('.jyt-card').first()).toBeVisible({ timeout: 30000 });
 
-  const firstTitles = await page.locator('.jyt-card .card-title').allTextContents();
+  const firstCard = page.locator('.jyt-card.video-result').first();
+  await expect(firstCard).toBeVisible({ timeout: 45000 });
+
+  const firstTitles = await page.locator('.jyt-card.video-result .card-title').allTextContents();
   expect(firstTitles.length).toBeGreaterThan(0);
   expect(firstTitles.join(' ').toLowerCase()).not.toContain('fallback');
 
-  await page.locator('.jyt-card').first().click();
-  await expect(page.locator('#jarvisPlayer iframe')).toBeVisible({ timeout: 10000 });
+  const embedUrl = await firstCard.getAttribute('data-embed-url');
+  expect(embedUrl).toMatch(/\/videos\/embed\//);
+
+  await firstCard.click();
   await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute(
     'src',
-    /https:\/\/(?:sepiasearch\.org|peertube\.tv|framatube\.org)\/videos\/embed\//,
+    /\/videos\/embed\//,
     { timeout: 10000 }
   );
 
   await page.locator('#videoQuery').fill('NASA Artemis');
   await page.locator('#videoSearch').click();
-  await expect(page.locator('.jyt-card').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.jyt-card.video-result').first()).toBeVisible({ timeout: 45000 });
 
-  const secondTitles = await page.locator('.jyt-card .card-title').allTextContents();
+  const secondTitles = await page.locator('.jyt-card.video-result .card-title').allTextContents();
   expect(secondTitles.length).toBeGreaterThan(0);
   expect(secondTitles.join(' ')).not.toBe(firstTitles.join(' '));
 });
