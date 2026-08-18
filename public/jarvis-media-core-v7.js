@@ -1,258 +1,136 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_OPEN_MEDIA_V2__) return;
-  window.__JARVIS_OPEN_MEDIA_V2__ = true;
+  if (window.__JARVIS_MEDIA_DIAGNOSTIC_V3__) return;
+  window.__JARVIS_MEDIA_DIAGNOSTIC_V3__ = true;
 
   const PEERTUBE = ['https://peertube.cpy.re', 'https://framatube.org', 'https://peertube.uno'];
-  const INVIDIOUS = ['https://inv.nadeko.net', 'https://invidious.nerdvpn.de', 'https://yt.chocolatemoo53.com'];
-  const TIMEOUT = 6000;
-  let mounted = false;
+  const INVIDIOUS = ['https://inv.nadeko.net', 'https://invidious.nerdvpn.de'];
+  const TIMEOUT = 8000;
+  const DEBUG = new URLSearchParams(location.search).has('mediaDebug') || localStorage.getItem('jarvis.media.debug') === '1';
+  const logs = [];
+  let boundRoot = null;
 
-  const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;'
-  }[c]));
-
-  const duration = value => {
-    const n = Number(value) || 0;
-    const m = Math.floor(n / 60);
-    const s = Math.floor(n % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  };
-
-  async function json(url) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT);
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: { Accept: 'application/json' }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } finally {
-      clearTimeout(timer);
+  const log = (step, data = {}) => {
+    const entry = { t: new Date().toISOString(), step, ...data };
+    logs.push(entry);
+    if (logs.length > 200) logs.shift();
+    window.__JARVIS_MEDIA_LOGS__ = logs;
+    console.info('[JARVIS-MEDIA]', step, data);
+    if (DEBUG) {
+      const el = document.querySelector('#jarvisMediaDebug');
+      if (el) el.textContent = logs.map(x => `${x.t.slice(11,23)} ${x.step} ${JSON.stringify(x)}`).join('\n');
     }
+  };
+
+  const esc = v => String(v ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+  const duration = v => { const n = Number(v)||0; return `${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,'0')}`; };
+
+  function debugPanel(parent) {
+    if (!DEBUG || document.querySelector('#jarvisMediaDebug')) return;
+    const pre = document.createElement('pre');
+    pre.id = 'jarvisMediaDebug';
+    pre.style.cssText = 'white-space:pre-wrap;max-height:260px;overflow:auto;margin:10px 0;padding:10px;border:1px solid #173545;border-radius:10px;font:11px monospace;color:#8fb1bd;background:#02070b';
+    parent.appendChild(pre);
   }
 
-  const dedupe = items => {
+  async function request(url, label) {
+    const started = performance.now();
+    log('HTTP_REQUEST', { label, url });
+    const controller = new AbortController();
+    const timer = setTimeout(() => { log('HTTP_TIMEOUT', { label, url }); controller.abort(); }, TIMEOUT);
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache:'no-store', headers:{Accept:'application/json'} });
+      const ms = Math.round(performance.now()-started);
+      log('HTTP_RESPONSE', { label, url, status:response.status, ok:response.ok, ms, type:response.headers.get('content-type') });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      log('HTTP_JSON', { label, keys:data && typeof data==='object' ? Object.keys(data).slice(0,12) : [], count:Array.isArray(data) ? data.length : Array.isArray(data?.data) ? data.data.length : null });
+      return data;
+    } catch (error) {
+      log('HTTP_ERROR', { label, url, error:String(error) });
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+
+  const peerItem = (x, host) => {
+    const id = x?.uuid || x?.shortUUID || x?.id;
+    if (!id) { log('NORMALIZE_SKIP', { platform:'PeerTube', reason:'missing id' }); return null; }
+    const embed = `${host}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0`;
+    log('NORMALIZE_RESULT', { platform:'PeerTube', id:String(id), title:x.name, embed });
+    return { id:String(id), platform:'PeerTube', title:x.name||'Untitled video', author:x.channel?.displayName||x.account?.displayName||'PeerTube', views:x.views||0, duration:duration(x.duration), thumb:x.thumbnailPath?.startsWith('http')?x.thumbnailPath:(x.thumbnailPath?host+x.thumbnailPath:''), embed };
+  };
+
+  const invItem = (x, host) => {
+    if (!x?.videoId) { log('NORMALIZE_SKIP', { platform:'Invidious', reason:'missing videoId' }); return null; }
+    const embed = `${host}/embed/${encodeURIComponent(x.videoId)}?autoplay=1`;
+    log('NORMALIZE_RESULT', { platform:'Invidious', id:String(x.videoId), title:x.title, embed });
+    return { id:String(x.videoId), platform:'Invidious', title:x.title||'Untitled video', author:x.author||'Invidious', views:x.viewCount||0, duration:duration(x.lengthSeconds), thumb:x.videoThumbnails?.[0]?.url||'', embed };
+  };
+
+  async function search(query) {
+    log('SEARCH_START', { query });
+    const ptUrls = PEERTUBE.map(h => `${h}/api/v1/search/videos?search=${encodeURIComponent(query)}&count=12&sort=-publishedAt`);
+    const invUrls = INVIDIOUS.map(h => `${h}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1`);
+    log('SEARCH_URLS_CONSTRUCTED', { peerTube:ptUrls, invidious:invUrls });
+
+    const pt = await Promise.all(ptUrls.map((url,i) => request(url,`PeerTube:${PEERTUBE[i]}`).then(d => (d.data||[]).map(x=>peerItem(x,PEERTUBE[i])).filter(Boolean)).catch(()=>[])));
+    const inv = await Promise.all(invUrls.map((url,i) => request(url,`Invidious:${INVIDIOUS[i]}`).then(d => (Array.isArray(d)?d:[]).map(x=>invItem(x,INVIDIOUS[i])).filter(Boolean)).catch(()=>[])));
+    const all = [...pt.flat(), ...inv.flat()];
     const seen = new Set();
-    return items.filter(item => {
-      if (!item) return false;
-      const key = `${item.platform}:${item.id}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-
-  const peerTubeItem = item => {
-    const id = item?.uuid || item?.shortUUID || item?.id;
-    if (!id) return null;
-    const host = item.__host;
-    const thumb = item.thumbnailPath
-      ? (item.thumbnailPath.startsWith('http') ? item.thumbnailPath : `${host}${item.thumbnailPath}`)
-      : '';
-    return {
-      id: String(id),
-      platform: 'PeerTube',
-      title: item.name || 'Untitled video',
-      author: item.channel?.displayName || item.account?.displayName || item.account?.name || 'PeerTube',
-      views: item.views ? `${Number(item.views).toLocaleString()} views` : '',
-      duration: duration(item.duration),
-      published: item.publishedAt || '',
-      thumb,
-      embed: `${host}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0`
-    };
-  };
-
-  const invidiousItem = (item, host) => item?.videoId ? ({
-    id: String(item.videoId),
-    platform: 'Invidious',
-    title: item.title || 'Untitled video',
-    author: item.author || 'Invidious',
-    views: item.viewCount ? `${Number(item.viewCount).toLocaleString()} views` : '',
-    duration: duration(item.lengthSeconds),
-    published: item.publishedText || '',
-    thumb: item.videoThumbnails?.find(t => /high|maxres/i.test(t.quality || ''))?.url
-      || item.videoThumbnails?.[0]?.url
-      || `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
-    embed: `${host}/embed/${encodeURIComponent(item.videoId)}?autoplay=1`
-  }) : null;
-
-  async function searchPeerTube(query) {
-    return (await Promise.all(PEERTUBE.map(host =>
-      json(`${host}/api/v1/search/videos?search=${encodeURIComponent(query)}&count=12&searchTarget=search-index&sort=-publishedAt`)
-        .then(data => (data.data || []).map(item => peerTubeItem({ ...item, __host: host })).filter(Boolean))
-        .catch(() => [])
-    ))).flat();
-  }
-
-  async function searchInvidious(query) {
-    return (await Promise.all(INVIDIOUS.map(host =>
-      json(`${host}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=1`)
-        .then(data => (Array.isArray(data) ? data : []).map(item => invidiousItem(item, host)).filter(Boolean))
-        .catch(() => [])
-    ))).flat();
-  }
-
-  function style() {
-    if (document.getElementById('jarvisOpenMediaStyle')) return;
-    const styleElement = document.createElement('style');
-    styleElement.id = 'jarvisOpenMediaStyle';
-    styleElement.textContent = `
-      #videoResults.jom-results{display:grid;gap:10px;margin-top:12px}
-      .jom-card{display:grid;grid-template-columns:150px 1fr 34px;gap:12px;align-items:center;width:100%;padding:0;overflow:hidden;text-align:left;border:1px solid #173545;border-radius:14px;background:rgba(3,11,17,.92);color:#d9f7ff;cursor:pointer}
-      .jom-card:hover{border-color:#49cfff}
-      .jom-thumb{width:150px;aspect-ratio:16/9;object-fit:cover;background:#020509}
-      .jom-info{min-width:0;padding:10px 0}
-      .jom-info strong{display:block;font-size:.88rem;line-height:1.25}
-      .jom-info small{display:block;color:#7896a3;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .jom-play{color:#5edcff;margin-right:10px}
-      .jom-status{padding:11px 12px;border:1px solid #173545;border-radius:12px;color:#8fb1bd;font-size:.78rem;letter-spacing:.04em}
-      .jom-error{display:block;padding:16px;cursor:default}
-      .jom-error strong{display:block;color:#d9f7ff;margin-bottom:5px}
-      .jom-error small{color:#7896a3}
-      #jarvisPlayer.jom-player iframe{display:block;width:100%;height:min(62vh,560px);border:0;background:#000}
-      @media(max-width:700px){.jom-card{grid-template-columns:108px 1fr 30px}.jom-thumb{width:108px}.jom-info strong{font-size:.8rem}}
-    `;
-    document.head.appendChild(styleElement);
+    const unique = all.filter(x => { const k=`${x.platform}:${x.id}`; if(seen.has(k)) return false; seen.add(k); return true; });
+    log('SEARCH_COMPLETE', { peerTube:pt.flat().length, invidious:inv.flat().length, unique:unique.length });
+    return unique.slice(0,16);
   }
 
   function mount() {
-    const input = document.querySelector('#videoQuery');
-    const results = document.querySelector('#videoResults');
-    const player = document.querySelector('#jarvisPlayer');
-    const state = document.querySelector('#mediaState');
-    if (!input || !results || !player || !state || mounted) return !!input;
+    const input=document.querySelector('#videoQuery'), results=document.querySelector('#videoResults'), player=document.querySelector('#jarvisPlayer'), state=document.querySelector('#mediaState');
+    if(!input||!results||!player||!state) return false;
+    if(boundRoot===results) return true;
+    boundRoot=results;
+    log('MOUNT', { url:location.href, input:true, results:true, player:true });
+    debugPanel(results.parentElement||results);
 
-    mounted = true;
-    style();
-    results.classList.add('jom-results');
-    player.classList.add('jom-player');
+    const status=document.createElement('div'); status.id='jmc7Status'; status.style.cssText='padding:10px 12px;border:1px solid #173545;border-radius:10px;color:#8fb1bd;font-size:.78rem;margin:8px 0'; results.parentElement?.insertBefore(status,results);
+    const setStatus=t=>{status.textContent=t; state.textContent=String(t).split('·')[0].trim().toUpperCase(); log('UI_STATUS',{text:t});};
 
-    let status = document.querySelector('#jmc7Status');
-    if (!status) {
-      status = document.createElement('div');
-      status.id = 'jmc7Status';
-      status.className = 'jom-status';
-      results.parentElement?.insertBefore(status, results);
-    }
-
-    const setStatus = text => {
-      status.textContent = text;
-      state.textContent = String(text).split('·')[0].trim().toUpperCase();
+    const play=item=>{
+      log('PLAY_REQUEST',{platform:item.platform,id:item.id,title:item.title,embed:item.embed});
+      const iframe=document.createElement('iframe');
+      iframe.title=item.title||'Video'; iframe.allow='autoplay; fullscreen; picture-in-picture'; iframe.allowFullscreen=true; iframe.referrerPolicy='strict-origin-when-cross-origin'; iframe.src=item.embed;
+      log('PLAYER_URL_SET',{src:iframe.src});
+      iframe.addEventListener('load',()=>{log('IFRAME_LOAD',{src:iframe.src});setStatus(`PLAYING · ${item.platform}`);});
+      iframe.addEventListener('error',()=>{log('IFRAME_ERROR',{src:iframe.src});setStatus(`PLAYER ERROR · ${item.platform}`);});
+      player.replaceChildren(iframe);
+      setStatus(`LOADING · ${item.platform}`);
+      setTimeout(()=>{ if(player.contains(iframe)) log('PLAYER_10S_CHECK',{src:iframe.src}); },10000);
     };
 
-    const play = item => {
-      player.innerHTML = `<iframe title="${esc(item.title)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" src="${esc(item.embed)}"></iframe>`;
-      setStatus(`PLAYING · ${item.platform}`);
-    };
-
-    const playYouTubeUrl = raw => {
-      const value = String(raw || '').trim();
-      let id = null;
-      if (/^[A-Za-z0-9_-]{11}$/.test(value)) id = value;
-      else {
-        try {
-          const url = new URL(value);
-          if (url.hostname === 'youtu.be') id = url.pathname.split('/').filter(Boolean)[0] || null;
-          if (url.hostname.endsWith('youtube.com')) id = url.searchParams.get('v') || null;
-        } catch {}
-      }
-      if (!id) {
-        setStatus('READY · PASTE A YOUTUBE URL OR VIDEO ID');
-        return;
-      }
-      play({
-        id,
-        platform: 'YouTube',
-        title: 'YouTube video',
-        embed: `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0`
+    const render=items=>{
+      log('RENDER_START',{count:items.length});
+      results.innerHTML='';
+      items.forEach(item=>{
+        const b=document.createElement('button'); b.type='button'; b.className='jom-card'; b.style.cssText='display:grid;grid-template-columns:150px 1fr 30px;gap:12px;width:100%;padding:0;margin:0 0 8px;text-align:left;border:1px solid #173545;border-radius:14px;background:#030b11;color:#d9f7ff;overflow:hidden';
+        b.innerHTML=`<img style="width:150px;aspect-ratio:16/9;object-fit:cover" loading="lazy" src="${esc(item.thumb)}" alt=""><span style="padding:10px"><strong>${esc(item.title)}</strong><small style="display:block;margin-top:5px;color:#7896a3">${esc(item.platform)} · ${esc(item.author)} · ${esc(item.duration)}</small></span><b style="padding:10px">▶</b>`;
+        b.addEventListener('click',()=>play(item)); results.appendChild(b);
       });
+      log('RENDER_COMPLETE',{cards:results.querySelectorAll('.jom-card').length});
+      setStatus(`RESULTS · ${items.length}`);
     };
 
-    const render = items => {
-      const list = dedupe(items).slice(0, 16);
-      results.innerHTML = list.map(item => `
-        <button type="button" class="jom-card" data-video-id="${esc(item.id)}" data-platform="${esc(item.platform)}">
-          <img class="jom-thumb" loading="lazy" src="${esc(item.thumb)}" alt="">
-          <span class="jom-info">
-            <strong>${esc(item.title)}</strong>
-            <small>${esc(item.platform)} · ${esc(item.author)}${item.views ? ` · ${esc(item.views)}` : ''}</small>
-            <small>${esc(item.duration)}${item.published ? ` · ${esc(item.published)}` : ''}</small>
-          </span>
-          <b class="jom-play">▶</b>
-        </button>`).join('');
-
-      list.forEach(item => {
-        results.querySelector(`.jom-card[data-video-id="${CSS.escape(item.id)}"][data-platform="${CSS.escape(item.platform)}"]`)
-          ?.addEventListener('click', () => play(item));
-      });
-      setStatus(`RESULTS · ${list.length} · OPEN VIDEO`);
+    const doSearch=async()=>{
+      const q=input.value.trim(); if(!q){setStatus('READY · ENTER A VIDEO SEARCH TERM');return;}
+      results.innerHTML='<div class="jom-status">SEARCHING…</div>'; setStatus(`SEARCHING · ${q}`);
+      try { const items=await search(q); if(items.length) render(items); else {log('SEARCH_EMPTY',{query:q});results.innerHTML='<div class="jom-status">VIDEO SEARCH TEMPORARILY UNAVAILABLE</div>';setStatus('DEGRADED · OPEN VIDEO NETWORK');} }
+      catch(e){log('SEARCH_FATAL',{error:String(e)});results.innerHTML='<div class="jom-status">VIDEO SEARCH ERROR · SEE MEDIA LOG</div>';setStatus('ERROR · VIDEO SEARCH');}
     };
 
-    const fail = query => {
-      results.innerHTML = `<div class="jom-card jom-error"><strong>VIDEO SEARCH TEMPORARILY UNAVAILABLE</strong><small>No PeerTube or Invidious instance answered “${esc(query)}”. No fixed results were substituted.</small></div>`;
-      setStatus('DEGRADED · OPEN VIDEO NETWORK');
-    };
-
-    const search = async () => {
-      const query = input.value.trim();
-      if (!query) {
-        setStatus('READY · ENTER A VIDEO SEARCH TERM');
-        return;
-      }
-      results.innerHTML = '<div class="jom-status">SEARCHING PEERTUBE + INVIDIOUS…</div>';
-      setStatus(`SEARCHING · ${query}`);
-      const [peerTube, invidious] = await Promise.all([searchPeerTube(query), searchInvidious(query)]);
-      const all = dedupe([...peerTube, ...invidious]);
-      all.length ? render(all) : fail(query);
-    };
-
-    const searchButton = document.querySelector('#videoSearch');
-    if (searchButton) {
-      const fresh = searchButton.cloneNode(true);
-      searchButton.replaceWith(fresh);
-      fresh.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void search();
-      }, true);
-    }
-
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void search();
-      }
-    }, true);
-
-    const playButton = document.querySelector('#playVideo');
-    const urlInput = document.querySelector('#videoUrl');
-    if (playButton && urlInput) {
-      const freshPlayButton = playButton.cloneNode(true);
-      playButton.replaceWith(freshPlayButton);
-      freshPlayButton.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        playYouTubeUrl(urlInput.value);
-      }, true);
-    }
-
-    results.innerHTML = '<div class="jom-status">OPEN VIDEO NETWORK · PEERTUBE + INVIDIOUS</div>';
+    const button=document.querySelector('#videoSearch');
+    if(button){const fresh=button.cloneNode(true);button.replaceWith(fresh);fresh.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();void doSearch();},true);}
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();void doSearch();}},true);
     setStatus('READY · OPEN VIDEO');
     return true;
   }
 
-  const boot = () => {
-    let tries = 0;
-    const timer = setInterval(() => {
-      if (mount() || ++tries > 240) clearInterval(timer);
-    }, 50);
-  };
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  const boot=()=>{const timer=setInterval(()=>{if(mount())clearInterval(timer);},100);};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
