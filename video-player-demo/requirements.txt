@@ -1,1 +1,3 @@
-yt-dlp>=2025.01.15
+yt-dlp>=2026.07.04
+# yt-dlp's EJS component is required by current YouTube extraction paths.
+yt-dlp-ejs>=0.8.0
