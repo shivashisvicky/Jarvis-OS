@@ -7,6 +7,10 @@ on:
       - 'scripts/jarvis_enhance.py'
       - 'scripts/jarvis_retire_legacy_media.py'
       - '.github/workflows/jarvis-enhance.yml'
+      - 'src/main.ts'
+      - 'index.html'
+      - 'jarvis-media-authority.js'
+      - 'jarvis-runtime-guards.js'
 
 permissions:
   contents: write
