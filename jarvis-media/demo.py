@@ -46,19 +46,23 @@ def run_smoke_test() -> None:
         time.sleep(8)
 
         print("\n[Test 2/5] control_player(pause)...")
-        print(f"Agent Response: {player.control_player("pause")}")
+        pause_result = player.control_player("pause")
+        print(f"Agent Response: {pause_result}")
         time.sleep(3)
 
         print("\n[Test 3/5] control_player(resume)...")
-        print(f"Agent Response: {player.control_player("resume")}")
+        resume_result = player.control_player("resume")
+        print(f"Agent Response: {resume_result}")
         time.sleep(4)
 
         print("\n[Test 4/5] control_player(volume, 30)...")
-        print(f"Agent Response: {player.control_player("volume", volume=30)}")
+        volume_result = player.control_player("volume", volume=30)
+        print(f"Agent Response: {volume_result}")
         time.sleep(4)
 
         print("\n[Test 5/5] control_player(stop)...")
-        print(f"Agent Response: {player.control_player("stop")}")
+        stop_result = player.control_player("stop")
+        print(f"Agent Response: {stop_result}")
         print("\n--- Smoke Test Complete ---")
     finally:
         player.close()
