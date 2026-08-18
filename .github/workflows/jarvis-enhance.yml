@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/jarvis_enhance.py'
+      - 'scripts/jarvis_retire_legacy_media.py'
       - '.github/workflows/jarvis-enhance.yml'
 
 permissions:
@@ -26,8 +27,14 @@ jobs:
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Retire legacy media runtime
+        run: python3 scripts/jarvis_retire_legacy_media.py
       - name: Patch application
         run: python3 scripts/jarvis_enhance.py
+      - name: Verify media authority contract
+        run: |
+          ! grep -n "setupMedia\|pipedapi" src/main.ts
+          grep -n "jarvis-media-authority.js" index.html
       - name: Build
         run: npm run build
       - name: Browser tests
@@ -43,5 +50,5 @@ jobs:
             echo 'No enhancement changes to commit.'
             exit 0
           fi
-          git commit -m 'feat: apply idempotent JARVIS enhancement [jarvis-enhance]'
+          git commit -m 'fix(media): permanently retire legacy media runtime [jarvis-enhance]'
           git push
