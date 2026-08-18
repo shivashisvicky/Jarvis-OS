@@ -14,12 +14,14 @@ concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
 
-# Node 22 currently ships with newer npm releases that have an open Arborist
-# regression which can crash with `Cannot read properties of null (reading
-# 'edgesOut')` while resolving otherwise valid dependency graphs. Keep CI on
-# the stable npm 10 line until that npm regression is resolved.
 env:
+  # Keep CI on the stable npm 10 line. The repository intentionally has no
+  # package-lock, so dependency installation is explicit and reproducible in
+  # flags rather than relying on a runner-generated lockfile.
   NPM_VERSION: 10.9.7
+  npm_config_legacy_peer_deps: true
+  npm_config_audit: false
+  npm_config_fund: false
 
 jobs:
   quality:
@@ -33,7 +35,7 @@ jobs:
       - name: Pin npm
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
       - name: Build
         run: npm run build
       - name: Unit tests
@@ -68,7 +70,7 @@ jobs:
       - name: Pin npm
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Build
@@ -101,7 +103,7 @@ jobs:
       - name: Pin npm
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
       - name: Install browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Build
