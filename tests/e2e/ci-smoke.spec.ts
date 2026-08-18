@@ -1,40 +1,33 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PT = /https:\/\/(?:peertube\.cpy\.re|peertube2\.cpy\.re|peertube3\.cpy\.re)\//;
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,OPTIONS', 'Access-Control-Allow-Headers': 'Accept,Content-Type' };
 
 const mockPeerTube = async (page: Page, title: string) => {
   await page.route(PT, async route => {
-    const url = new URL(route.request().url());
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: CORS });
+      return;
+    }
     if (url.pathname === '/api/v1/search/videos') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: [{ uuid: '9c9de5e8-0a1e-484a-b099-e80766180a6d', name: title, views: 1234, publishedAt: '2026-08-18T00:00:00Z', thumbnailPath: '/lazy-static/previews/test.jpg', videoChannel: { displayName: 'PeerTube Test Channel' } }] })
-      });
+      await route.fulfill({ status: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: [{ uuid: '9c9de5e8-0a1e-484a-b099-e80766180a6d', name: title, views: 1234, publishedAt: '2026-08-18T00:00:00Z', thumbnailPath: '/lazy-static/previews/test.jpg', videoChannel: { displayName: 'PeerTube Test Channel' } }] }) });
       return;
     }
     if (url.pathname === '/api/v1/videos/9c9de5e8-0a1e-484a-b099-e80766180a6d') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ thumbnailPath: '/lazy-static/previews/test.jpg', files: [{ fileUrl: 'https://media.example.test/peertube-test-1.mp4', mimeType: 'video/mp4', hasVideo: true, hasAudio: true, height: 360, resolution: { label: '360p' } }] })
-      });
+      await route.fulfill({ status: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ thumbnailPath: '/lazy-static/previews/test.jpg', files: [{ fileUrl: 'https://media.example.test/peertube-test-1.mp4', mimeType: 'video/mp4', hasVideo: true, hasAudio: true, height: 360, resolution: { label: '360p' } }] }) });
       return;
     }
     if (url.pathname === '/api/v1/videos') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
+      await route.fulfill({ status: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: [] }) });
       return;
     }
     await route.abort('failed');
   });
 };
 
-const openMedia = async (page: Page) => {
-  await page.goto('/');
-  await page.locator('button.nav[data-app="media"]').click();
-  await expect(page.locator('#videoQuery')).toBeVisible();
-  await expect(page.locator('#videoSearch')).toBeVisible();
-};
+const openMedia = async (page: Page) => { await page.goto('/'); await page.locator('button.nav[data-app="media"]').click(); await expect(page.locator('#videoQuery')).toBeVisible(); await expect(page.locator('#videoSearch')).toBeVisible(); };
 
 test.describe('JARVIS CI smoke contract', () => {
   test('shell boots and media has one runtime authority', async ({ page }) => {
