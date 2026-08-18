@@ -1,8 +1,7 @@
 # JARVIS local media engine
-# yt-dlp 2026.07.04 is current in the project baseline; keep below 2027 to avoid
-# silently pulling a breaking major generation.
-yt-dlp>=2026.7.4,<2027
+# Current stable yt-dlp baseline verified from PyPI in August 2026.
+yt-dlp==2026.07.04
 # Python bindings for the native VLC/libVLC engine.
 python-vlc==3.0.21203
-# yt-dlp's modern YouTube extraction stack uses external JS components.
-yt-dlp-ejs>=0.1.0
+# External JavaScript components required for modern YouTube extraction.
+yt-dlp-ejs==0.8.0
