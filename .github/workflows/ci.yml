@@ -14,6 +14,13 @@ concurrency:
   group: jarvis-ci-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
 
+# Node 22 currently ships with newer npm releases that have an open Arborist
+# regression which can crash with `Cannot read properties of null (reading
+# 'edgesOut')` while resolving otherwise valid dependency graphs. Keep CI on
+# the stable npm 10 line until that npm regression is resolved.
+env:
+  NPM_VERSION: 10.9.7
+
 jobs:
   quality:
     name: Quality / Build / Unit
@@ -23,8 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Build
         run: npm run build
       - name: Unit tests
@@ -40,8 +49,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Build
@@ -71,8 +82,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm
+        run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Install browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Build
