@@ -25,7 +25,7 @@
   <script src="./jarvis-news-summary-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-transaction-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-map-render-safety.js?v=20260818-2"></script>
-  <!-- Single intelligence authority. Loaded last so legacy delegated handlers cannot overwrite live results. -->
-  <script src="./jarvis-autopilot.js?v=20260818-2"></script>
+  <!-- Single intelligence authority. Window-level capture prevents legacy document handlers from winning races. -->
+  <script src="./jarvis-autopilot.js?v=20260818-3"></script>
 </body>
 </html>
