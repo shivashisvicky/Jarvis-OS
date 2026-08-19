@@ -9,7 +9,7 @@ on:
       - '.github/workflows/jarvis-enhance.yml'
       - 'src/main.ts'
       - 'index.html'
-      - 'jarvis-media-authority.js'
+      - 'jarvis-media-final.js'
       - 'jarvis-runtime-guards.js'
 
 permissions:
@@ -37,8 +37,17 @@ jobs:
         run: python3 scripts/jarvis_enhance.py
       - name: Verify media authority contract
         run: |
-          ! grep -n "setupMedia\|pipedapi" src/main.ts
-          grep -n "jarvis-media-authority.js" index.html
+          set -euo pipefail
+          if grep -nE 'setupMedia|pipedapi' src/main.ts; then
+            echo 'ERROR: legacy media runtime/provider reference remains in src/main.ts'
+            exit 1
+          fi
+          grep -n 'jarvis-media-final.js' index.html
+          grep -n 'data-app="media"' index.html
+          grep -n 'videoQuery' index.html
+          grep -n 'videoResults' index.html
+          grep -n 'jarvisPlayer' index.html
+          echo 'MEDIA_AUTHORITY_CONTRACT_OK=1'
       - name: Build
         run: npm run build
       - name: Browser tests
