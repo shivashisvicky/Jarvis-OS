@@ -5,6 +5,7 @@ import mimetypes
 import os
 import subprocess
 import sys
+import traceback
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,11 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", "8765"))
 MAX_QUERY = 300
 
-YTDL_HEADERS = (
-    "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
-    "Accept-Language: en-US,en;q=0.9",
-)
+YTDL_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
 
 def search_video(query: str) -> dict:
@@ -29,13 +26,13 @@ def search_video(query: str) -> dict:
     opts = [
         sys.executable, "-m", "yt_dlp",
         "--no-playlist", "--quiet", "--no-warnings", "--skip-download",
-        "--format", "best[ext=mp4][vcodec!=none][acodec!=none]/best[ext=mp4]/best",
+        "--format", "best[protocol^=http][ext=mp4]/best[protocol^=http]/best",
         "--js-runtimes", "deno",
         "--remote-components", "ejs:github",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android,web;skip=translated_subs",
-        "--add-header", YTDL_HEADERS[0],
-        "--add-header", YTDL_HEADERS[1],
+        "--extractor-args", "youtube:player_client=ios,android,mweb,web;player_skip=webpage,configs",
+        "--add-header", f"User-Agent: {YTDL_UA}",
+        "--add-header", "Accept-Language: en-US,en;q=0.9",
         "--print", "%(id)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(duration)s",
         target,
     ]
@@ -65,7 +62,11 @@ def search_video(query: str) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisVideoDemo/5.0"
+    server_version = "JarvisVideoDemo/6.0"
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write(f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}\n")
+        sys.stderr.flush()
 
     def send_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -77,7 +78,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
 
         if parsed.path == "/api/search":
@@ -88,6 +89,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self.send_json(200, {"result": search_video(query)})
             except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                sys.stderr.flush()
                 self.send_json(502, {"error": str(exc)})
             return
 
@@ -97,7 +100,7 @@ class Handler(BaseHTTPRequestHandler):
                 source = urllib.parse.urlparse(target)
                 if source.scheme != "https" or not source.hostname:
                     raise ValueError("only HTTPS media URLs are accepted")
-                headers = {"User-Agent": YTDL_HEADERS[0].split(": ", 1)[1], "Accept": "*/*"}
+                headers = {"User-Agent": YTDL_UA, "Accept": "*/*"}
                 if self.headers.get("Range"):
                     headers["Range"] = self.headers["Range"]
                 request = urllib.request.Request(target, headers=headers)
@@ -109,15 +112,17 @@ class Handler(BaseHTTPRequestHandler):
                             self.send_header(key, value)
                     self.send_header("Cache-Control", "no-store")
                     self.end_headers()
-                    while chunk := upstream.read(1024 * 1024):
+                    while chunk := upstream.read(64 * 1024):
                         self.wfile.write(chunk)
                 return
             except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                sys.stderr.flush()
                 self.send_json(502, {"error": f"media proxy failed: {exc}"})
                 return
 
         if parsed.path == "/health":
-            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 5})
+            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 6})
             return
 
         path = parsed.path.lstrip("/") or "index.html"
