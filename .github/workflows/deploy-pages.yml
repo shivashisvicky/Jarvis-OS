@@ -10,10 +10,6 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 env:
   PNPM_VERSION: 10.15.0
 
@@ -33,7 +29,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Build Jarvis OS
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: pnpm run build
+      - name: Verify generated YouTube configuration
+        run: test -s dist/jarvis-youtube-config.js
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
