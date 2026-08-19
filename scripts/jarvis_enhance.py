@@ -1,28 +1,40 @@
 """Deterministic JARVIS application enhancement pass.
 
-Media has one browser authority: jarvis-media-authority.js -> local media service.
+Media has exactly one browser authority: jarvis-media-authority.js.
 This pass permanently removes the old in-browser Piped/trending runtime from
-src/main.ts and keeps the news setup idempotent.
+src/main.ts, keeps the news setup idempotent, and repairs index.html so the
+media authority is always loaded exactly once.
 """
 from pathlib import Path
 import re
 
-main = Path("src/main.ts")
-s = main.read_text(encoding="utf-8")
+MAIN = Path("src/main.ts")
+INDEX = Path("index.html")
+AUTHORITY = "jarvis-media-authority.js"
+
+s = MAIN.read_text(encoding="utf-8")
 
 # Retire the entire legacy browser media implementation, regardless of the
 # exact formatting used by the older generated revision.
 s, removed = re.subn(
-    r"\nasync function setupMedia\(\)\{[\s\S]*?\n\}\n(?=\nasync function setupSettings)",
+    r"\nasync function setupMedia\(\)\{[\s\S]*?\n\}\n(?=\nfunction setupSettings|\nasync function setupSettings)",
     "\n",
     s,
     count=1,
 )
 
-# Remove every legacy invocation. The unified authority owns the controls and
-# delegates actual search/extraction/playback to the local service.
-s = re.sub(r"if\(active==='media'\)setupMedia\(\);", "", s)
-s = re.sub(r"if\(active==='media'\)await setupMedia\(\);", "", s)
+# Remove every legacy invocation, including awaited/void variants and spacing.
+s = re.sub(
+    r"\s*if\(active\s*===\s*['\"]media['\"]\)\s*(?:await\s+|void\s+)?setupMedia\(\);?",
+    "",
+    s,
+)
+
+# Fail closed. We never want the retired browser media implementation to ship.
+if re.search(r"\bsetupMedia\s*\(", s) or "pipedapi" in s.lower():
+    raise SystemExit("Legacy media runtime/provider reference still present in src/main.ts")
+if removed not in (0, 1):
+    raise SystemExit(f"Unexpected setupMedia removal count: {removed}")
 
 # Older generated revisions accidentally duplicated the home news bootstrap.
 s = re.sub(
@@ -59,5 +71,26 @@ async function setupNews(){
 '''
     s = s.replace("async function setupNotes(){", news_setup + "async function setupNotes(){", 1)
 
-main.write_text(s, encoding="utf-8")
+MAIN.write_text(s, encoding="utf-8")
+
+# Repair the HTML entrypoint deterministically. Remove duplicate authority tags,
+# then inject exactly one before the module entrypoint. This is idempotent.
+index = INDEX.read_text(encoding="utf-8")
+index = re.sub(r"\s*<script[^>]+src=[\"'][^\"']*jarvis-media-authority\.js[^\"']*[\"'][^>]*>\s*</script>", "", index, flags=re.I)
+if "</body>" not in index:
+    raise SystemExit("index.html has no </body> insertion point")
+
+script_tag = f'  <script src="./{AUTHORITY}?v=20260820-1"></script>\n'
+if '<script type="module"' in index:
+    index = re.sub(r'\n\s*<script type="module"', '\n' + script_tag + '  <script type="module"', index, count=1)
+elif "</head>" in index:
+    index = index.replace("</head>", script_tag + "</head>", 1)
+else:
+    index = index.replace("</body>", script_tag + "</body>", 1)
+
+if len(re.findall(r"jarvis-media-authority\.js", index)) != 1:
+    raise SystemExit("Expected exactly one jarvis-media-authority.js script reference in index.html")
+
+INDEX.write_text(index, encoding="utf-8")
 print(f"Legacy setupMedia removed: {removed == 1}")
+print("Media authority injected exactly once into index.html")
