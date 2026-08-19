@@ -9,8 +9,7 @@ on:
       - '.github/workflows/jarvis-enhance.yml'
       - 'src/main.ts'
       - 'index.html'
-      - 'jarvis-media-live-v2.js'
-      - 'jarvis-media-final.js'
+      - 'jarvis-media-authority.js'
       - 'jarvis-runtime-guards.js'
 
 permissions:
@@ -43,7 +42,9 @@ jobs:
             echo 'ERROR: legacy media runtime/provider reference remains in src/main.ts'
             exit 1
           fi
-          grep -n 'jarvis-media-live-v2.js' index.html
+          test -f jarvis-media-authority.js
+          test "$(grep -c 'jarvis-media-authority\.js' index.html)" -eq 1
+          grep -n 'jarvis-media-authority.js' index.html
           grep -n 'data-app="media"' index.html
           grep -n 'videoQuery' index.html
           grep -n 'videoResults' index.html
@@ -57,9 +58,11 @@ jobs:
           npm run test:browser
       - name: Commit application changes
         run: |
+          set -euo pipefail
           git config user.name 'JARVIS Engineering Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add src/main.ts src/styles.css tests/e2e/jarvis.spec.ts
+          git add src/main.ts src/styles.css tests/e2e/jarvis.spec.ts index.html jarvis-media-authority.js jarvis-runtime-guards.js
+          git add -A
           if git diff --cached --quiet; then
             echo 'No enhancement changes to commit.'
             exit 0
