@@ -1,0 +1,187 @@
+name: Apply Media Authority Fix
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apply-media-authority-fix
+  cancel-in-progress: false
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply media race and fallback fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path('src/main.ts')
+          text = main.read_text()
+          old = "if(active==='media')setupMedia();"
+          if old in text:
+              text = text.replace(old, "", 1)
+              main.write_text(text)
+              print('REMOVED_LEGACY_MEDIA_AUTHORITY=1')
+          else:
+              print('LEGACY_MEDIA_AUTHORITY_ALREADY_REMOVED=1')
+
+          final = Path('jarvis-media-final.js')
+          text = final.read_text()
+          marker = "  async function search(query) {"
+          helper = r'''  async function pipedSearch(query) {
+            const instances = [
+              'https://pipedapi.kavin.rocks',
+              'https://pipedapi.adminforge.de',
+              'https://pipedapi.tokhmi.xyz',
+              'https://pipedapi.moomoo.me',
+              'https://pipedapi.syncpundit.io',
+              'https://api-piped.mha.fi',
+              'https://piped-api.garudalinux.org',
+              'https://pipedapi.rivo.lol',
+              'https://pipedapi.leptons.xyz',
+              'https://api.piped.yt'
+            ];
+            let last = 'No fallback instance responded';
+            for (const base of instances) {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 5000);
+              try {
+                const url = new URL(base + '/search');
+                url.searchParams.set('q', query);
+                url.searchParams.set('filter', 'videos');
+                const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                  last = `Piped ${response.status}`;
+                  continue;
+                }
+                const raw = Array.isArray(payload) ? payload : (payload.items || []);
+                const videos = raw.map(item => ({
+                  id: item.videoId || String(item.url || '').match(/[?&]v=([^&]+)/)?.[1] || '',
+                  title: item.title || 'Untitled video',
+                  channel: item.uploaderName || item.uploader || 'YouTube',
+                  thumbnail: item.thumbnail || ''
+                })).filter(item => /^[A-Za-z0-9_-]{11}$/.test(item.id));
+                if (videos.length) return videos;
+                last = 'Piped returned no video results';
+              } catch (error) {
+                last = error instanceof Error ? error.message : 'Piped request failed';
+              } finally {
+                clearTimeout(timer);
+              }
+            }
+            throw new Error(last);
+          }
+
+'''
+          if marker not in text:
+              raise SystemExit('MEDIA_FIX_MARKER_NOT_FOUND')
+          if 'async function pipedSearch(query)' not in text:
+              text = text.replace(marker, helper + marker, 1)
+
+          old_missing = """    if (!apiKey) {
+      mutate(() => {
+        const box = document.createElement('div');
+        box.className = 'media-degraded-state';
+        box.textContent = 'YOUTUBE API KEY NOT CONFIGURED';
+        d.results.appendChild(box);
+      });
+      status('CONFIGURATION REQUIRED');
+      return;
+    }
+"""
+          new_missing = """    if (!apiKey) {
+      try {
+        const videos = await pipedSearch(query);
+        mutate(() => {
+          while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
+          videos.forEach(video => d.results.appendChild(renderCard(video)));
+        });
+        status('READY · ' + videos.length + ' REAL YOUTUBE RESULTS · FALLBACK');
+        return;
+      } catch (error) {
+        mutate(() => {
+          const box = document.createElement('div');
+          box.className = 'media-degraded-state';
+          box.textContent = 'YOUTUBE SEARCH UNAVAILABLE';
+          const detail = document.createElement('small');
+          detail.textContent = error instanceof Error ? error.message : 'Search failed';
+          box.appendChild(detail);
+          d.results.appendChild(box);
+        });
+        status('DEGRADED · NO FABRICATED RESULTS');
+        return;
+      }
+    }
+"""
+          if old_missing in text:
+              text = text.replace(old_missing, new_missing, 1)
+
+          old_catch = """    } catch (error) {
+      mutate(() => {
+        while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
+        const box = document.createElement('div');
+        box.className = 'media-degraded-state';
+        const message = document.createElement('strong');
+        message.textContent = 'YOUTUBE SEARCH UNAVAILABLE';
+        const detail = document.createElement('small');
+        detail.textContent = error instanceof Error ? error.message : 'Search failed';
+        box.append(message, detail);
+        d.results.appendChild(box);
+      });
+      status('DEGRADED · NO FABRICATED RESULTS');
+    }
+"""
+          new_catch = """    } catch (error) {
+      try {
+        const videos = await pipedSearch(query);
+        mutate(() => {
+          while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
+          videos.forEach(video => d.results.appendChild(renderCard(video)));
+        });
+        status('READY · ' + videos.length + ' REAL YOUTUBE RESULTS · FALLBACK');
+        return;
+      } catch (fallbackError) {
+        mutate(() => {
+          while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
+          const box = document.createElement('div');
+          box.className = 'media-degraded-state';
+          const message = document.createElement('strong');
+          message.textContent = 'YOUTUBE SEARCH UNAVAILABLE';
+          const detail = document.createElement('small');
+          detail.textContent = (error instanceof Error ? error.message : 'Search failed') + ' | fallback: ' + (fallbackError instanceof Error ? fallbackError.message : 'failed');
+          box.append(message, detail);
+          d.results.appendChild(box);
+        });
+        status('DEGRADED · NO FABRICATED RESULTS');
+      }
+    }
+"""
+          if old_catch in text:
+              text = text.replace(old_catch, new_catch, 1)
+
+          final.write_text(text)
+          print('MEDIA_FINAL_AUTHORITY_FALLBACK=1')
+          PY
+      - name: Verify source changes
+        run: |
+          grep -q "async function pipedSearch(query)" jarvis-media-final.js
+          ! grep -q "if(active==='media')setupMedia();" src/main.ts
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+          pnpm test -- --reporter=dot
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main.ts jarvis-media-final.js
+          if git diff --cached --quiet; then
+            echo 'NO_MEDIA_FIX_CHANGES=1'
+            exit 0
+          fi
+          git commit -m 'fix media search authority race and fallback'
+          git push
