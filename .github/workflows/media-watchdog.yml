@@ -1,0 +1,68 @@
+name: JARVIS Media Watchdog
+
+on:
+  schedule:
+    # Temporary high-frequency production probe. Remove this workflow after media is stable.
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-media-watchdog
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.15.0
+  JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
+
+jobs:
+  production-media-watchdog:
+    name: Production Media Transaction Watchdog
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Probe production HTML before transaction
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 20 \
+            "${JARVIS_LIVE_URL}?watchdog=${GITHUB_RUN_ID}" -o /tmp/watchdog-index.html
+          grep -q 'data-app="media"' /tmp/watchdog-index.html
+          grep -q 'videoQuery' /tmp/watchdog-index.html
+          grep -q 'videoResults' /tmp/watchdog-index.html
+          grep -q 'jarvisPlayer' /tmp/watchdog-index.html
+          echo 'WATCHDOG_SHELL_OK=1'
+
+      - name: Run production transaction watchdog
+        run: |
+          pnpm exec playwright test tests/e2e/media-watchdog.spec.ts --project=chromium
+
+      - name: Upload watchdog evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-media-watchdog-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/watchdog-index.html
+          if-no-files-found: ignore
+          retention-days: 7
