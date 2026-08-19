@@ -4,11 +4,8 @@
   if (window.__JARVIS_FINAL_MEDIA_AUTHORITY__) return;
   window.__JARVIS_FINAL_MEDIA_AUTHORITY__ = true;
 
-  const YT_API = 'https://www.youtube.com/iframe_api';
   const SEARCH_TIMEOUT = 10000;
   let mounted = false;
-  let ytReady = false;
-  let ytLoadPromise;
 
   const $ = s => document.querySelector(s);
   const dom = () => ({ input: $('#videoQuery'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
@@ -25,28 +22,6 @@
       if (parts[0] === 'shorts' || parts[0] === 'embed' || parts[0] === 'v') return parts[1] || '';
     } catch {}
     return '';
-  }
-
-  function loadYouTubeAPI() {
-    if (ytReady && window.YT) return Promise.resolve();
-    if (ytLoadPromise) return ytLoadPromise;
-    ytLoadPromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('YouTube player API timeout')), SEARCH_TIMEOUT);
-      const previous = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        if (typeof previous === 'function') previous();
-        clearTimeout(timeout);
-        ytReady = true;
-        resolve();
-      };
-      if (window.YT) { ytReady = true; clearTimeout(timeout); resolve(); return; }
-      const script = document.createElement('script');
-      script.src = YT_API;
-      script.async = true;
-      script.onerror = () => { clearTimeout(timeout); reject(new Error('Unable to load YouTube player API')); };
-      document.head.appendChild(script);
-    });
-    return ytLoadPromise;
   }
 
   function renderCard(video) {
@@ -76,7 +51,7 @@
     const d = dom();
     if (!query || !d.results) return;
     const directId = extractYouTubeId(query);
-    if (directId) { await play(directId); return; }
+    if (directId) { play(directId); return; }
     clear(d.results);
     status('SEARCHING YOUTUBE · ' + query.toUpperCase());
     const apiKey = String(window.JARVIS_YOUTUBE_API_KEY || '').trim();
@@ -124,34 +99,20 @@
     }
   }
 
-  async function play(videoId) {
+  function play(videoId) {
     const d = dom();
     if (!d.player || !videoId) return;
     clear(d.player);
     status('LOADING YOUTUBE PLAYER');
-    try {
-      await loadYouTubeAPI();
-      const host = document.createElement('div');
-      host.id = 'jarvis-youtube-player';
-      d.player.appendChild(host);
-      new window.YT.Player(host, {
-        videoId,
-        width: '100%',
-        height: '100%',
-        playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-        events: {
-          onReady: event => { event.target.playVideo(); status('PLAYING · YOUTUBE'); },
-          onError: () => status('VIDEO UNAVAILABLE · TRY ANOTHER RESULT')
-        }
-      });
-    } catch (error) {
-      clear(d.player);
-      const message = document.createElement('div');
-      message.className = 'media-degraded-state';
-      message.textContent = error instanceof Error ? error.message : 'YouTube player failed';
-      d.player.appendChild(message);
-      status('PLAYER ERROR');
-    }
+    const iframe = document.createElement('iframe');
+    iframe.className = 'jarvis-video-frame';
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+    iframe.title = 'JARVIS YouTube Player';
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    d.player.appendChild(iframe);
+    status('PLAYING · YOUTUBE');
   }
 
   function mount() {
