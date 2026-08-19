@@ -1,31 +1,33 @@
 from pathlib import Path
+import re
 
 MAIN = Path('src/main.ts')
-text = MAIN.read_text()
+text = MAIN.read_text(encoding='utf-8')
 
-start_marker = '\nasync function setupMedia(){'
-end_marker = '\nasync function setupSettings()'
+# Remove the whole legacy media setup function regardless of formatting/minification.
+# The function is bounded by the next setup* declaration, so nested braces inside
+# the legacy implementation cannot make a naive brace counter fail.
+text, removed = re.subn(
+    r"\nasync function setupMedia\(\)\{.*?(?=\nasync function setupSettings\(\))",
+    "\n",
+    text,
+    count=1,
+    flags=re.S,
+)
 
-start = text.find(start_marker)
-if start != -1:
-    end = text.find(end_marker, start)
-    if end == -1:
-        raise SystemExit('Legacy setupMedia found, but setupMedia end marker is missing')
-    text = text[:start] + text[end:]
+# Remove every known invocation, including compact/awaited/void forms.
+text = re.sub(
+    r"\s*if\(active\s*===\s*['\"]media['\"]\)\s*(?:await\s+|void\s+)?setupMedia\(\);?",
+    "",
+    text,
+)
 
-# Remove every known invocation, including compact and awaited variants.
-for invocation in (
-    "if(active==='media')setupMedia();",
-    "if(active==='media')await setupMedia();",
-    "if(active==='media')void setupMedia();",
-):
-    text = text.replace(invocation, '')
+# Remove any remaining legacy references. Fail closed if the old runtime survives.
+if re.search(r"\bsetupMedia\s*\(", text) or 'pipedapi' in text.lower():
+    raise SystemExit('Legacy media runtime/provider reference still present after retirement pass')
 
-# Fail closed. We must never silently ship the retired runtime again.
-if 'async function setupMedia(' in text or "if(active==='media')setupMedia" in text:
-    raise SystemExit('Legacy Media runtime still present after retirement pass')
-if 'pipedapi' in text.lower():
-    raise SystemExit('Legacy Piped provider reference still present in main.ts')
+if removed != 1:
+    raise SystemExit(f'Expected to retire exactly one setupMedia function, removed {removed}')
 
-MAIN.write_text(text)
+MAIN.write_text(text, encoding='utf-8')
 print('Legacy Media runtime retired successfully.')
