@@ -66,6 +66,7 @@ jobs:
     name: Live / Media Search
     needs: deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,13 +82,26 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify deployed HTML contains current media entrypoint
         run: |
-          curl --fail --retry 5 --retry-delay 3 -L 'https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}' -o /tmp/deployed-index.html
-          grep -q 'data-app="media"' /tmp/deployed-index.html
-          grep -q 'videoQuery' /tmp/deployed-index.html
-          echo 'DEPLOYED_HTML_MEDIA_ENTRYPOINT=1'
+          set -e
+          URL="https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}"
+          for attempt in $(seq 1 20); do
+            echo "Deployment verification attempt ${attempt}/20"
+            if curl --fail --silent --show-error --location --max-time 20 "$URL" -o /tmp/deployed-index.html; then
+              if grep -q 'data-app="media"' /tmp/deployed-index.html && grep -q 'videoQuery' /tmp/deployed-index.html && grep -q 'jarvisPlayer' /tmp/deployed-index.html; then
+                echo 'DEPLOYED_HTML_MEDIA_ENTRYPOINT=1'
+                break
+              fi
+            fi
+            if [ "$attempt" = 20 ]; then
+              echo '=== DEPLOYED HTML ==='
+              cat /tmp/deployed-index.html || true
+              exit 1
+            fi
+            sleep 5
+          done
       - name: Verify deployed media search
         env:
-          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
         run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
       - name: Upload deployed media evidence
         if: always()
