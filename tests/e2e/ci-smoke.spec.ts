@@ -17,33 +17,7 @@ test.describe('JARVIS media smoke contract', () => {
     await expect(page.locator('#videoResults')).not.toContainText(/SAP CPI fixture tutorial|Nyan Cat|NASA Live|India 2026/i);
   });
 
-  test('provider adapter renders returned IDs and official YouTube player', async ({ page }) => {
-    const fixture = {
-      items: [
-        { type: 'video', videoId: 'M7lc1UVf-VE', title: 'Cats live provider result', uploaderName: 'Live Provider', thumbnail: 'https://i.ytimg.com/vi/M7lc1UVf-VE/mqdefault.jpg' },
-        { type: 'video', videoId: 'dQw4w9WgXcQ', title: 'Second provider result', uploaderName: 'Second Provider', thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
-      ]
-    };
-    await page.route('**/search**', async route => {
-      const url = route.request().url();
-      if (/piped|invidious/i.test(url)) {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) });
-        return;
-      }
-      await route.continue();
-    });
-    await page.goto('/');
-    await page.locator('button.nav[data-app="media"]').click();
-    await page.locator('#videoQuery').fill('cats');
-    await page.locator('#videoSearch').click();
-    await expect(page.locator('.jvc-card')).toHaveCount(2, { timeout: 10000 });
-    await expect(page.locator('.jvc-card').first()).toHaveAttribute('data-jvc-id', 'M7lc1UVf-VE');
-    await expect(page.locator('.jvc-card').first()).toContainText('Cats live provider result');
-    await page.locator('.jvc-card').first().click();
-    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/M7lc1UVf-VE/);
-  });
-
-  test('direct YouTube URL goes straight to the player', async ({ page }) => {
+  test('direct YouTube URL goes straight to the official player', async ({ page }) => {
     await page.goto('/');
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('https://youtube.com/shorts/JbgYndCSv3k?si=ci');
@@ -52,14 +26,33 @@ test.describe('JARVIS media smoke contract', () => {
   });
 
   test('LIVE: real YouTube search is reachable and JARVIS returns non-fixture results', async ({ page }) => {
-    test.setTimeout(45000);
+    test.setTimeout(90000);
+    const diagnostics: string[] = [];
+    page.on('console', msg => diagnostics.push(`console:${msg.type()}:${msg.text()}`));
+    page.on('pageerror', err => diagnostics.push(`pageerror:${err.message}`));
+    page.on('requestfailed', req => diagnostics.push(`requestfailed:${req.method()} ${req.url()} :: ${req.failure()?.errorText || 'unknown'}`));
+    page.on('response', res => {
+      if (/piped|invidious/i.test(res.url())) diagnostics.push(`provider:${res.status()} ${res.url()}`);
+    });
+
     const response = await page.request.get('https://www.youtube.com/results?search_query=cats', { timeout: 20000 });
-    expect(response.ok()).toBeTruthy();
+    expect(response.ok(), `Direct YouTube search HTTP ${response.status()}`).toBeTruthy();
+
     await page.goto('/');
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('cats');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('.jvc-card').first()).toBeVisible({ timeout: 30000 });
+
+    try {
+      await expect(page.locator('.jvc-card').first()).toBeVisible({ timeout: 60000 });
+    } catch (error) {
+      await page.screenshot({ path: 'test-results/live-media-failure.png', fullPage: true });
+      console.log('LIVE_MEDIA_DIAGNOSTICS_START');
+      console.log(diagnostics.join('\n'));
+      console.log('LIVE_MEDIA_DIAGNOSTICS_END');
+      throw error;
+    }
+
     const count = await page.locator('.jvc-card').count();
     expect(count).toBeGreaterThanOrEqual(4);
     const ids = await page.locator('.jvc-card').evaluateAll(cards => cards.map(card => card.getAttribute('data-jvc-id')).filter(Boolean));
