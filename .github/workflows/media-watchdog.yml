@@ -1,6 +1,8 @@
 name: JARVIS Media Watchdog
 
 on:
+  push:
+    branches: [main]
   schedule:
     # Temporary high-frequency production probe. Remove this workflow after media is stable.
     - cron: '*/20 * * * *'
