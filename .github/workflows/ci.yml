@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: jarvis-ci-${{ github.workflow }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: jarvis-ci-main
+  cancel-in-progress: true
 
 env:
   PNPM_VERSION: 10.15.0
