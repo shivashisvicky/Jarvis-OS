@@ -7,79 +7,47 @@ on:
 
 jobs:
   media-demo:
-    name: Keyword search and playable stream
+    name: Media UI / Live YouTube Search
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
+          node-version: 22
 
-      - name: Install Deno for yt-dlp YouTube challenge solving
-        uses: denoland/setup-deno@v2
+      - name: Install pnpm
+        run: npm install --global pnpm@10.15.0
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: pnpm run build
+
+      - name: Verify built media entrypoint
+        run: |
+          test -f dist/index.html
+          grep -q 'data-app="media"' dist/index.html
+          grep -q 'videoQuery' dist/index.html
+          grep -q 'jarvisPlayer' dist/index.html
+
+      - name: Run media UI gate
+        run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          deno-version: '2.6.7'
-
-      - name: Install yt-dlp
-        run: python -m pip install --upgrade pip 'yt-dlp[default]>=2025.11.12'
-
-      - name: Verify yt-dlp runtime
-        run: |
-          python -m yt_dlp --version
-          deno --version
-
-      - name: Syntax check
-        run: python -m py_compile video-player-demo/server.py
-
-      - name: Start demo service
-        run: |
-          python -u video-player-demo/server.py > /tmp/jarvis-media.log 2>&1 &
-          echo $! > /tmp/jarvis-media.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8765/health; then exit 0; fi
-            sleep 1
-          done
-          echo '=== SERVER LOGS ==='
-          cat /tmp/jarvis-media.log
-          exit 1
-
-      - name: Live keyword search gate
-        run: |
-          set +e
-          curl --fail --retry 2 --retry-delay 2 --get 'http://127.0.0.1:8765/api/search' --data-urlencode 'q=cats' -o /tmp/result.json
-          STATUS=$?
-          if [ $STATUS -ne 0 ]; then
-            echo '=== SERVER LOGS ON SEARCH FAILURE ==='
-            cat /tmp/jarvis-media.log
-            exit $STATUS
-          fi
-          set -e
-          python - <<'PY'
-          import json
-          d=json.load(open('/tmp/result.json'))
-          r=d.get('result') or {}
-          assert r.get('id'), 'missing real video id'
-          assert r.get('title'), 'missing title'
-          assert r.get('webpageUrl','').startswith(('http://','https://')), 'missing source URL'
-          assert r.get('mediaUrl','').startswith(('http://','https://')), 'missing playable media URL'
-          print('LIVE RESULT:', r['id'], r['title'])
-          PY
-
-      - name: Verify media proxy can open the stream
-        run: |
-          python - <<'PY'
-          import json, urllib.parse, urllib.request
-          r=json.load(open('/tmp/result.json'))['result']
-          url='http://127.0.0.1:8765/api/media?url='+urllib.parse.quote(r['mediaUrl'], safe='')
-          req=urllib.request.Request(url, headers={'Range':'bytes=0-1023'})
-          with urllib.request.urlopen(req, timeout=30) as x:
-              data=x.read(1024)
-              assert data, 'media proxy returned zero bytes'
-              print('PLAYABLE BYTES:', len(data), x.headers.get('Content-Type'))
-          PY
-
-      - name: Dump media log on failure
-        if: failure()
-        run: cat /tmp/jarvis-media.log
+          name: media-ui-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
