@@ -61,16 +61,18 @@ jobs:
         working-directory: video-player-demo
         run: python -m unittest -v test_demo.py
       - name: Start demo service
-        run: python video-player-demo/server.py > /tmp/jarvis-video-demo.log 2>&1 &
+        run: python -u video-player-demo/server.py > /tmp/jarvis-video-demo.log 2>&1 &
       - name: Health check
-        run: python - <<'PY'
+        run: |
+          python - <<'PY'
           import json, urllib.request
           data=json.load(urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=10))
           assert data['ok'] is True
           print('HEALTH_OK=1')
           PY
       - name: Live keyword extraction gate
-        run: python - <<'PY'
+        run: |
+          python - <<'PY'
           import json, urllib.parse, urllib.request
           url='http://127.0.0.1:8765/api/search?q='+urllib.parse.quote('cats')
           with urllib.request.urlopen(url, timeout=60) as response:
@@ -78,10 +80,10 @@ jobs:
           result=payload['result']
           assert result['id'], result
           assert result['webpageUrl'].startswith(('https://www.youtube.com/','https://youtu.be/')), result
-          assert result['mediaUrl'].startswith('http'), result
+          assert result['embedUrl'].startswith('https://www.youtube-nocookie.com/embed/'), result
           print('LIVE_VIDEO_ID=', result['id'])
           print('LIVE_VIDEO_TITLE=', result['title'])
-          print('LIVE_MEDIA_URL_OK=1')
+          print('LIVE_EMBED_URL_OK=1')
           PY
       - name: Browser playback gate
         run: node video-player-demo/smoke.mjs
