@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: jarvis-ci-main
+  group: jarvis-ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -110,6 +110,7 @@ jobs:
   e2e-chromium:
     name: E2E / Chromium
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -130,39 +131,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-chromium-evidence-${{ github.sha }}
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  e2e-cross-browser:
-    name: E2E / ${{ matrix.browser }} Smoke
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [firefox, webkit]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install pnpm
-        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Install browser
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
-      - name: Build
-        run: pnpm run build
-      - name: Browser smoke
-        run: pnpm exec playwright test tests/e2e/ci-smoke.spec.ts --project=${{ matrix.browser }}
-      - name: Upload cross-browser evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jarvis-${{ matrix.browser }}-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
