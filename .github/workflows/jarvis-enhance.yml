@@ -35,9 +35,12 @@ jobs:
         run: python3 scripts/jarvis_retire_legacy_media.py
       - name: Patch application
         run: python3 scripts/jarvis_enhance.py
-      - name: Verify media authority contract
+      - name: Verify syntax and media authority contract
         run: |
           set -euo pipefail
+          python3 -m py_compile scripts/jarvis_enhance.py scripts/jarvis_retire_legacy_media.py
+          node --check jarvis-media-authority.js
+          node --check jarvis-runtime-guards.js
           if grep -nE 'setupMedia|pipedapi' src/main.ts; then
             echo 'ERROR: legacy media runtime/provider reference remains in src/main.ts'
             exit 1
