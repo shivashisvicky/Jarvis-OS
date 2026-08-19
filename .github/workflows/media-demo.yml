@@ -35,7 +35,7 @@ jobs:
 
       - name: Start demo service
         run: |
-          python video-player-demo/server.py > /tmp/jarvis-media.log 2>&1 &
+          python -u video-player-demo/server.py > /tmp/jarvis-media.log 2>&1 &
           echo $! > /tmp/jarvis-media.pid
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8765/health; then exit 0; fi
