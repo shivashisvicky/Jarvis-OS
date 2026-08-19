@@ -5,6 +5,10 @@
   window.__JARVIS_FINAL_MEDIA_AUTHORITY__ = true;
 
   const SEARCH_TIMEOUT = 7000;
+  const CORS_PROXIES = [
+    target => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+    target => `https://bypass.cors.rest/proxy?url=${encodeURIComponent(target)}`,
+  ];
   let mounted = false;
   let activeQuery = '';
   let internalMutation = false;
@@ -31,11 +35,18 @@
   const dom = () => ({ input: $('#videoQuery'), search: $('#videoSearch'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
   const mutate = fn => { internalMutation = true; try { fn(); } finally { queueMicrotask(() => { internalMutation = false; }); } };
   const status = text => { const el = dom().state; if (el) el.textContent = text; };
+  const trace = (event, data = {}) => {
+    const entry = { ts: new Date().toISOString(), event, ...data };
+    const log = Array.isArray(window.__JARVIS_MEDIA_TRACE__) ? window.__JARVIS_MEDIA_TRACE__ : [];
+    log.push(entry);
+    window.__JARVIS_MEDIA_TRACE__ = log.slice(-80);
+    console.debug('[JARVIS-MEDIA]', entry);
+  };
 
   function extractYouTubeId(value) {
     try {
       const url = new URL(value);
-      if (!/(^|\\.)youtube\\.com$|(^|\\.)youtu\\.be$/.test(url.hostname)) return '';
+      if (!/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(url.hostname)) return '';
       if (url.hostname === 'youtu.be') return url.pathname.slice(1).split('/')[0];
       if (url.pathname === '/watch') return url.searchParams.get('v') || '';
       const parts = url.pathname.split('/').filter(Boolean);
@@ -57,13 +68,25 @@
   }
 
   async function fetchJson(url) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
-    try {
-      const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } finally { clearTimeout(timer); }
+    const candidates = [url, ...CORS_PROXIES.map(proxy => proxy(url))];
+    let lastError = null;
+    for (const candidate of candidates) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
+      const started = performance.now();
+      try {
+        trace('request:start', { target: url, transport: candidate === url ? 'direct' : 'cors-proxy' });
+        const response = await fetch(candidate, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        trace('request:success', { target: url, transport: candidate === url ? 'direct' : 'cors-proxy', ms: Math.round(performance.now() - started) });
+        return payload;
+      } catch (error) {
+        lastError = error;
+        trace('request:failure', { target: url, transport: candidate === url ? 'direct' : 'cors-proxy', error: String(error) });
+      } finally { clearTimeout(timer); }
+    }
+    throw lastError || new Error('Search request failed');
   }
 
   async function queryPiped(base, query) {
@@ -72,6 +95,7 @@
     url.searchParams.set('filter', 'videos');
     const payload = await fetchJson(url.toString());
     const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
+    trace('provider:results', { provider: 'piped', base, query, count: items.length });
     return items.map(normalizePiped).filter(Boolean);
   }
 
@@ -81,7 +105,9 @@
     url.searchParams.set('type', 'video');
     url.searchParams.set('region', 'IN');
     const payload = await fetchJson(url.toString());
-    return (Array.isArray(payload) ? payload : []).map(normalizeInvidious).filter(Boolean);
+    const items = Array.isArray(payload) ? payload : [];
+    trace('provider:results', { provider: 'invidious', base, query, count: items.length });
+    return items.map(normalizeInvidious).filter(Boolean);
   }
 
   function renderCard(video) {
@@ -126,8 +152,9 @@
     const d = dom();
     if (!query || !d.results) return;
     activeQuery = query;
+    trace('search:start', { query, length: query.length });
     const directId = extractYouTubeId(query);
-    if (directId) { play(directId); return; }
+    if (directId) { trace('search:direct-id', { query, id: directId }); play(directId); return; }
 
     clearResults();
     status('SEARCHING LIVE SOURCES · ' + query.toUpperCase());
@@ -149,6 +176,7 @@
         }
         if (results.length >= 12) break;
       }
+      trace('search:complete', { query, providers: jobs.length, results: results.length, ids: results.slice(0, 12).map(x => x.id) });
       if (!results.length) throw new Error('No live video provider returned results');
       mutate(() => {
         while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
@@ -156,6 +184,7 @@
       });
       status('READY · ' + Math.min(results.length, 8) + ' LIVE YOUTUBE RESULTS');
     } catch (error) {
+      trace('search:failure', { query, error: String(error) });
       mutate(() => {
         while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
         const box = document.createElement('div');
@@ -179,6 +208,7 @@
   function play(videoId) {
     const d = dom();
     if (!d.player || !/^[A-Za-z0-9_-]{11}$/.test(videoId || '')) return;
+    trace('player:start', { id: videoId });
     mutate(() => {
       while (d.player.firstChild) d.player.removeChild(d.player.firstChild);
       const iframe = document.createElement('iframe');
@@ -218,6 +248,7 @@
     if (mounted && d.input.dataset.jarvisMediaBound === '1') return;
     mounted = true;
     d.input.dataset.jarvisMediaBound = '1';
+    trace('mount', { input: !!d.input, search: !!d.search, results: !!d.results, player: !!d.player });
 
     d.search?.addEventListener('click', event => {
       event.preventDefault();
