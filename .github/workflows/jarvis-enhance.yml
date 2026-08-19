@@ -1,16 +1,19 @@
-name: One-shot JARVIS media and news enhancement
+name: JARVIS media CI
 
 on:
   push:
     branches: [main]
     paths:
-      - 'scripts/jarvis_enhance.py'
-      - 'scripts/jarvis_retire_legacy_media.py'
-      - '.github/workflows/jarvis-enhance.yml'
-      - 'src/main.ts'
+      - 'src/**'
       - 'index.html'
-      - 'jarvis-media-authority.js'
+      - 'jarvis-media-final.js'
       - 'jarvis-runtime-guards.js'
+      - 'tests/e2e/**'
+      - 'scripts/jarvis_retire_legacy_media.py'
+      - 'package.json'
+      - 'playwright.config.ts'
+      - '.github/workflows/jarvis-enhance.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,8 +22,7 @@ env:
   NPM_VERSION: 10.9.7
 
 jobs:
-  enhance:
-    if: "!contains(github.event.head_commit.message, '[jarvis-enhance]')"
+  media-ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,50 +33,40 @@ jobs:
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
-      - name: Retire legacy media runtime
+      - name: Retire legacy in-app media runtime
         run: python3 scripts/jarvis_retire_legacy_media.py
-      - name: Patch application
-        run: python3 scripts/jarvis_enhance.py
-      - name: Verify syntax and media authority contract
+      - name: Verify media authority contract
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          for name in ('scripts/jarvis_enhance.py', 'scripts/jarvis_retire_legacy_media.py'):
-              source = Path(name).read_text(encoding='utf-8')
-              compile(source, name, 'exec')
-          print('PYTHON_SYNTAX_OK=1')
-          PY
-          node --check jarvis-media-authority.js
+          python3 -m py_compile scripts/jarvis_retire_legacy_media.py
+          node --check jarvis-media-final.js
           node --check jarvis-runtime-guards.js
           if grep -nE 'setupMedia|pipedapi' src/main.ts; then
             echo 'ERROR: legacy media runtime/provider reference remains in src/main.ts'
             exit 1
           fi
-          test -f jarvis-media-authority.js
-          test "$(grep -c 'jarvis-media-authority\.js' index.html)" -eq 1
-          grep -n 'jarvis-media-authority.js' index.html
-          grep -n 'data-app="media"' index.html
-          grep -n 'videoQuery' index.html
-          grep -n 'videoResults' index.html
-          grep -n 'jarvisPlayer' index.html
+          test -f jarvis-media-final.js
+          test "$(grep -c 'jarvis-media-final\.js' index.html)" -eq 1
+          test "$(grep -c 'jarvis-media-authority\.js' index.html || true)" -eq 0
+          test "$(grep -c 'jarvis-media-runtime-watchdog\.js' index.html || true)" -eq 0
           echo 'MEDIA_AUTHORITY_CONTRACT_OK=1'
       - name: Build
         run: npm run build
-      - name: Browser tests
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:browser
-      - name: Commit application changes
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Deterministic browser suite
+        run: npm run test:browser
+      - name: Live media smoke gate
+        run: npx playwright test tests/e2e/ci-smoke.spec.ts -g 'LIVE:' --project=chromium --reporter=line
+      - name: Commit legacy-runtime retirement
         run: |
           set -euo pipefail
           git config user.name 'JARVIS Engineering Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add src/main.ts src/styles.css tests/e2e/jarvis.spec.ts index.html jarvis-media-authority.js jarvis-runtime-guards.js
-          git add -A
+          git add src/main.ts
           if git diff --cached --quiet; then
-            echo 'No enhancement changes to commit.'
+            echo 'No legacy media runtime changes were necessary.'
             exit 0
           fi
-          git commit -m 'fix(media): permanently retire legacy media runtime [jarvis-enhance]'
+          git commit -m 'fix(media): retire legacy in-app media runtime [jarvis-ci]'
           git push
