@@ -1,10 +1,20 @@
 import { expect, test } from '@playwright/test';
 
 const CARD = '#videoResults .jvc-card';
-const APP_URL = process.env.JARVIS_LIVE_URL || '/';
+const LIVE_URL = process.env.JARVIS_LIVE_URL;
+const APP_URL = LIVE_URL || '/';
 
 async function openApp(page) {
-  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  const target = LIVE_URL ? new URL(LIVE_URL).toString() : APP_URL;
+  await page.goto(target, { waitUntil: 'domcontentloaded' });
+
+  if (LIVE_URL) {
+    const expected = new URL(LIVE_URL);
+    const actual = new URL(page.url());
+    expect(actual.origin).toBe(expected.origin);
+    expect(actual.pathname).toBe(expected.pathname);
+  }
+
   await expect(page.locator('button.nav[data-app="media"]')).toBeVisible({ timeout: 30_000 });
   await page.locator('button.nav[data-app="media"]').click();
 }
@@ -18,7 +28,7 @@ test('media search has no fixed video catalogue', async ({ page }) => {
 });
 
 test('DEPLOYED GATE: cats returns real YouTube results and opens the official player', async ({ page }) => {
-  test.skip(!process.env.JARVIS_LIVE_URL, 'Production-only live gate');
+  test.skip(!LIVE_URL, 'Production-only live gate');
   test.setTimeout(60_000);
 
   await openApp(page);
