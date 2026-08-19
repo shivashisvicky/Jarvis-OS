@@ -13,6 +13,12 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", "8765"))
 MAX_QUERY = 300
 
+YTDL_HEADERS = (
+    "User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+    "Accept-Language: en-US,en;q=0.9",
+)
+
 
 def search_video(query: str) -> dict:
     value = query.strip()
@@ -22,29 +28,20 @@ def search_video(query: str) -> dict:
     target = value if value.startswith(("http://", "https://")) else f"ytsearch1:{value}"
     opts = [
         sys.executable, "-m", "yt_dlp",
-        "--no-playlist",
-        "--quiet",
-        "--no-warnings",
-        "--skip-download",
+        "--no-playlist", "--quiet", "--no-warnings", "--skip-download",
         "--format", "best[ext=mp4][vcodec!=none][acodec!=none]/best[ext=mp4]/best",
         "--js-runtimes", "deno",
         "--remote-components", "ejs:github",
         "--no-check-certificates",
-        "--add-header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "--add-header", "Accept-Language: en-US,en;q=0.9",
+        "--extractor-args", "youtube:player_client=android,web;skip=translated_subs",
+        "--add-header", YTDL_HEADERS[0],
+        "--add-header", YTDL_HEADERS[1],
         "--print", "%(id)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(duration)s",
         target,
     ]
 
     try:
-        result = subprocess.run(
-            opts,
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
+        result = subprocess.run(opts, cwd=ROOT, capture_output=True, text=True, timeout=60, check=False)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("yt-dlp search timed out after 60 seconds") from exc
 
@@ -68,7 +65,7 @@ def search_video(query: str) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisVideoDemo/4.0"
+    server_version = "JarvisVideoDemo/5.0"
 
     def send_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -100,13 +97,11 @@ class Handler(BaseHTTPRequestHandler):
                 source = urllib.parse.urlparse(target)
                 if source.scheme != "https" or not source.hostname:
                     raise ValueError("only HTTPS media URLs are accepted")
-                request = urllib.request.Request(
-                    target,
-                    headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
-                )
+                headers = {"User-Agent": YTDL_HEADERS[0].split(": ", 1)[1], "Accept": "*/*"}
                 if self.headers.get("Range"):
-                    request.add_header("Range", self.headers["Range"])
-                with urllib.request.urlopen(request, timeout=20) as upstream:
+                    headers["Range"] = self.headers["Range"]
+                request = urllib.request.Request(target, headers=headers)
+                with urllib.request.urlopen(request, timeout=30) as upstream:
                     self.send_response(upstream.status)
                     for key in ("Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"):
                         value = upstream.headers.get(key)
@@ -122,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         if parsed.path == "/health":
-            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 4})
+            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 5})
             return
 
         path = parsed.path.lstrip("/") or "index.html"
