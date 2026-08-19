@@ -38,7 +38,13 @@ jobs:
       - name: Verify syntax and media authority contract
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/jarvis_enhance.py scripts/jarvis_retire_legacy_media.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('scripts/jarvis_enhance.py', 'scripts/jarvis_retire_legacy_media.py'):
+              source = Path(name).read_text(encoding='utf-8')
+              compile(source, name, 'exec')
+          print('PYTHON_SYNTAX_OK=1')
+          PY
           node --check jarvis-media-authority.js
           node --check jarvis-runtime-guards.js
           if grep -nE 'setupMedia|pipedapi' src/main.ts; then
