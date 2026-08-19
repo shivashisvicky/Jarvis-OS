@@ -9,7 +9,6 @@
   let mounted = false;
   let ytReady = false;
   let ytLoadPromise;
-  let player = null;
 
   const $ = s => document.querySelector(s);
   const dom = () => ({ input: $('#videoQuery'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
@@ -28,7 +27,7 @@
         ytReady = true;
         resolve();
       };
-      if (document.querySelector('script[src="' + YT_API + '"]')) return;
+      if (window.YT) { ytReady = true; clearTimeout(timeout); resolve(); return; }
       const script = document.createElement('script');
       script.src = YT_API;
       script.async = true;
@@ -44,7 +43,7 @@
     card.className = 'jvc-card';
     card.dataset.jvcId = video.id;
     const image = document.createElement('img');
-    image.src = `https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/mqdefault.jpg`;
+    image.src = video.thumbnail || `https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/mqdefault.jpg`;
     image.alt = '';
     image.loading = 'lazy';
     const meta = document.createElement('span');
@@ -52,7 +51,7 @@
     const title = document.createElement('strong');
     title.textContent = video.title;
     const channel = document.createElement('small');
-    channel.textContent = video.channel;
+    channel.textContent = video.channel || 'YouTube';
     meta.append(title, channel);
     const play = document.createElement('b');
     play.textContent = '▶';
@@ -66,20 +65,37 @@
     if (!query || !d.results) return;
     clear(d.results);
     status('SEARCHING YOUTUBE · ' + query.toUpperCase());
-
-    // Browser-safe search through YouTube's public search page. We do not scrape it.
-    // The result is handed to the official IFrame player via its search UI when needed.
-    // For deterministic keyword-to-video resolution, use the configured server endpoint when available.
+    const apiKey = String(window.JARVIS_YOUTUBE_API_KEY || '').trim();
+    if (!apiKey) {
+      const box = document.createElement('div');
+      box.className = 'media-degraded-state';
+      box.textContent = 'YOUTUBE API KEY NOT CONFIGURED';
+      d.results.appendChild(box);
+      status('CONFIGURATION REQUIRED');
+      return;
+    }
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
-      const response = await fetch('/api/youtube-search?q=' + encodeURIComponent(query), { signal: controller.signal, cache: 'no-store' });
+      const url = new URL('https://www.googleapis.com/youtube/v3/search');
+      url.searchParams.set('part', 'snippet');
+      url.searchParams.set('type', 'video');
+      url.searchParams.set('maxResults', '8');
+      url.searchParams.set('q', query);
+      url.searchParams.set('key', apiKey);
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
       const payload = await response.json();
-      if (!response.ok || !Array.isArray(payload.results)) throw new Error(payload.error || 'YouTube search unavailable');
-      if (!payload.results.length) throw new Error('No videos found');
-      payload.results.forEach(video => d.results.append(renderCard(video)));
-      status('READY · ' + payload.results.length + ' REAL YOUTUBE RESULTS');
+      if (!response.ok) throw new Error(payload?.error?.message || `YouTube API HTTP ${response.status}`);
+      const results = (payload.items || []).map(item => ({
+        id: item.id?.videoId,
+        title: item.snippet?.title || 'Untitled video',
+        channel: item.snippet?.channelTitle || 'YouTube',
+        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
+      })).filter(item => item.id);
+      if (!results.length) throw new Error('No YouTube videos found');
+      results.forEach(video => d.results.append(renderCard(video)));
+      status('READY · ' + results.length + ' REAL YOUTUBE RESULTS');
     } catch (error) {
       clear(d.results);
       const box = document.createElement('div');
@@ -89,7 +105,7 @@
       const detail = document.createElement('small');
       detail.textContent = error instanceof Error ? error.message : 'Search failed';
       box.append(message, detail);
-      d.results.append(box);
+      d.results.appendChild(box);
       status('DEGRADED · NO FABRICATED RESULTS');
     }
   }
@@ -104,7 +120,7 @@
       const host = document.createElement('div');
       host.id = 'jarvis-youtube-player';
       d.player.appendChild(host);
-      player = new window.YT.Player(host, {
+      new window.YT.Player(host, {
         videoId,
         width: '100%',
         height: '100%',
