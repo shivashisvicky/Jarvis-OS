@@ -8,39 +8,20 @@ try {
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.locator('#query').fill('cats');
   await page.locator('#searchForm').evaluate(form => form.requestSubmit());
-  await page.locator('#status').waitFor({ state: 'visible' });
-  await page.waitForFunction(() => document.querySelector('#player')?.src);
+  await page.locator('#results .result').first().waitFor({ state: 'visible', timeout: 60_000 });
 
   const result = await page.evaluate(() => ({
     status: document.querySelector('#status')?.textContent || '',
     title: document.querySelector('#results .result strong')?.textContent || '',
     webpageUrl: document.querySelector('#results .result div')?.textContent || '',
-    mediaUrl: document.querySelector('#player')?.src || '',
-    readyState: document.querySelector('#player')?.readyState ?? 0,
+    embedUrl: document.querySelector('#player iframe')?.getAttribute('src') || '',
   }));
 
-  if (!result.title) throw new Error('no real search result was rendered');
-  if (!result.webpageUrl.includes('youtube.com') && !result.webpageUrl.includes('youtu.be')) {
-    throw new Error(`unexpected result URL: ${result.webpageUrl}`);
-  }
-  if (!result.mediaUrl.startsWith('http')) throw new Error('no playable media URL was assigned');
+  if (!result.title) throw new Error('no live search result rendered');
+  if (!result.webpageUrl.startsWith('https://www.youtube.com/watch?v=')) throw new Error(`unexpected webpage URL: ${result.webpageUrl}`);
+  if (!result.embedUrl.startsWith('https://www.youtube-nocookie.com/embed/')) throw new Error(`unexpected embed URL: ${result.embedUrl}`);
 
-  await page.locator('#player').evaluate(player => {
-    player.addEventListener('error', () => {});
-  });
-  await page.waitForFunction(() => {
-    const player = document.querySelector('#player');
-    return player && (player.readyState >= 1 || player.networkState === 3);
-  }, null, { timeout: 15000 });
-
-  const finalState = await page.locator('#player').evaluate(player => ({
-    readyState: player.readyState,
-    networkState: player.networkState,
-    error: player.error ? { code: player.error.code, message: player.error.message } : null,
-  }));
-
-  if (finalState.error) throw new Error(`HTML5 media error ${finalState.error.code}: ${finalState.error.message}`);
-  console.log(JSON.stringify({ ok: true, result, finalState }, null, 2));
+  console.log(JSON.stringify({ ok: true, result }, null, 2));
 } finally {
   await browser.close();
 }
