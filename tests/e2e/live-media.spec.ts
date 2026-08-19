@@ -1,10 +1,16 @@
 import { expect, test } from '@playwright/test';
 
 const CARD = '#videoResults .jvc-card';
+const APP_URL = process.env.JARVIS_LIVE_URL || '/';
+
+async function openApp(page) {
+  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('button.nav[data-app="media"]')).toBeVisible({ timeout: 30_000 });
+  await page.locator('button.nav[data-app="media"]').click();
+}
 
 test('media search has no fixed video catalogue', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('button.nav[data-app="media"]').click();
+  await openApp(page);
   await expect(page.locator('#videoQuery')).toBeVisible();
   await expect(page.locator('#videoResults')).toBeVisible();
   await expect(page.locator(CARD)).toHaveCount(0);
@@ -15,8 +21,7 @@ test('DEPLOYED GATE: cats returns real YouTube results and opens the official pl
   test.skip(!process.env.JARVIS_LIVE_URL, 'Production-only live gate');
   test.setTimeout(60_000);
 
-  await page.goto('/');
-  await page.locator('button.nav[data-app="media"]').click();
+  await openApp(page);
   await expect(page.locator('#videoQuery')).toBeVisible();
   await expect(page.locator('#videoResults')).toBeVisible();
   await expect(page.locator(CARD)).toHaveCount(0);
