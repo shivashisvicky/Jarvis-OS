@@ -9,26 +9,53 @@ jobs:
   media-demo:
     name: Keyword search and playable stream
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Install Deno for yt-dlp YouTube challenge solving
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.6.7'
+
       - name: Install yt-dlp
         run: python -m pip install --upgrade pip 'yt-dlp[default]>=2025.11.12'
+
+      - name: Verify yt-dlp runtime
+        run: |
+          python -m yt_dlp --version
+          deno --version
+
       - name: Syntax check
         run: python -m py_compile video-player-demo/server.py
+
       - name: Start demo service
         run: |
           python video-player-demo/server.py > /tmp/jarvis-media.log 2>&1 &
           echo $! > /tmp/jarvis-media.pid
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/health && exit 0; sleep 1; done
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/health; then exit 0; fi
+            sleep 1
+          done
+          echo '=== SERVER LOGS ==='
           cat /tmp/jarvis-media.log
           exit 1
+
       - name: Live keyword search gate
         run: |
+          set +e
           curl --fail --retry 2 --retry-delay 2 --get 'http://127.0.0.1:8765/api/search' --data-urlencode 'q=cats' -o /tmp/result.json
+          STATUS=$?
+          if [ $STATUS -ne 0 ]; then
+            echo '=== SERVER LOGS ON SEARCH FAILURE ==='
+            cat /tmp/jarvis-media.log
+            exit $STATUS
+          fi
+          set -e
           python - <<'PY'
           import json
           d=json.load(open('/tmp/result.json'))
@@ -39,6 +66,7 @@ jobs:
           assert r.get('mediaUrl','').startswith(('http://','https://')), 'missing playable media URL'
           print('LIVE RESULT:', r['id'], r['title'])
           PY
+
       - name: Verify media proxy can open the stream
         run: |
           python - <<'PY'
@@ -51,6 +79,7 @@ jobs:
               assert data, 'media proxy returned zero bytes'
               print('PLAYABLE BYTES:', len(data), x.headers.get('Content-Type'))
           PY
+
       - name: Dump media log on failure
         if: failure()
         run: cat /tmp/jarvis-media.log
