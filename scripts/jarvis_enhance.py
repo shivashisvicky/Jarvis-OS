@@ -3,7 +3,7 @@
 Media has exactly one browser authority: jarvis-media-authority.js.
 This pass permanently removes the old in-browser Piped/trending runtime from
 src/main.ts, keeps the news setup idempotent, and repairs index.html so the
-media authority is always loaded exactly once.
+canonical media authority is loaded exactly once.
 """
 from pathlib import Path
 import re
@@ -73,16 +73,28 @@ async function setupNews(){
 
 MAIN.write_text(s, encoding="utf-8")
 
-# Repair the HTML entrypoint deterministically. Remove duplicate authority tags,
-# then inject exactly one before the module entrypoint. This is idempotent.
+# Repair the HTML entrypoint deterministically. Remove both the canonical
+# authority tag and any obsolete direct live-v2 tag before inserting exactly
+# one canonical authority tag. This prevents duplicate media controllers.
 index = INDEX.read_text(encoding="utf-8")
-index = re.sub(r"\s*<script[^>]+src=[\"'][^\"']*jarvis-media-authority\.js[^\"']*[\"'][^>]*>\s*</script>", "", index, flags=re.I)
+index = re.sub(
+    r"\s*<script[^>]+src=[\"'][^\"']*(?:jarvis-media-authority|jarvis-media-live-v2)\.js[^\"']*[\"'][^>]*>\s*</script>",
+    "",
+    index,
+    flags=re.I,
+)
+
 if "</body>" not in index:
     raise SystemExit("index.html has no </body> insertion point")
 
-script_tag = f'  <script src="./{AUTHORITY}?v=20260820-1"></script>\n'
+script_tag = f'  <script src="./{AUTHORITY}?v=20260820-2"></script>\n'
 if '<script type="module"' in index:
-    index = re.sub(r'\n\s*<script type="module"', '\n' + script_tag + '  <script type="module"', index, count=1)
+    index = re.sub(
+        r'\n\s*<script type="module"',
+        '\n' + script_tag + '  <script type="module"',
+        index,
+        count=1,
+    )
 elif "</head>" in index:
     index = index.replace("</head>", script_tag + "</head>", 1)
 else:
@@ -90,6 +102,8 @@ else:
 
 if len(re.findall(r"jarvis-media-authority\.js", index)) != 1:
     raise SystemExit("Expected exactly one jarvis-media-authority.js script reference in index.html")
+if re.search(r"jarvis-media-live-v2\.js", index):
+    raise SystemExit("Obsolete direct jarvis-media-live-v2.js script reference remains in index.html")
 
 INDEX.write_text(index, encoding="utf-8")
 print(f"Legacy setupMedia removed: {removed == 1}")
