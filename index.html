@@ -7,23 +7,51 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="J.A.R.V.I.S. personal intelligence workspace">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260819-3">
-  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260819-3">
+  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260819-4">
+  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260819-4">
   <title>J.A.R.V.I.S. OS</title>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <button class="nav" data-app="media" type="button" aria-label="Media">▶ <span>Media</span></button>
+    <main id="mediaBootFallback" hidden>
+      <input id="videoQuery" type="search" autocomplete="off" placeholder="Search YouTube videos…">
+      <button id="videoSearch" type="button">SEARCH</button>
+      <div id="mediaState"></div>
+      <div id="videoResults"></div>
+      <div id="jarvisPlayer"></div>
+    </main>
+  </div>
   <script src="./jarvis-performance.js?v=20260816-6"></script>
   <script src="./jarvis-preboot.js?v=20260816-2"></script>
   <script src="./jarvis-games.js?v=20260816-7"></script>
   <script src="./jarvis-runtime-guards.js?v=20260819-2"></script>
-  <script type="module" src="./src/main.ts?v=20260819-media-v14"></script>
   <script src="./jarvis-news-compat.js?v=20260816-1"></script>
   <script src="./jarvis-news-summary-bridge.js?v=20260816-1"></script>
   <script src="./jarvis-mobile-controls.js?v=20260818-1"></script>
   <script src="./jarvis-map-authority-final.js?v=20260818-2"></script>
   <script src="./jarvis-intelligence-authority-final.js?v=20260818-2"></script>
-  <script src="./jarvis-youtube-config.js?v=20260819-1"></script>
-  <script src="./jarvis-media-final.js?v=20260819-8" defer></script>
+  <script src="./jarvis-youtube-config.js?v=20260819-2"></script>
+  <script type="module" src="./src/main.ts?v=20260819-media-v15"></script>
+  <script src="./jarvis-media-final.js?v=20260819-9" defer></script>
+  <script>
+    (() => {
+      const app = document.getElementById('app');
+      const fallback = document.getElementById('mediaBootFallback');
+      const mediaNav = app?.querySelector('button.nav[data-app="media"]');
+      const activateFallback = () => {
+        if (!app || app.querySelector('.os')) return;
+        if (!app.querySelector('button.nav[data-app="media"]')) return;
+        mediaNav?.addEventListener('click', () => {
+          if (!fallback) return;
+          fallback.hidden = false;
+          mediaNav.hidden = true;
+        }, { once: true });
+      };
+      activateFallback();
+      window.setTimeout(activateFallback, 1000);
+      window.setTimeout(activateFallback, 5000);
+    })();
+  </script>
 </body>
 </html>
