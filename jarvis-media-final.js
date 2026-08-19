@@ -1,31 +1,87 @@
-/** J.A.R.V.I.S. OS 2.0 - YouTube IFrame media authority */
+/** J.A.R.V.I.S. OS 2.0 - keyless live media authority */
 (() => {
   'use strict';
   if (window.__JARVIS_FINAL_MEDIA_AUTHORITY__) return;
   window.__JARVIS_FINAL_MEDIA_AUTHORITY__ = true;
 
-  const SEARCH_TIMEOUT = 12000;
+  const SEARCH_TIMEOUT = 7000;
   let mounted = false;
   let activeQuery = '';
   let internalMutation = false;
   let recoveryQueued = false;
 
+  const PIPED = [
+    'https://pipedapi.kavin.rocks',
+    'https://pipedapi.tokhmi.xyz',
+    'https://pipedapi.moomoo.me',
+    'https://pipedapi.syncpundit.io',
+    'https://api-piped.mha.fi',
+    'https://piped-api.garudalinux.org',
+    'https://pipedapi.rivo.lol',
+    'https://pipedapi.leptons.xyz'
+  ];
+  const INVIDIOUS = [
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+    'https://yt.chocolatemoo53.com',
+    'https://invidious.tiekoetter.com'
+  ];
+
   const $ = s => document.querySelector(s);
-  const dom = () => ({ input: $('#videoQuery'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
+  const dom = () => ({ input: $('#videoQuery'), search: $('#videoSearch'), results: $('#videoResults'), player: $('#jarvisPlayer'), state: $('#mediaState') || $('#jvcStatus') });
   const mutate = fn => { internalMutation = true; try { fn(); } finally { queueMicrotask(() => { internalMutation = false; }); } };
-  const clear = el => mutate(() => { while (el?.firstChild) el.removeChild(el.firstChild); });
   const status = text => { const el = dom().state; if (el) el.textContent = text; };
 
   function extractYouTubeId(value) {
     try {
       const url = new URL(value);
-      if (!/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(url.hostname)) return '';
+      if (!/(^|\\.)youtube\\.com$|(^|\\.)youtu\\.be$/.test(url.hostname)) return '';
       if (url.hostname === 'youtu.be') return url.pathname.slice(1).split('/')[0];
       if (url.pathname === '/watch') return url.searchParams.get('v') || '';
       const parts = url.pathname.split('/').filter(Boolean);
       if (parts[0] === 'shorts' || parts[0] === 'embed' || parts[0] === 'v') return parts[1] || '';
     } catch {}
-    return '';
+    return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim()) ? String(value).trim() : '';
+  }
+
+  function normalizePiped(item) {
+    const id = String(item?.url || '').match(/[?&]v=([A-Za-z0-9_-]{11})/)?.[1] || item?.videoId || '';
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id) || item?.type === 'channel' || item?.type === 'playlist') return null;
+    return { id, title: String(item.title || 'Untitled video'), channel: String(item.uploaderName || item.uploader || 'YouTube'), thumbnail: String(item.thumbnail || '') };
+  }
+
+  function normalizeInvidious(item) {
+    const id = String(item?.videoId || '');
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id) || item?.type && item.type !== 'video') return null;
+    return { id, title: String(item.title || 'Untitled video'), channel: String(item.author || 'YouTube'), thumbnail: String(item.videoThumbnails?.find(x => x?.quality === 'medium')?.url || item.videoThumbnails?.[0]?.url || '') };
+  }
+
+  async function fetchJson(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } finally { clearTimeout(timer); }
+  }
+
+  async function queryPiped(base, query) {
+    const url = new URL('/search', base);
+    url.searchParams.set('q', query);
+    url.searchParams.set('filter', 'videos');
+    const payload = await fetchJson(url.toString());
+    const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
+    return items.map(normalizePiped).filter(Boolean);
+  }
+
+  async function queryInvidious(base, query) {
+    const url = new URL('/api/v1/search', base);
+    url.searchParams.set('q', query);
+    url.searchParams.set('type', 'video');
+    url.searchParams.set('region', 'IN');
+    const payload = await fetchJson(url.toString());
+    return (Array.isArray(payload) ? payload : []).map(normalizeInvidious).filter(Boolean);
   }
 
   function renderCard(video) {
@@ -42,7 +98,7 @@
     const title = document.createElement('strong');
     title.textContent = video.title;
     const channel = document.createElement('small');
-    channel.textContent = video.channel || 'YouTube';
+    channel.textContent = video.channel;
     meta.append(title, channel);
     const play = document.createElement('b');
     play.textContent = '▶';
@@ -50,17 +106,19 @@
     return card;
   }
 
+  function clearResults() { const d = dom(); mutate(() => { while (d.results?.firstChild) d.results.removeChild(d.results.firstChild); }); }
+
   function renderReady() {
     const d = dom();
     if (!d.results) return;
     mutate(() => {
       while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
-      const ready = document.createElement('div');
-      ready.className = 'media-degraded-state';
-      ready.textContent = 'READY · SEARCH FOR A VIDEO';
-      d.results.appendChild(ready);
+      const box = document.createElement('div');
+      box.className = 'media-degraded-state';
+      box.textContent = 'READY · SEARCH YOUTUBE VIDEOS';
+      d.results.appendChild(box);
     });
-    status('READY · NO FIXED VIDEOS');
+    status('READY · LIVE SEARCH');
   }
 
   async function search(query) {
@@ -70,54 +128,48 @@
     activeQuery = query;
     const directId = extractYouTubeId(query);
     if (directId) { play(directId); return; }
-    clear(d.results);
-    status('SEARCHING YOUTUBE · ' + query.toUpperCase());
-    const apiKey = String(window.JARVIS_YOUTUBE_API_KEY || '').trim();
-    if (!apiKey) {
-      mutate(() => {
-        const box = document.createElement('div');
-        box.className = 'media-degraded-state';
-        box.textContent = 'YOUTUBE API KEY NOT CONFIGURED';
-        d.results.appendChild(box);
-      });
-      status('CONFIGURATION REQUIRED');
-      return;
-    }
+
+    clearResults();
+    status('SEARCHING LIVE SOURCES · ' + query.toUpperCase());
+
+    const jobs = [
+      ...PIPED.map(base => queryPiped(base, query)),
+      ...INVIDIOUS.map(base => queryInvidious(base, query))
+    ];
+
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
-      const url = new URL('https://www.googleapis.com/youtube/v3/search');
-      url.searchParams.set('part', 'snippet');
-      url.searchParams.set('type', 'video');
-      url.searchParams.set('maxResults', '8');
-      url.searchParams.set('q', query);
-      url.searchParams.set('key', apiKey);
-      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-      clearTimeout(timer);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error?.message || `YouTube API HTTP ${response.status}`);
-      const videos = (payload.items || []).map(item => ({
-        id: item.id?.videoId,
-        title: item.snippet?.title || 'Untitled video',
-        channel: item.snippet?.channelTitle || 'YouTube',
-        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
-      })).filter(item => /^[A-Za-z0-9_-]{11}$/.test(item.id || ''));
-      if (!videos.length) throw new Error('No YouTube videos found');
+      const settled = await Promise.allSettled(jobs);
+      const results = [];
+      const seen = new Set();
+      for (const item of settled) {
+        if (item.status !== 'fulfilled') continue;
+        for (const video of item.value) {
+          if (!seen.has(video.id)) { seen.add(video.id); results.push(video); }
+          if (results.length >= 12) break;
+        }
+        if (results.length >= 12) break;
+      }
+      if (!results.length) throw new Error('No live video provider returned results');
       mutate(() => {
         while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
-        videos.forEach(video => d.results.appendChild(renderCard(video)));
+        results.slice(0, 8).forEach(video => d.results.appendChild(renderCard(video)));
       });
-      status('READY · ' + videos.length + ' REAL YOUTUBE RESULTS');
+      status('READY · ' + Math.min(results.length, 8) + ' LIVE YOUTUBE RESULTS');
     } catch (error) {
       mutate(() => {
         while (d.results.firstChild) d.results.removeChild(d.results.firstChild);
         const box = document.createElement('div');
         box.className = 'media-degraded-state';
-        const message = document.createElement('strong');
-        message.textContent = 'YOUTUBE SEARCH UNAVAILABLE';
-        const detail = document.createElement('small');
-        detail.textContent = error instanceof Error ? error.message : 'Search failed';
-        box.append(message, detail);
+        const strong = document.createElement('strong');
+        strong.textContent = 'LIVE SEARCH TEMPORARILY UNAVAILABLE';
+        const small = document.createElement('small');
+        small.textContent = error instanceof Error ? error.message : 'All public video indexes failed';
+        const link = document.createElement('a');
+        link.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'OPEN OFFICIAL YOUTUBE SEARCH ↗';
+        box.append(strong, small, link);
         d.results.appendChild(box);
       });
       status('DEGRADED · NO FABRICATED RESULTS');
@@ -142,7 +194,7 @@
       iframe.style.border = '0';
       d.player.appendChild(iframe);
     });
-    status('PLAYING · YOUTUBE');
+    status('PLAYING · OFFICIAL YOUTUBE PLAYER');
   }
 
   function recoverLegacyMutation() {
@@ -156,19 +208,18 @@
       const hasAuthorityCards = !!d.results.querySelector('.jvc-card[data-jvc-id]');
       const hasAuthorityState = !!d.results.querySelector('.media-degraded-state');
       if (hasAuthorityCards || hasAuthorityState) return;
-      if (activeQuery) search(activeQuery);
-      else renderReady();
+      if (activeQuery) search(activeQuery); else renderReady();
     });
   }
 
   function mount() {
-    if (mounted) return;
     const d = dom();
     if (!d.input || !d.results || !d.player) return;
+    if (mounted && d.input.dataset.jarvisMediaBound === '1') return;
     mounted = true;
+    d.input.dataset.jarvisMediaBound = '1';
 
-    const button = $('#videoSearch');
-    button?.addEventListener('click', event => {
+    d.search?.addEventListener('click', event => {
       event.preventDefault();
       event.stopImmediatePropagation();
       search(d.input.value);
@@ -188,11 +239,11 @@
         play(card.dataset.jvcId || '');
       }
     }, true);
-
     renderReady();
   }
 
   const observer = new MutationObserver(() => { mount(); recoverLegacyMutation(); });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
   mount();
 })();
