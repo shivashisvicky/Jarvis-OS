@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import html
 import json
 import mimetypes
 import os
+import re
 import sys
 import traceback
 import urllib.parse
@@ -11,31 +13,44 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", "8765"))
-
-INVIDIOUS_INSTANCES = [
-    "https://inv.nadeko.net",
-    "https://invidious.nerdvpn.de",
-    "https://inv.n8n.io",
-]
-UA = "JARVIS-OS/2.0"
-
-
-def http_json(url: str):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36"
+VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 def youtube_id(value: str):
-    p = urllib.parse.urlparse(value)
+    p = urllib.parse.urlparse(value.strip())
     host = (p.hostname or "").lower()
+    if host == "youtu.be":
+        candidate = p.path.strip("/").split("/")[0]
+        return candidate if VIDEO_ID_RE.fullmatch(candidate or "") else None
     if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
         if p.path.startswith("/shorts/"):
-            return p.path.split("/")[2] if len(p.path.split("/")) > 2 else None
-        return urllib.parse.parse_qs(p.query).get("v", [None])[0]
-    if host == "youtu.be":
-        return p.path.strip("/").split("/")[0] or None
+            parts = p.path.split("/")
+            candidate = parts[2] if len(parts) > 2 else ""
+        else:
+            candidate = urllib.parse.parse_qs(p.query).get("v", [""])[0]
+        return candidate if VIDEO_ID_RE.fullmatch(candidate or "") else None
     return None
+
+
+def duckduckgo_search(query: str):
+    q = f"site:youtube.com/watch {query}"
+    url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": q})
+    request = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+    with urllib.request.urlopen(request, timeout=12) as response:
+        page = response.read().decode("utf-8", errors="replace")
+
+    # DDG result links can be wrapped/redirected, so inspect both decoded HTML
+    # and href attributes rather than assuming one exact markup format.
+    page = html.unescape(urllib.parse.unquote(page))
+    candidates = []
+    for match in re.finditer(r"(?:https?://)?(?:www\.)?youtube\.com/(?:watch\?v=|shorts/)([A-Za-z0-9_-]{11})", page):
+        candidates.append(match.group(1))
+    for match in re.finditer(r"https?://youtu\.be/([A-Za-z0-9_-]{11})", page):
+        candidates.append(match.group(1))
+
+    seen = set()
+    return [x for x in candidates if not (x in seen or seen.add(x))]
 
 
 def search_video(query: str) -> dict:
@@ -43,41 +58,32 @@ def search_video(query: str) -> dict:
     if not query:
         raise ValueError("query is required")
 
-    existing_id = youtube_id(query)
-    if existing_id:
+    direct = youtube_id(query)
+    if direct:
         return {
-            "id": existing_id,
+            "id": direct,
             "title": "YouTube video",
-            "webpageUrl": f"https://www.youtube.com/watch?v={existing_id}",
-            "embedUrl": f"https://www.youtube-nocookie.com/embed/{existing_id}",
+            "webpageUrl": f"https://www.youtube.com/watch?v={direct}",
+            "embedUrl": f"https://www.youtube-nocookie.com/embed/{direct}",
             "provider": "youtube",
         }
 
-    errors = []
-    encoded = urllib.parse.quote(query)
-    for instance in INVIDIOUS_INSTANCES:
-        try:
-            data = http_json(f"{instance}/api/v1/search?q={encoded}&type=video&page=1")
-            items = data if isinstance(data, list) else data.get("items", [])
-            for item in items:
-                vid = item.get("videoId")
-                if vid:
-                    return {
-                        "id": vid,
-                        "title": item.get("title") or query,
-                        "webpageUrl": f"https://www.youtube.com/watch?v={vid}",
-                        "embedUrl": f"https://www.youtube-nocookie.com/embed/{vid}",
-                        "provider": "youtube",
-                    }
-            errors.append(f"{instance}: empty result")
-        except Exception as exc:
-            errors.append(f"{instance}: {exc}")
+    ids = duckduckgo_search(query)
+    if not ids:
+        raise RuntimeError("Live search returned no YouTube video results")
 
-    raise RuntimeError("No live search provider responded: " + " | ".join(errors))
+    video_id = ids[0]
+    return {
+        "id": video_id,
+        "title": f"YouTube result for {query}",
+        "webpageUrl": f"https://www.youtube.com/watch?v={video_id}",
+        "embedUrl": f"https://www.youtube-nocookie.com/embed/{video_id}",
+        "provider": "youtube",
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisVideoDemo/7.0"
+    server_version = "JarvisVideoDemo/8.0"
 
     def log_message(self, fmt, *args):
         sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
@@ -96,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 7})
+            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 8})
             return
         if parsed.path == "/api/search":
             query = urllib.parse.parse_qs(parsed.query).get("q", [""])[0]
