@@ -2,6 +2,14 @@ import { expect, test } from '@playwright/test';
 
 const CARD = '#videoResults .jvc-card';
 
+test('media runtime has exactly one active authority', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => ({
+    final: Boolean((window as any).__JARVIS_FINAL_MEDIA_AUTHORITY__),
+    legacy: Boolean((window as any).__JARVIS_ACTIVE_MEDIA_AUTHORITY__)
+  }))).toEqual({ final: true, legacy: false });
+});
+
 test('media search starts empty and renders only returned live results', async ({ page }) => {
   await page.route('https://peertube.cpy.re/api/v1/search/videos**', async route => {
     const url = new URL(route.request().url());
@@ -38,9 +46,6 @@ test('media search starts empty and renders only returned live results', async (
   await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /peertube\.cpy\.re\/videos\/embed\/live-test-1/);
 });
 
-// Production finish-line gate. It is intentionally not mocked and runs only
-// against the deployed Pages URL. A real "cats" query must produce a real
-// result and an in-JARVIS player without a redirect or canned content.
 test('DEPLOYED GATE: cats returns a real result and plays inside JARVIS', async ({ page }) => {
   test.skip(!process.env.JARVIS_LIVE_URL, 'Production-only live gate');
   test.setTimeout(60_000);
