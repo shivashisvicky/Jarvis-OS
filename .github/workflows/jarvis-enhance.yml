@@ -10,6 +10,7 @@ on:
       - 'jarvis-runtime-guards.js'
       - 'tests/e2e/**'
       - 'scripts/jarvis_retire_legacy_media.py'
+      - 'scripts/refresh_media_providers.py'
       - 'package.json'
       - 'playwright.config.ts'
       - '.github/workflows/jarvis-enhance.yml'
@@ -33,12 +34,14 @@ jobs:
         run: npm install --global npm@${NPM_VERSION} && npm --version
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Refresh public video provider registry
+        run: python3 scripts/refresh_media_providers.py
       - name: Retire legacy in-app media runtime
         run: python3 scripts/jarvis_retire_legacy_media.py
       - name: Verify media authority contract
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/jarvis_retire_legacy_media.py
+          python3 -m py_compile scripts/jarvis_retire_legacy_media.py scripts/refresh_media_providers.py
           node --check jarvis-media-final.js
           node --check jarvis-runtime-guards.js
           if grep -nE 'setupMedia|pipedapi' src/main.ts; then
@@ -58,15 +61,15 @@ jobs:
         run: npm run test:browser
       - name: Live media smoke gate
         run: npx playwright test tests/e2e/ci-smoke.spec.ts -g 'LIVE:' --project=chromium --reporter=line
-      - name: Commit legacy-runtime retirement
+      - name: Commit CI-generated media maintenance
         run: |
           set -euo pipefail
           git config user.name 'JARVIS Engineering Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add src/main.ts
+          git add src/main.ts jarvis-media-final.js
           if git diff --cached --quiet; then
-            echo 'No legacy media runtime changes were necessary.'
+            echo 'No CI-generated media maintenance changes were necessary.'
             exit 0
           fi
-          git commit -m 'fix(media): retire legacy in-app media runtime [jarvis-ci]'
+          git commit -m 'fix(media): refresh providers and retire legacy runtime [jarvis-ci]'
           git push
