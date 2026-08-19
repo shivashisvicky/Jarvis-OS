@@ -1,162 +1,302 @@
-/** J.A.R.V.I.S. OS 2.0 - Live Media Authority */
+/** J.A.R.V.I.S. OS 2.0 - single live media authority */
 (() => {
   'use strict';
   if (window.__JARVIS_ACTIVE_MEDIA_AUTHORITY__) return;
   window.__JARVIS_ACTIVE_MEDIA_AUTHORITY__ = true;
-  window.__JARVIS_MEDIA_LEGACY_KILL_SWITCH__ = true;
 
-  const HOST = 'https://peertube.cpy.re';
-  const TIMEOUT_MS = 8000;
+  const TRACE = window.__JARVIS_MEDIA_TRACE__ = window.__JARVIS_MEDIA_TRACE__ || [];
+  const trace = (step, value = '') => TRACE.push({ step, value: String(value).slice(0, 600), at: new Date().toISOString() });
+  const $ = s => document.querySelector(s);
+  const TIMEOUT = 9000;
+  const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+  const ALL_ORIGINS = 'https://api.allorigins.win/raw?url=';
+  const PIPED_SEEDS = [
+    'https://pipedapi.kavin.rocks', 'https://pipedapi.leptons.xyz',
+    'https://pipedapi.nosebs.ru', 'https://pipedapi-libre.kavin.rocks',
+    'https://piped-api.privacy.com.de', 'https://pipedapi.adminforge.de',
+    'https://api.piped.yt', 'https://pipedapi.drgns.space',
+    'https://pipedapi.owo.si', 'https://pipedapi.ducks.party',
+    'https://piped-api.codespace.cz', 'https://pipedapi.reallyaweso.me',
+    'https://api.piped.private.coffee', 'https://pipedapi.darkness.services'
+  ];
   let generation = 0;
+  const seen = new Set();
 
-  const $ = selector => document.querySelector(selector);
-  const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
-  const input = () => $('#videoQuery');
-  const results = () => $('#videoResults');
-  const setStatus = (text, detail = '') => {
-    const state = $('#mediaState');
-    if (state) state.textContent = text;
-    const status = $('#jvcStatus');
-    if (status) status.textContent = detail ? `${text} · ${detail}` : text;
-  };
-
-  const requestJson = async url => {
+  const timeoutFetch = async url => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), TIMEOUT);
     try {
-      const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json,text/plain,*/*' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
+      return response;
     } finally { clearTimeout(timer); }
   };
 
-  const normalize = item => {
-    const id = String(item?.uuid || item?.shortUUID || item?.id || '').trim();
-    if (!id) return null;
-    const thumbnail = typeof item?.thumbnailPath === 'string' ? (item.thumbnailPath.startsWith('http') ? item.thumbnailPath : `${HOST}${item.thumbnailPath}`) : '';
-    return { id, title: String(item?.name || item?.displayName || 'Untitled video'), author: String(item?.videoChannel?.displayName || item?.channel?.displayName || item?.account?.displayName || 'PeerTube'), duration: Number(item?.duration) || 0, thumbnail, embed: `${HOST}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0` };
+  const allOrigins = url => timeoutFetch(ALL_ORIGINS + encodeURIComponent(url)).then(r => r.text());
+
+  const idFrom = value => {
+    const s = String(value || '');
+    const match = s.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (match) return match[1];
+    return YT_ID.test(s.trim()) ? s.trim() : '';
   };
 
-  const searchLive = async query => {
-    const data = await requestJson(`${HOST}/api/v1/search/videos?search=${encodeURIComponent(query)}&count=12&sort=-publishedAt&hasWebVideoFiles=true&nsfw=false`);
-    return (Array.isArray(data?.data) ? data.data : []).map(normalize).filter(Boolean);
+  const add = (items, id, title, channel = 'YouTube', thumbnail = '') => {
+    if (!YT_ID.test(id) || seen.has(id)) return;
+    seen.add(id);
+    items.push({
+      id,
+      title: String(title || `YouTube video ${id}`),
+      channel: String(channel || 'YouTube'),
+      thumbnail: String(thumbnail || `https://i.ytimg.com/vi/${id}/mqdefault.jpg`),
+    });
   };
 
-  const render = (items, query) => {
-    const box = results();
-    if (!box) return;
-    box.replaceChildren();
-    if (!items.length) {
-      const empty = document.createElement('div');
-      empty.className = 'empty media-degraded-state';
-      empty.textContent = `NO LIVE VIDEO RESULTS FOR: ${query}`;
-      box.appendChild(empty);
-      setStatus('NO RESULTS', query);
-      return;
+  const parseYouTubeHtml = (html, items) => {
+    const renderer = /"videoRenderer":\{[\s\S]*?"videoId":"([A-Za-z0-9_-]{11})"[\s\S]*?"title":\{"runs":\[\{"text":"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+    let match;
+    while ((match = renderer.exec(html))) {
+      let title = match[2];
+      try { title = JSON.parse(`"${title}"`); } catch {}
+      add(items, match[1], title);
+      if (items.length >= 12) return;
     }
-    for (const item of items.slice(0, 12)) {
-      const card = document.createElement('button');
-      card.type = 'button'; card.className = 'jyt-card'; card.dataset.videoId = item.id;
-      const image = document.createElement('img'); image.loading = 'lazy'; image.alt = ''; image.src = item.thumbnail;
-      const meta = document.createElement('span'); meta.className = 'video-meta';
-      const title = document.createElement('strong'); title.textContent = item.title;
-      const author = document.createElement('small'); author.textContent = `PeerTube · ${item.author} · ${Math.floor(item.duration / 60)}:${String(item.duration % 60).padStart(2, '0')}`;
-      meta.append(title, author);
-      const play = document.createElement('b'); play.textContent = '▶';
-      card.append(image, meta, play); box.appendChild(card);
+    const ids = html.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_?=&%.-]+/g) || [];
+    for (const hit of ids) {
+      add(items, idFrom(hit), 'YouTube result');
+      if (items.length >= 12) return;
     }
-    setStatus('READY', `${items.length} LIVE RESULTS`);
   };
 
-  const playEmbed = (id, title = 'JARVIS video') => {
-    if (!id) return;
+  const searchYouTubeViaProxy = async query => {
+    const html = await allOrigins(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+    const items = [];
+    parseYouTubeHtml(html, items);
+    if (!items.length) throw new Error('YouTube HTML returned no video renderers');
+    return items;
+  };
+
+  const searchDuckDuckGoViaProxy = async query => {
+    const html = await allOrigins(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`);
+    const items = [];
+    const links = html.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_?=&%.-]+/g) || [];
+    for (const link of links) add(items, idFrom(link), 'YouTube result');
+    if (!items.length) throw new Error('DuckDuckGo returned no YouTube links');
+    return items;
+  };
+
+  const parsePiped = payload => {
+    const data = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
+    return data.map(item => ({
+      id: idFrom(item?.videoId || item?.url || ''),
+      title: item?.title,
+      channel: item?.uploaderName || item?.uploader,
+      thumbnail: item?.thumbnail,
+    })).filter(item => YT_ID.test(item.id));
+  };
+
+  const searchPiped = async (base, query) => {
+    const response = await timeoutFetch(`${base}/search?q=${encodeURIComponent(query)}&filter=videos`);
+    const items = [];
+    for (const item of parsePiped(await response.json())) add(items, item.id, item.title, item.channel, item.thumbnail);
+    if (!items.length) throw new Error('Piped returned no videos');
+    return items;
+  };
+
+  const discoverPiped = async () => {
+    try {
+      const text = await allOrigins('https://raw.githubusercontent.com/TeamPiped/documentation/main/content/docs/public-instances/index.md');
+      const found = [...text.matchAll(/\|\s*[^|]+\s*\|\s*(https:\/\/[^\s|]+)\s*\|/g)].map(match => match[1].replace(/\/$/, ''));
+      return [...new Set([...found, ...PIPED_SEEDS])];
+    } catch (error) {
+      trace('piped-registry-failed', error);
+      return PIPED_SEEDS;
+    }
+  };
+
+  const discoverInvidious = async () => {
+    try {
+      const text = await allOrigins('https://api.invidious.io/instances.json?sort_by=health');
+      const data = JSON.parse(text);
+      return data.filter(item => item?.[1]?.api && item?.[1]?.type === 'https').map(item => `https://${item[0]}`);
+    } catch (error) {
+      trace('invidious-registry-failed', error);
+      return [];
+    }
+  };
+
+  const searchInvidious = async (base, query) => {
+    const response = await timeoutFetch(`${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&region=IN`);
+    const data = await response.json();
+    const items = [];
+    for (const item of Array.isArray(data) ? data : []) add(items, item?.videoId, item?.title, item?.author, item?.videoThumbnails?.[0]?.url);
+    if (!items.length) throw new Error('Invidious returned no videos');
+    return items;
+  };
+
+  const setState = (text, detail = '') => {
+    const state = $('#mediaState');
+    if (state) state.textContent = detail ? `${text} · ${detail}` : text;
+    const legacy = $('#jvcStatus');
+    if (legacy) legacy.textContent = detail ? `${text} · ${detail}` : text;
+  };
+
+  const play = id => {
     const player = $('#jarvisPlayer');
-    if (!player) return;
+    if (!player || !YT_ID.test(id)) return;
+    player.replaceChildren();
     const iframe = document.createElement('iframe');
-    iframe.title = title;
-    iframe.src = `${HOST}/videos/embed/${encodeURIComponent(id)}?autoplay=1&peertubeLink=0`;
-    iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+    iframe.title = 'JARVIS YouTube Player';
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    iframe.style.width = '100%'; iframe.style.height = 'min(62vh,560px)'; iframe.style.border = '0';
-    player.replaceChildren(iframe);
-    setStatus('PLAYING', title);
+    iframe.style.cssText = 'width:100%;aspect-ratio:16/9;min-height:320px;border:0';
+    player.appendChild(iframe);
+    setState('PLAYING', 'OFFICIAL YOUTUBE PLAYER');
+    trace('player-mounted', id);
   };
 
-  const youtubeId = raw => {
-    try {
-      const url = new URL(raw);
-      if (url.hostname.includes('youtu.be')) return url.pathname.slice(1).split('/')[0];
-      if (url.hostname.includes('youtube.com')) return url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).pop() || '';
-    } catch {}
-    return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim()) ? String(raw).trim() : '';
-  };
-
-  const playYoutube = () => {
-    const raw = String($('#videoUrl')?.value || '').trim();
-    const id = youtubeId(raw);
-    const player = $('#jarvisPlayer');
-    if (!player) return;
-    if (!id) { setStatus('READY', 'ENTER A VALID YOUTUBE URL OR ID'); return; }
-    const iframe = document.createElement('iframe');
-    iframe.title = 'YouTube video';
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1`;
-    iframe.allow = 'autoplay; fullscreen; picture-in-picture'; iframe.allowFullscreen = true;
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    iframe.style.width = '100%'; iframe.style.height = 'min(62vh,560px)'; iframe.style.border = '0';
-    player.replaceChildren(iframe); setStatus('PLAYING', 'YOUTUBE EMBED');
+  const render = items => {
+    const box = $('#videoResults');
+    if (!box) return;
+    box.replaceChildren();
+    items.slice(0, 8).forEach(video => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'jvc-card';
+      card.dataset.jvcId = video.id;
+      const image = document.createElement('img');
+      image.loading = 'lazy';
+      image.alt = '';
+      image.src = video.thumbnail;
+      const meta = document.createElement('span');
+      meta.className = 'video-meta';
+      const title = document.createElement('strong');
+      title.textContent = video.title;
+      const channel = document.createElement('small');
+      channel.textContent = video.channel;
+      meta.append(title, channel);
+      const playIcon = document.createElement('b');
+      playIcon.textContent = '▶';
+      card.append(image, meta, playIcon);
+      box.appendChild(card);
+    });
+    setState('READY', `${Math.min(items.length, 8)} LIVE YOUTUBE RESULTS`);
+    trace('results-rendered', items.map(item => item.id).join(','));
   };
 
   const search = async query => {
-    const q = String(query ?? input()?.value ?? '').trim();
-    if (!q) { setStatus('READY', 'ENTER A VIDEO SEARCH TERM'); return; }
-    const box = results();
+    const q = String(query || '').trim();
+    if (!q) { setState('READY', 'ENTER A VIDEO SEARCH TERM'); return; }
+    const direct = idFrom(q);
+    if (direct) { play(direct); return; }
+    const box = $('#videoResults');
     if (!box) return;
-    input().value = q;
     const run = ++generation;
     box.innerHTML = '<div class="media-loading-indicator">SEARCHING LIVE VIDEO SOURCES…</div>';
-    setStatus('SEARCHING', q.toUpperCase());
-    try {
-      const items = await searchLive(q);
-      if (run !== generation) return;
-      render(items, q);
-    } catch (error) {
-      if (run !== generation) return;
-      box.innerHTML = '<div class="empty media-degraded-state"><strong>LIVE VIDEO SEARCH UNAVAILABLE</strong><small>NO FABRICATED RESULTS WERE INSERTED.</small></div>';
-      setStatus('DEGRADED', error instanceof Error ? error.message : 'LIVE SEARCH FAILED');
+    setState('SEARCHING', q.toUpperCase());
+    trace('search-start', q);
+    seen.clear();
+
+    const providers = [
+      ['youtube-proxy', searchYouTubeViaProxy(q)],
+      ['duckduckgo-proxy', searchDuckDuckGoViaProxy(q)],
+      ...PIPED_SEEDS.slice(0, 6).map(base => [`piped:${base}`, searchPiped(base, q)]),
+    ];
+
+    const discoveredPiped = await discoverPiped();
+    providers.push(...discoveredPiped.slice(0, 10).map(base => [`piped-dynamic:${base}`, searchPiped(base, q)]));
+    const discoveredInvidious = await discoverInvidious();
+    providers.push(...discoveredInvidious.slice(0, 8).map(base => [`invidious:${base}`, searchInvidious(base, q)]));
+
+    const settled = await Promise.allSettled(providers.map(provider => provider[1]));
+    if (run !== generation) return;
+
+    const results = [];
+    settled.forEach((result, index) => {
+      const name = providers[index][0];
+      if (result.status === 'fulfilled') {
+        trace(`provider-ok:${name}`, result.value.length);
+        for (const item of result.value) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            results.push(item);
+          }
+        }
+      } else {
+        trace(`provider-failed:${name}`, result.reason?.message || result.reason || 'unknown');
+      }
+    });
+
+    if (!results.length) {
+      box.innerHTML = `<div class="media-degraded-state"><strong>LIVE SEARCH TEMPORARILY UNAVAILABLE</strong><small>Every live provider was attempted. No fabricated results were inserted.</small><a target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">OPEN OFFICIAL YOUTUBE SEARCH ↗</a></div>`;
+      setState('DEGRADED', 'ALL LIVE PROVIDERS FAILED');
+      trace('search-failed', q);
+      return;
     }
+    render(results);
   };
 
   const bind = () => {
-    const searchButton = $('#videoSearch');
-    if (searchButton && !searchButton.dataset.liveMediaBound) {
-      searchButton.dataset.liveMediaBound = '1';
-      searchButton.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); void search(); }, true);
-    }
-    const queryInput = input();
-    if (queryInput && !queryInput.dataset.liveMediaBound) {
-      queryInput.dataset.liveMediaBound = '1';
-      queryInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); event.stopImmediatePropagation(); void search(); } }, true);
-    }
-    document.querySelectorAll('[data-video-provider]').forEach(button => {
-      if (button.dataset.liveMediaBound) return;
-      button.dataset.liveMediaBound = '1';
+    const input = $('#videoQuery');
+    const button = $('#videoSearch');
+    if (!input || !button) return;
+
+    if (button.dataset.mediaAuthorityBound !== '1') {
+      button.dataset.mediaAuthorityBound = '1';
       button.addEventListener('click', event => {
-        event.preventDefault(); event.stopImmediatePropagation();
-        void search(button.dataset.videoProvider === 'trending' ? 'trending videos India' : queryInput?.value || '');
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void search(input.value);
       }, true);
-    });
-    document.querySelectorAll('#videoResults .jyt-card').forEach(card => {
-      if (card.dataset.livePlayBound) return;
-      card.dataset.livePlayBound = '1';
-      card.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); playEmbed(card.dataset.videoId || '', card.querySelector('strong')?.textContent || 'JARVIS video'); }, true);
-    });
-    $('#playVideo')?.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); playYoutube(); }, true);
+    }
+
+    if (input.dataset.mediaAuthorityBound !== '1') {
+      input.dataset.mediaAuthorityBound = '1';
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          void search(input.value);
+        }
+      }, true);
+    }
+
+    const results = $('#videoResults');
+    if (results && results.dataset.mediaAuthorityBound !== '1') {
+      results.dataset.mediaAuthorityBound = '1';
+      results.addEventListener('click', event => {
+        const card = event.target.closest('.jvc-card[data-jvc-id]');
+        if (!card) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        play(card.dataset.jvcId || '');
+      }, true);
+    }
+
+    const directPlay = $('#playVideo');
+    if (directPlay && directPlay.dataset.mediaAuthorityBound !== '1') {
+      directPlay.dataset.mediaAuthorityBound = '1';
+      directPlay.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const raw = String($('#videoUrl')?.value || '').trim();
+        const id = idFrom(raw);
+        if (id) play(id); else setState('READY', 'ENTER A VALID YOUTUBE URL OR ID');
+      }, true);
+    }
+
+    if (!window.__JARVIS_LIVE_MEDIA_READY__) {
+      window.__JARVIS_LIVE_MEDIA_READY__ = true;
+      setState('READY', 'LIVE YOUTUBE SEARCH');
+      trace('media-ready');
+    }
   };
 
   const observer = new MutationObserver(bind);
   observer.observe(document.documentElement, { childList: true, subtree: true });
   bind();
   window.jarvisVideoSearch = search;
-  window.jarvisVideoPlay = playEmbed;
+  window.jarvisVideoPlay = play;
 })();
