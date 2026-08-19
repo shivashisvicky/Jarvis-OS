@@ -9,6 +9,7 @@ on:
       - '.github/workflows/jarvis-enhance.yml'
       - 'src/main.ts'
       - 'index.html'
+      - 'jarvis-media-live-v2.js'
       - 'jarvis-media-final.js'
       - 'jarvis-runtime-guards.js'
 
@@ -42,7 +43,7 @@ jobs:
             echo 'ERROR: legacy media runtime/provider reference remains in src/main.ts'
             exit 1
           fi
-          grep -n 'jarvis-media-final.js' index.html
+          grep -n 'jarvis-media-live-v2.js' index.html
           grep -n 'data-app="media"' index.html
           grep -n 'videoQuery' index.html
           grep -n 'videoResults' index.html
