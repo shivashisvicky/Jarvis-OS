@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const MOCK_YT_API = `window.YT={Player:function(host,opts){const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+opts.videoId;host.appendChild(iframe);if(opts.events&&opts.events.onReady)opts.events.onReady({target:{playVideo:function(){}}});}};window.onYouTubeIframeAPIReady();`;
+
 test.describe('JARVIS media smoke contract', () => {
   test('shell boots with one media authority and no canned results', async ({ page }) => {
     await page.goto('/');
@@ -30,6 +32,9 @@ test.describe('JARVIS media smoke contract', () => {
         ] })
       });
     });
+    await page.route('https://www.youtube.com/iframe_api', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK_YT_API });
+    });
     await page.addInitScript(() => { (window as any).JARVIS_YOUTUBE_API_KEY = 'ci-test-key'; });
 
     await page.goto('/');
@@ -42,23 +47,19 @@ test.describe('JARVIS media smoke contract', () => {
     await expect(page.locator('.jvc-card').first()).toContainText('Live Cats Result');
     await expect(page.locator('.jvc-card')).not.toContainText(/fixture|fake|demo/i);
 
-    await page.route('https://www.youtube.com/iframe_api', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/javascript', body: 'window.onYouTubeIframeAPIReady();' });
-    });
     await page.locator('.jvc-card').first().click();
-    await expect(page.locator('#jarvisPlayer')).toContainText('VIDEO UNAVAILABLE', { timeout: 1000 }).or(expect(page.locator('#jarvisPlayer iframe')).toBeVisible({ timeout: 10000 }));
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/liveCats01/);
   });
 
   test('direct YouTube URL goes straight to the player without normalization', async ({ page }) => {
     await page.route('https://www.youtube.com/iframe_api', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/javascript', body: 'window.onYouTubeIframeAPIReady();' });
+      await route.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK_YT_API });
     });
     await page.addInitScript(() => { (window as any).JARVIS_YOUTUBE_API_KEY = 'ci-test-key'; });
     await page.goto('/');
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('https://youtube.com/shorts/JbgYndCSv3k?si=ci');
     await page.locator('#videoSearch').click();
-    await expect(page.locator('#jarvisPlayer')).toBeVisible();
-    await expect(page.locator('#jarvis-youtube-player')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\/JbgYndCSv3k/);
   });
 });
