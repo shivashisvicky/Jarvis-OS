@@ -34,6 +34,13 @@ jobs:
         run: pnpm run build
       - name: Verify generated YouTube configuration
         run: test -s dist/jarvis-youtube-config.js
+      - name: Verify media entrypoint exists in deploy artifact
+        run: |
+          test -f dist/index.html
+          grep -q 'data-app="media"' dist/index.html
+          grep -q 'videoQuery' dist/index.html
+          grep -q 'jarvisPlayer' dist/index.html
+          echo 'DEPLOY_ARTIFACT_MEDIA_ENTRYPOINT=1'
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -72,7 +79,24 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed HTML contains current media entrypoint
+        run: |
+          curl --fail --retry 5 --retry-delay 3 -L 'https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}' -o /tmp/deployed-index.html
+          grep -q 'data-app="media"' /tmp/deployed-index.html
+          grep -q 'videoQuery' /tmp/deployed-index.html
+          echo 'DEPLOYED_HTML_MEDIA_ENTRYPOINT=1'
       - name: Verify deployed media search
         env:
           JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
         run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
+      - name: Upload deployed media evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-media-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/deployed-index.html
+          if-no-files-found: ignore
+          retention-days: 14
