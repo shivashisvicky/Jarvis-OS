@@ -10,6 +10,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: jarvis-pages-main
+  cancel-in-progress: true
+
 env:
   PNPM_VERSION: 10.15.0
 
