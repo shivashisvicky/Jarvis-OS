@@ -33,10 +33,36 @@ def youtube_id(value: str):
     return None
 
 
-def fetch_json(url: str):
-    request = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=8) as response:
-        return json.loads(response.read().decode("utf-8", errors="replace"))
+def fetch_text(url: str, headers=None, timeout=8):
+    request_headers = {"User-Agent": UA}
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(url, headers=request_headers)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def fetch_json(url: str, headers=None, timeout=8):
+    return json.loads(fetch_text(url, headers={"Accept": "application/json", **(headers or {})}, timeout=timeout))
+
+
+def search_decapi(query: str):
+    url = "https://decapi.me/youtube/videoid?" + urllib.parse.urlencode({"search": query})
+    value = fetch_text(url, headers={"User-Agent": "curl/7.81.0"}, timeout=6).strip()
+    if VIDEO_ID_RE.fullmatch(value):
+        return value, query
+    raise RuntimeError(f"DecAPI returned invalid ID: {value[:120]!r}")
+
+
+def search_youtube_direct(query: str):
+    url = "https://www.youtube.com/results?" + urllib.parse.urlencode({"search_query": query})
+    page = fetch_text(url, headers={"User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"}, timeout=8)
+    matches = re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', page)
+    if not matches:
+        matches = re.findall(r'/watch\?v=([A-Za-z0-9_-]{11})', page)
+    if matches:
+        return matches[0], query
+    raise RuntimeError("YouTube HTML contained no videoId")
 
 
 def search_piped(query: str):
@@ -47,25 +73,25 @@ def search_piped(query: str):
         "https://pipedapi.leptons.xyz",
     ]
     encoded = urllib.parse.quote(query)
+    errors = []
     for instance in instances:
         try:
-            data = fetch_json(f"{instance}/search?q={encoded}&filter=videos")
+            data = fetch_json(f"{instance}/search?q={encoded}&filter=videos", timeout=6)
             for item in data.get("items", []):
                 raw = item.get("url", "")
                 match = re.search(r"(?:v=|watch/)([A-Za-z0-9_-]{11})", raw)
                 if match:
                     return match.group(1), item.get("title") or query
-        except Exception:
-            continue
-    return None
+            errors.append(f"{instance}: empty result")
+        except Exception as exc:
+            errors.append(f"{instance}: {exc}")
+    raise RuntimeError("Piped: " + " | ".join(errors))
 
 
 def search_invidious_registry(query: str):
+    registry = fetch_json("https://api.invidious.io/instances.json?sort_by=health", timeout=8)
     encoded = urllib.parse.quote(query)
-    try:
-        registry = fetch_json("https://api.invidious.io/instances.json?sort_by=health")
-    except Exception:
-        return None
+    errors = []
     for item in registry:
         if not isinstance(item, list) or len(item) < 2 or not isinstance(item[1], dict):
             continue
@@ -74,36 +100,33 @@ def search_invidious_registry(query: str):
             continue
         instance = "https://" + item[0]
         try:
-            data = fetch_json(f"{instance}/api/v1/search?q={encoded}&type=video&page=1")
+            data = fetch_json(f"{instance}/api/v1/search?q={encoded}&type=video&page=1", timeout=5)
             items = data if isinstance(data, list) else data.get("items", [])
             for result in items:
                 vid = result.get("videoId")
                 if VIDEO_ID_RE.fullmatch(vid or ""):
                     return vid, result.get("title") or query
-        except Exception:
-            continue
-    return None
+            errors.append(f"{instance}: empty result")
+        except Exception as exc:
+            errors.append(f"{instance}: {exc}")
+    raise RuntimeError("Invidious: " + " | ".join(errors[:12]))
 
 
 def search_duckduckgo(query: str):
     q = f"site:youtube.com/watch {query}"
     url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": q})
-    request = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
-    with urllib.request.urlopen(request, timeout=12) as response:
-        page = html.unescape(urllib.parse.unquote(response.read().decode("utf-8", errors="replace")))
+    page = html.unescape(urllib.parse.unquote(fetch_text(url, timeout=12)))
     candidates = []
-    patterns = [
+    for pattern in (
         r"(?:https?://)?(?:www\.)?youtube\.com/(?:watch\?v=|shorts/)([A-Za-z0-9_-]{11})",
         r"https?://youtu\.be/([A-Za-z0-9_-]{11})",
-    ]
-    for pattern in patterns:
+        r"(?:v=|v%3D)([A-Za-z0-9_-]{11})",
+    ):
         candidates.extend(re.findall(pattern, page))
-    seen = set()
     for candidate in candidates:
-        if candidate not in seen and VIDEO_ID_RE.fullmatch(candidate):
-            seen.add(candidate)
+        if VIDEO_ID_RE.fullmatch(candidate):
             return candidate, query
-    return None
+    raise RuntimeError("DuckDuckGo returned no YouTube video ID")
 
 
 def search_video(query: str) -> dict:
@@ -113,36 +136,32 @@ def search_video(query: str) -> dict:
 
     direct = youtube_id(query)
     if direct:
-        return {
-            "id": direct,
-            "title": "YouTube video",
-            "webpageUrl": f"https://www.youtube.com/watch?v={direct}",
-            "embedUrl": f"https://www.youtube-nocookie.com/embed/{direct}",
-            "provider": "youtube",
-        }
+        return {"id": direct, "title": "YouTube video", "webpageUrl": f"https://www.youtube.com/watch?v={direct}", "embedUrl": f"https://www.youtube-nocookie.com/embed/{direct}", "provider": "youtube"}
 
-    providers = (search_piped, search_invidious_registry, search_duckduckgo)
+    providers = [
+        ("DecAPI", search_decapi),
+        ("YouTube Direct", search_youtube_direct),
+        ("Piped", search_piped),
+        ("Invidious", search_invidious_registry),
+        ("DuckDuckGo", search_duckduckgo),
+    ]
     errors = []
-    for provider in providers:
+    for name, provider in providers:
         try:
             result = provider(query)
             if result:
                 video_id, title = result
-                return {
-                    "id": video_id,
-                    "title": title,
-                    "webpageUrl": f"https://www.youtube.com/watch?v={video_id}",
-                    "embedUrl": f"https://www.youtube-nocookie.com/embed/{video_id}",
-                    "provider": "youtube",
-                }
+                if VIDEO_ID_RE.fullmatch(video_id):
+                    return {"id": video_id, "title": title or query, "webpageUrl": f"https://www.youtube.com/watch?v={video_id}", "embedUrl": f"https://www.youtube-nocookie.com/embed/{video_id}", "provider": "youtube"}
+            errors.append(f"{name}: returned no valid video ID")
         except Exception as exc:
-            errors.append(f"{provider.__name__}: {exc}")
+            errors.append(f"{name}: {exc}")
 
-    raise RuntimeError("All live video search providers failed: " + " | ".join(errors))
+    raise RuntimeError("All live video search providers failed:\n  - " + "\n  - ".join(errors))
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisVideoDemo/9.0"
+    server_version = "JarvisVideoDemo/10.0"
 
     def log_message(self, fmt, *args):
         sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
@@ -161,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 9})
+            self.send_json(200, {"ok": True, "service": "jarvis-video-demo", "version": 10})
             return
         if parsed.path == "/api/search":
             query = urllib.parse.parse_qs(parsed.query).get("q", [""])[0]
