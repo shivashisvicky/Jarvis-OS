@@ -15,6 +15,18 @@
   const clear = el => { while (el?.firstChild) el.removeChild(el.firstChild); };
   const status = text => { const el = dom().state; if (el) el.textContent = text; };
 
+  function extractYouTubeId(value) {
+    try {
+      const url = new URL(value);
+      if (!/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(url.hostname)) return '';
+      if (url.hostname === 'youtu.be') return url.pathname.slice(1).split('/')[0];
+      if (url.pathname === '/watch') return url.searchParams.get('v') || '';
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'shorts' || parts[0] === 'embed' || parts[0] === 'v') return parts[1] || '';
+    } catch {}
+    return '';
+  }
+
   function loadYouTubeAPI() {
     if (ytReady && window.YT) return Promise.resolve();
     if (ytLoadPromise) return ytLoadPromise;
@@ -63,6 +75,8 @@
     query = String(query || '').trim();
     const d = dom();
     if (!query || !d.results) return;
+    const directId = extractYouTubeId(query);
+    if (directId) { await play(directId); return; }
     clear(d.results);
     status('SEARCHING YOUTUBE · ' + query.toUpperCase());
     const apiKey = String(window.JARVIS_YOUTUBE_API_KEY || '').trim();
