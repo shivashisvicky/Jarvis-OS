@@ -7,8 +7,8 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="J.A.R.V.I.S. personal intelligence workspace">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260820-11">
-  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260820-11">
+  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260820-12">
+  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260820-12">
   <title>J.A.R.V.I.S. OS</title>
 </head>
 <body>
@@ -22,10 +22,10 @@
       <div id="jarvisPlayer"></div>
     </main>
   </div>
-  <script src="./jarvis-youtube-config.js?v=20260820-4"></script>
-  <script src="./jarvis-performance.js?v=20260820-1"></script>
-  <script src="./jarvis-video-provider.js?v=20260820-3"></script>
-  <script type="module" src="./src/main.ts?v=20260820-media-v24"></script>
+  <script src="./jarvis-youtube-config.js?v=20260820-5"></script>
+  <script src="./jarvis-performance.js?v=20260820-2"></script>
+  <script src="./jarvis-video-provider.js?v=20260820-4"></script>
+  <script type="module" src="./src/main.ts?v=20260820-media-v25"></script>
   <script>
     (() => {
       const app = document.getElementById('app');
@@ -43,9 +43,6 @@
       window.setTimeout(activateFallback, 1000);
       window.setTimeout(activateFallback, 5000);
 
-      // The SPA recreates Media controls during navigation. Keep the provider's
-      // search action authoritative at the document capture boundary so the
-      // shell's generic button handlers cannot swallow direct YouTube URLs.
       document.addEventListener('click', event => {
         const target = event.target;
         const button = target instanceof Element ? target.closest('#videoSearch') : null;
