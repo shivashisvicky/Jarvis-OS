@@ -29,5 +29,42 @@
   <script async src="./jarvis-direct-url-runtime.js?v=20260820-5"></script>
   <script async src="./jarvis-hud-runtime.js?v=20260820-4"></script>
   <script async src="./jarvis-os-3-news-authority.js?v=20260820-4"></script>
+  <script>
+    (() => {
+      const idOf = value => {
+        try {
+          const u = new URL(String(value).trim());
+          const h = u.hostname.replace(/^www\./, '').toLowerCase();
+          if (h === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || null;
+          if (h === 'youtube.com' || h === 'm.youtube.com') {
+            if (u.pathname === '/watch') return u.searchParams.get('v');
+            const p = u.pathname.split('/').filter(Boolean);
+            if (['shorts','live','embed'].includes(p[0])) return p[1] || null;
+          }
+        } catch {}
+        return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim()) ? String(value).trim() : null;
+      };
+      document.addEventListener('click', event => {
+        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
+        if (!button) return;
+        const input = document.querySelector('#videoQuery');
+        const id = input ? idOf(input.value) : null;
+        if (!id) return;
+        const player = document.querySelector('#jarvisPlayer');
+        if (!player) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        player.dataset.videoId = id;
+        const frame = document.createElement('iframe');
+        frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;
+        frame.title = 'JARVIS YouTube player';
+        frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = 'strict-origin-when-cross-origin';
+        player.replaceChildren(frame);
+        window.dispatchEvent(new CustomEvent('jarvis:media-direct-play', { detail: { id, src: frame.src } }));
+      }, true);
+    })();
+  </script>
 </body>
 </html>
