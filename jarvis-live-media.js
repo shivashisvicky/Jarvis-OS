@@ -1,119 +1,23 @@
 (() => {
   const CONFIG = './jarvis-youtube-config.js';
   let configPromise = null;
+  let pendingVoiceQuery = '';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[ch]));
-
-  function loadConfig() {
-    if (window.JARVIS_YOUTUBE_API_KEY) return Promise.resolve(window.JARVIS_YOUTUBE_API_KEY);
-    if (configPromise) return configPromise;
-    configPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `${CONFIG}?v=20260820-live-media`;
-      script.onload = () => window.JARVIS_YOUTUBE_API_KEY ? resolve(window.JARVIS_YOUTUBE_API_KEY) : reject(new Error('YouTube API key unavailable'));
-      script.onerror = () => reject(new Error('YouTube configuration unavailable'));
-      document.head.appendChild(script);
-    });
-    return configPromise;
+  function loadConfig() { if (window.JARVIS_YOUTUBE_API_KEY) return Promise.resolve(window.JARVIS_YOUTUBE_API_KEY); if (configPromise) return configPromise; configPromise = new Promise((resolve, reject) => { const script=document.createElement('script'); script.src=`${CONFIG}?v=20260820-live-media`; script.onload=()=>window.JARVIS_YOUTUBE_API_KEY?resolve(window.JARVIS_YOUTUBE_API_KEY):reject(new Error('YouTube API key unavailable')); script.onerror=()=>reject(new Error('YouTube configuration unavailable')); document.head.appendChild(script); }); return configPromise; }
+  function videoId(raw) { try { const url=new URL(raw); const host=url.hostname.replace(/^www\./,'').toLowerCase(); if(host==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||null; if(host==='youtube.com'||host==='m.youtube.com'){if(url.pathname==='/watch')return url.searchParams.get('v');const parts=url.pathname.split('/').filter(Boolean);if(['shorts','live','embed'].includes(parts[0]))return parts[1]||null;} } catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null; }
+  function player(id) { const host=document.querySelector('#jarvisPlayer'); if(!host)return; host.dataset.videoId=id; const frame=document.createElement('iframe'); frame.title='JARVIS YouTube player'; frame.referrerPolicy='strict-origin-when-cross-origin'; frame.loading='lazy'; frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen=true; frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`; host.replaceChildren(frame); }
+  function installCardStyles() { if(document.querySelector('#jarvis-live-media-style'))return; const style=document.createElement('style'); style.id='jarvis-live-media-style'; style.textContent=`#videoResults{display:grid;gap:10px;align-content:start}#videoResults .jvc-card{display:grid;grid-template-columns:132px 1fr;gap:12px;width:100%;padding:10px;border:1px solid #214454;border-radius:10px;background:rgba(5,18,26,.9);color:#d9f5ff;text-align:left;cursor:pointer}#videoResults .jvc-card:hover{border-color:#55d8ff}#videoResults .jvc-card img{width:132px;height:74px;object-fit:cover;border-radius:6px}#videoResults .jvc-card strong{display:block;font-size:14px;line-height:1.35;margin-bottom:6px}#videoResults .jvc-card small{display:block;color:#7898a5;line-height:1.3}#videoResults .jvc-card .play{margin-top:8px;padding:5px 10px;border:1px solid #55d8ff;border-radius:5px;background:#55d8ff;color:#031018;font-size:11px;font-weight:800;letter-spacing:.08em}`; document.head.appendChild(style); }
+  async function search(query) { const state=document.querySelector('#mediaState'); const results=document.querySelector('#videoResults'); if(!state||!results)return; const clean=String(query||'').trim(); if(!clean)return; state.textContent='LIVE SEARCH'; results.innerHTML='<div class="empty">Searching YouTube…</div>'; try { const key=await loadConfig(); const url=new URL('https://www.googleapis.com/youtube/v3/search'); url.searchParams.set('part','snippet'); url.searchParams.set('type','video'); url.searchParams.set('maxResults','8'); url.searchParams.set('q',clean); url.searchParams.set('key',key); const response=await fetch(url); if(!response.ok)throw new Error(`YouTube API ${response.status}`); const data=await response.json(); const items=Array.isArray(data.items)?data.items.filter(item=>item?.id?.videoId):[]; if(items.length<1)throw new Error('No live results'); installCardStyles(); results.innerHTML=items.map(item=>{const id=item.id.videoId;const snippet=item.snippet||{};const thumb=snippet.thumbnails?.medium?.url||snippet.thumbnails?.default?.url||'';return `<button type="button" class="jvc-card" data-jvc-id="${esc(id)}"><img loading="lazy" src="${esc(thumb)}" alt=""><span><strong>${esc(snippet.title||'YouTube video')}</strong><small>${esc(snippet.channelTitle||'YouTube')}</small><span class="play">PLAY</span></span></button>`}).join(''); state.textContent=`${items.length} LIVE RESULTS`; } catch(error) { state.textContent='DEGRADED'; results.innerHTML=`<div class="empty">Live YouTube search unavailable. ${esc(error instanceof Error?error.message:'Try again.')}</div>`; } }
+  function isDirectUrl(value){return Boolean(videoId(value));}
+  function install(){ if(window.__JARVIS_LIVE_MEDIA__)return; window.__JARVIS_LIVE_MEDIA__=true;
+    window.addEventListener('jarvis:media', event=>{ const query=String(event.detail?.query??'').trim(); pendingVoiceQuery=query; const input=document.querySelector('#videoQuery'); if(input&&query){input.value=query;void search(query);} });
+    document.addEventListener('click',event=>{const button=event.target?.closest?.('#videoSearch');if(!button)return;const input=document.querySelector('#videoQuery');const query=input?.value?.trim()||'';if(!query||isDirectUrl(query))return;event.preventDefault();event.stopImmediatePropagation();void search(query);},true);
+    document.addEventListener('keydown',event=>{if(event.key!=='Enter'||!event.target?.matches?.('#videoQuery'))return;const query=event.target.value.trim();if(!query||isDirectUrl(query))return;event.preventDefault();event.stopImmediatePropagation();void search(query);},true);
+    document.addEventListener('click',event=>{const card=event.target?.closest?.('[data-jvc-id]');if(card)player(card.getAttribute('data-jvc-id'));});
+    const runPending=()=>{if(!pendingVoiceQuery)return;const input=document.querySelector('#videoQuery');if(input){input.value=pendingVoiceQuery;const q=pendingVoiceQuery;pendingVoiceQuery='';void search(q);}};
+    runPending();
+    new MutationObserver(runPending).observe(document.documentElement,{childList:true,subtree:true});
   }
-
-  function videoId(raw) {
-    try {
-      const url = new URL(raw);
-      const host = url.hostname.replace(/^www\./, '').toLowerCase();
-      if (host === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] || null;
-      if (host === 'youtube.com' || host === 'm.youtube.com') {
-        if (url.pathname === '/watch') return url.searchParams.get('v');
-        const parts = url.pathname.split('/').filter(Boolean);
-        if (['shorts', 'live', 'embed'].includes(parts[0])) return parts[1] || null;
-      }
-    } catch {}
-    return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim()) ? String(raw).trim() : null;
-  }
-
-  function player(id) {
-    const host = document.querySelector('#jarvisPlayer');
-    if (!host) return;
-    host.dataset.videoId = id;
-    const frame = document.createElement('iframe');
-    frame.title = 'JARVIS YouTube player';
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    frame.loading = 'lazy';
-    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    frame.allowFullscreen = true;
-    frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;
-    host.replaceChildren(frame);
-  }
-
-  function installCardStyles() {
-    if (document.querySelector('#jarvis-live-media-style')) return;
-    const style = document.createElement('style');
-    style.id = 'jarvis-live-media-style';
-    style.textContent = `#videoResults{display:grid;gap:10px;align-content:start}#videoResults .jvc-card{display:grid;grid-template-columns:132px 1fr;gap:12px;width:100%;padding:10px;border:1px solid #214454;border-radius:10px;background:rgba(5,18,26,.9);color:#d9f5ff;text-align:left;cursor:pointer}#videoResults .jvc-card:hover{border-color:#55d8ff}#videoResults .jvc-card img{width:132px;height:74px;object-fit:cover;border-radius:6px}#videoResults .jvc-card strong{display:block;font-size:14px;line-height:1.35;margin-bottom:6px}#videoResults .jvc-card small{display:block;color:#7898a5;line-height:1.3}#videoResults .jvc-card .play{margin-top:8px;padding:5px 10px;border:1px solid #55d8ff;border-radius:5px;background:#55d8ff;color:#031018;font-size:11px;font-weight:800;letter-spacing:.08em}`;
-    document.head.appendChild(style);
-  }
-
-  async function search(query) {
-    const state = document.querySelector('#mediaState');
-    const results = document.querySelector('#videoResults');
-    if (!state || !results) return;
-    state.textContent = 'LIVE SEARCH';
-    results.innerHTML = '<div class="empty">Searching YouTube…</div>';
-    try {
-      const key = await loadConfig();
-      const url = new URL('https://www.googleapis.com/youtube/v3/search');
-      url.searchParams.set('part', 'snippet');
-      url.searchParams.set('type', 'video');
-      url.searchParams.set('maxResults', '8');
-      url.searchParams.set('q', query);
-      url.searchParams.set('key', key);
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`YouTube API ${response.status}`);
-      const data = await response.json();
-      const items = Array.isArray(data.items) ? data.items.filter(item => item?.id?.videoId) : [];
-      if (items.length < 4) throw new Error('Insufficient live results');
-      installCardStyles();
-      results.innerHTML = items.map(item => {
-        const id = item.id.videoId;
-        const snippet = item.snippet || {};
-        const thumb = snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '';
-        return `<button type="button" class="jvc-card" data-jvc-id="${esc(id)}"><img loading="lazy" src="${esc(thumb)}" alt=""><span><strong>${esc(snippet.title || 'YouTube video')}</strong><small>${esc(snippet.channelTitle || 'YouTube')}</small><span class="play">PLAY</span></span></button>`;
-      }).join('');
-      state.textContent = `${items.length} LIVE RESULTS`;
-    } catch (error) {
-      state.textContent = 'DEGRADED';
-      results.innerHTML = `<div class="empty">Live YouTube search unavailable. ${esc(error instanceof Error ? error.message : 'Try again.')}</div>`;
-    }
-  }
-
-  function isDirectUrl(value) { return Boolean(videoId(value)); }
-
-  function install() {
-    if (window.__JARVIS_LIVE_MEDIA__) return;
-    window.__JARVIS_LIVE_MEDIA__ = true;
-    document.addEventListener('click', event => {
-      const button = event.target?.closest?.('#videoSearch');
-      if (!button) return;
-      const input = document.querySelector('#videoQuery');
-      const query = input?.value?.trim() || '';
-      if (!query || isDirectUrl(query)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void search(query);
-    }, true);
-    document.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' || !event.target?.matches?.('#videoQuery')) return;
-      const query = event.target.value.trim();
-      if (!query || isDirectUrl(query)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void search(query);
-    }, true);
-    document.addEventListener('click', event => {
-      const card = event.target?.closest?.('[data-jvc-id]');
-      if (card) player(card.getAttribute('data-jvc-id'));
-    });
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
-  else install();
+  window.addEventListener('jarvis:media',event=>{pendingVoiceQuery=String(event.detail?.query??'').trim();});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
