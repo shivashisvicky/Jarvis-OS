@@ -1,0 +1,52 @@
+name: Deploy JARVIS Intelligence Gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/intelligence/**'
+      - '.github/workflows/deploy-intelligence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Cloudflare Intelligence Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OPENAI_API_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "MISSING_SECRET=$name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo 'Configure the three GitHub Actions secrets before deploying the gateway.'
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Worker
+        run: node --check workers/intelligence/src/index.js
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/intelligence
+      - name: Publish endpoint
+        run: |
+          echo 'Worker deployed. Configure JARVIS_INTELLIGENCE_ENDPOINT in GitHub Actions with the Worker URL.'
