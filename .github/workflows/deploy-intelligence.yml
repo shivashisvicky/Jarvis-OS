@@ -46,6 +46,22 @@ jobs:
       - name: Validate Worker
         if: steps.config.outputs.configured == 'true'
         run: node --check workers/intelligence/src/index.js
+      - name: Inject deployment bindings
+        if: steps.config.outputs.configured == 'true'
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path('wrangler.toml')
+          text = p.read_text()
+          token = '__CLOUDFLARE_ACCOUNT_ID__'
+          account = os.environ['CLOUDFLARE_ACCOUNT_ID'].strip()
+          if token not in text:
+              raise SystemExit('Cloudflare account placeholder not found in wrangler.toml')
+          p.write_text(text.replace(token, account, 1))
+          PY
       - name: Deploy Worker
         if: steps.config.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
