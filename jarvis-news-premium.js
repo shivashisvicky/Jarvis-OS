@@ -10,9 +10,9 @@
     if (hours < 24) return `${hours}H AGO`;
     return `${Math.round(hours / 24)}D AGO`;
   };
-  let scheduled = false;
+  let frame = 0;
   const enhance = () => {
-    scheduled = false;
+    frame = 0;
     const host = document.querySelector('#newsCards');
     if (!host) return;
     host.classList.add('jarvis-news-grid');
@@ -26,21 +26,27 @@
       const parts = raw.split(' · ');
       const source = parts[0] || 'LIVE NEWS';
       const date = parts.slice(1).join(' · ');
-      meta.innerHTML = `<span class="${SOURCE_CLASS}">${source}</span><span class="jarvis-news-time">${relTime(date)}</span>`;
+      meta.replaceChildren();
+      const sourceEl = document.createElement('span');
+      sourceEl.className = SOURCE_CLASS;
+      sourceEl.textContent = source;
+      const timeEl = document.createElement('span');
+      timeEl.className = 'jarvis-news-time';
+      timeEl.textContent = relTime(date);
+      meta.append(sourceEl, timeEl);
       meta.dataset.premiumDone = '1';
       link.setAttribute('aria-label', `${title.textContent || 'News story'} from ${source}`);
     });
   };
   const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(enhance);
+    if (frame) return;
+    frame = requestAnimationFrame(enhance);
   };
+  window.addEventListener('jarvis:news-updated', schedule);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once: true });
+  else schedule();
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = './jarvis-news-premium.css?v=20260821-2';
+  style.href = './jarvis-news-premium.css?v=20260821-3';
   document.head.appendChild(style);
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  schedule();
 })();
