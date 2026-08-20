@@ -57,10 +57,14 @@ jobs:
           test -f dist/index.html
           test -s dist/jarvis-voice-bridge.js
           test -s dist/jarvis-performance.js
+          test -s dist/jarvis-media-layout.css
+          test -s dist/jarvis-video-search-v3.css
           grep -q 'jarvis-voice-bridge.js' dist/index.html
-          grep -R -q 'data-app="media"' dist/assets dist/index.html
-          grep -R -q 'videoQuery' dist/assets dist/index.html
-          grep -R -q 'jarvisPlayer' dist/assets dist/index.html
+          grep -q 'jarvis-performance.js' dist/index.html
+          ! grep -q 'jarvis-web-shell.js' dist/index.html
+          ! grep -q 'jarvis-media-v14.js' dist/index.html
+          ! grep -q 'jarvis-shell-search.css' dist/index.html
+          ! grep -q 'jarvis-video-provider.js' dist/index.html
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
