@@ -1,18 +1,15 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_VOICE_BRIDGE_V3__) return;
-  window.__JARVIS_VOICE_BRIDGE_V3__ = true;
-  const synth = window.speechSynthesis;
-  if (!synth) return;
+  if (window.__JARVIS_VOICE_BRIDGE_V4__) return;
+  window.__JARVIS_VOICE_BRIDGE_V4__ = true;
+
+  const synth = window.speechSynthesis || null;
   let voices = [];
   let primed = false;
   let lastText = '';
   let lastAt = 0;
-  const originalSpeak = synth.speak.bind(synth);
-  const originalCancel = synth.cancel.bind(synth);
-  const refresh = () => { voices = synth.getVoices(); };
-  refresh();
-  if ('onvoiceschanged' in synth) synth.addEventListener('voiceschanged', refresh);
+
+  const refresh = () => { try { voices = synth ? synth.getVoices() : []; } catch { voices = []; } };
   const pick = () => {
     refresh();
     const preferred = ['Arthur','Daniel','George','Oliver','James','Alex','Fred','Thomas'];
@@ -23,7 +20,8 @@
       || voices.find(v => /^en-US/i.test(v.lang) && /male|alex|enhanced|premium|natural/i.test(v.name))
       || voices[0] || null;
   };
-  const cinematicize = u => {
+
+  function cinematicize(u) {
     const v = pick();
     u.rate = .86;
     u.pitch = .43;
@@ -31,50 +29,57 @@
     if (v) { u.voice = v; u.lang = v.lang; }
     else u.lang = 'en-GB';
     return u;
-  };
+  }
+
   function prime() {
-    if (primed) return;
+    if (primed || !synth || !window.SpeechSynthesisUtterance) return;
     primed = true;
     try {
       const u = new SpeechSynthesisUtterance('');
       u.volume = 0;
-      originalSpeak(u);
-      originalCancel();
+      synth.speak(u);
+      synth.cancel();
     } catch {}
   }
+
   function speak(text) {
     const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return;
+    if (!clean || !synth || !window.SpeechSynthesisUtterance) return;
     const now = Date.now();
     if (clean === lastText && now - lastAt < 900) return;
     lastText = clean; lastAt = now;
     refresh();
-    try { originalCancel(); } catch {}
-    try { originalSpeak(cinematicize(new SpeechSynthesisUtterance(clean))); } catch {}
+    try { synth.cancel(); } catch {}
+    try { synth.speak(cinematicize(new SpeechSynthesisUtterance(clean))); } catch {}
   }
-  // Main JARVIS already calls speechSynthesis.speak(). Make that path reliable too.
-  try {
-    synth.speak = utterance => originalSpeak(cinematicize(utterance));
-  } catch {}
+
+  // These globals must exist even in headless browsers where speech synthesis is absent.
   window.jarvisCinematicSpeak = speak;
   window.jarvisPrimeVoice = prime;
-  document.addEventListener('pointerdown', prime, {capture:true, passive:true});
-  document.addEventListener('touchstart', prime, {capture:true, passive:true});
-  document.addEventListener('click', e => {
-    const t = e.target instanceof Element ? e.target.closest('#voiceBtn,#heroVoice,#testVoice') : null;
-    if (t) prime();
-  }, true);
+
+  if (synth) {
+    refresh();
+    if ('onvoiceschanged' in synth) synth.addEventListener('voiceschanged', refresh);
+    document.addEventListener('pointerdown', prime, {capture:true, passive:true});
+    document.addEventListener('touchstart', prime, {capture:true, passive:true});
+    document.addEventListener('click', e => {
+      const t = e.target instanceof Element ? e.target.closest('#voiceBtn,#heroVoice,#testVoice') : null;
+      if (t) prime();
+    }, true);
+  }
 
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
   const isTime = q => /\btime\b/i.test(q) && /\b(what|tell|give|current|now|is it)\b/i.test(q) || /\bwhat(?:'s| is)\s+the\s+time\b/i.test(q);
   const isWeather = q => /\b(weather|temperature|forecast|rain|raining|hot|cold)\b/i.test(q) && /\b(around me|near me|here|my location|where i am|current location)\b/i.test(q);
   const isPm = q => /\b(prime minister|pm)\b/i.test(q) && /\b(india|indian)\b/i.test(q);
+
   function reply(text) {
     const box = $('#jarvisReply');
     if (box) { box.innerHTML = `<strong>JARVIS</strong><span>${esc(text)}</span>`; box.classList.add('visible'); }
     speak(text);
   }
+
   async function weatherHere() {
     if (!navigator.geolocation) throw Error('Location access is unavailable.');
     const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:false, timeout:10000, maximumAge:300000}));
@@ -86,6 +91,7 @@
     const desc = code === 0 ? 'clear skies' : code <= 3 ? 'partly cloudy skies' : code <= 48 ? 'misty conditions' : code <= 67 ? 'rain' : code <= 77 ? 'snow' : code <= 82 ? 'showers' : 'thunderstorms';
     reply(`It is ${Math.round(c.temperature_2m)} degrees Celsius, feels like ${Math.round(c.apparent_temperature)}, with ${desc}. Humidity is ${Math.round(c.relative_humidity_2m)} percent and wind is ${Math.round(c.wind_speed_10m)} kilometres per hour.`);
   }
+
   async function homeCommand(raw) {
     const q = String(raw || '').trim();
     if (!q) return false;
@@ -101,6 +107,7 @@
     }
     return false;
   }
+
   function bindHome() {
     const form = $('#commandForm');
     const input = $('#commandInput');
@@ -109,16 +116,19 @@
     form.addEventListener('submit', async e => {
       const q = input.value.trim();
       if (!(isTime(q) || isPm(q) || isWeather(q))) return;
-      e.preventDefault(); e.stopImmediatePropagation();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       await homeCommand(q);
     }, true);
   }
+
   window.addEventListener('jarvis:voice-command', async e => {
     const q = String(e.detail?.text || '').trim();
     if (!(isTime(q) || isPm(q) || isWeather(q))) return;
     e.preventDefault();
     await homeCommand(q);
   }, true);
+
   new MutationObserver(bindHome).observe(document.documentElement, {childList:true, subtree:true});
   bindHome();
 })();
