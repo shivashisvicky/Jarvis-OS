@@ -53,7 +53,17 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/intelligence
-      - name: Publish endpoint
+      - name: Configure OpenAI Worker secret
         if: steps.config.outputs.configured == 'true'
+        working-directory: workers/intelligence
         run: |
-          echo 'Worker deployed. Configure JARVIS_INTELLIGENCE_ENDPOINT in GitHub Actions with the Worker URL.'
+          set -euo pipefail
+          printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
+      - name: Verify Worker endpoint
+        if: steps.config.outputs.configured == 'true'
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          npx wrangler deployments list --json | head -c 2000 || true
+          echo
+          echo 'Worker deployment completed. The public endpoint is https://jarvis-intelligence.${CLOUDFLARE_ACCOUNT_ID}.workers.dev only if that account has the corresponding workers.dev subdomain; use the Wrangler deployment URL from this job as the source of truth.'
