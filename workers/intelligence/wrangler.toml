@@ -3,5 +3,5 @@ main = "src/index.js"
 compatibility_date = "2026-08-20"
 
 [vars]
-CLOUDFLARE_ACCOUNT_ID = "${CLOUDFLARE_ACCOUNT_ID}"
+CLOUDFLARE_ACCOUNT_ID = "__CLOUDFLARE_ACCOUNT_ID__"
 CLOUDFLARE_AI_GATEWAY_ID = "default"
