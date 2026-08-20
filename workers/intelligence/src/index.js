@@ -6,6 +6,7 @@ const ALLOWED_ORIGINS = new Set([
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
+const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
 
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
@@ -27,22 +28,28 @@ function json(data, status, origin) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
-    if (request.method === 'GET') {
+    if (request.method === 'GET' && url.pathname === '/') {
       return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', model: GEMINI_MODEL }, 200, origin);
     }
 
-    if (request.method !== 'POST') return json({ error: 'GET, POST or OPTIONS required' }, 405, origin);
+    if (!INTELLIGENCE_PATHS.has(url.pathname)) {
+      return json({ error: 'Not found' }, 404, origin);
+    }
+
+    if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
 
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
+
     const query = String(body?.query || '').trim();
     if (!query) return json({ error: 'query is required' }, 400, origin);
     if (query.length > 4000) return json({ error: 'query is too long' }, 413, origin);
