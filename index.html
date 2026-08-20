@@ -14,68 +14,6 @@
 </head>
 <body>
   <div id="app"></div>
-  <script defer src="./jarvis-youtube-config.js?v=20260820-12"></script>
-  <script defer src="./jarvis-voice-bridge.js?v=20260820-9"></script>
-  <script defer src="./jarvis-performance.js?v=20260820-8"></script>
-  <script type="module" src="./src/main.ts?v=20260820-command-v11"></script>
-  <script defer src="./jarvis-web-search-runtime.js?v=20260820-9"></script>
-  <script defer src="./jarvis-command-runtime.js?v=20260820-6"></script>
-  <script defer src="./jarvis-os-3-command-authority.js?v=20260820-4"></script>
-  <script defer src="./jarvis-os-3-map-intent.js?v=20260820-4"></script>
-  <script defer src="./jarvis-os-3-news-runtime.js?v=20260820-4"></script>
-  <script defer src="./jarvis-media-hotfix.js?v=20260820-9"></script>
-  <script defer src="./jarvis-os-3-media-ui.js?v=20260820-5"></script>
-  <script defer src="./jarvis-os-3-media-authority.js?v=20260820-3"></script>
-  <script defer src="./jarvis-direct-url-runtime.js?v=20260820-6"></script>
-  <script defer src="./jarvis-hud-runtime.js?v=20260820-5"></script>
-  <script defer src="./jarvis-os-3-news-authority.js?v=20260820-5"></script>
-  <script>
-    (() => {
-      const idOf = value => {
-        try {
-          const u = new URL(String(value).trim());
-          const h = u.hostname.replace(/^www\./, '').toLowerCase();
-          if (h === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || null;
-          if (h === 'youtube.com' || h === 'm.youtube.com') {
-            if (u.pathname === '/watch') return u.searchParams.get('v');
-            const p = u.pathname.split('/').filter(Boolean);
-            if (['shorts','live','embed'].includes(p[0])) return p[1] || null;
-          }
-        } catch {}
-        return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim()) ? String(value).trim() : null;
-      };
-      const mount = () => {
-        const input = document.querySelector('#videoQuery');
-        const player = document.querySelector('#jarvisPlayer');
-        if (!input || !player) return;
-        const id = idOf(input.value);
-        if (!id) return;
-        player.dataset.videoId = id;
-        const existing = player.querySelector('iframe[data-jarvis-direct="1"]');
-        if (existing && existing.src.includes(`/embed/${id}`)) return;
-        const frame = document.createElement('iframe');
-        frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;
-        frame.title = 'JARVIS YouTube player';
-        frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-        frame.allowFullscreen = true;
-        frame.referrerPolicy = 'strict-origin-when-cross-origin';
-        frame.loading = 'eager';
-        frame.dataset.jarvisDirect = '1';
-        player.replaceChildren(frame);
-      };
-      document.addEventListener('click', event => {
-        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
-        if (!button) return;
-        const input = document.querySelector('#videoQuery');
-        if (!idOf(input?.value)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        mount();
-        requestAnimationFrame(mount);
-        setTimeout(mount, 25);
-        setTimeout(mount, 100);
-      }, true);
-    })();
-  </script>
+  <script type="module" src="./src/main.ts?v=20260820-command-v12"></script>
 </body>
 </html>
