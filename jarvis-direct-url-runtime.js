@@ -21,13 +21,12 @@
     if (!player || !id) return false;
     const safe = id.replace(/[^A-Za-z0-9_-]/g, '');
     if (!safe) return false;
-    player.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${safe}?autoplay=1&rel=0&modestbranding=1&playsinline=1" title="JARVIS YouTube player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="eager"></iframe>`;
     player.dataset.videoId = safe;
+    player.innerHTML = `<div class="jarvis-player-frame"><iframe src="https://www.youtube-nocookie.com/embed/${safe}?autoplay=1&controls=1&playsinline=1&rel=0" title="JARVIS YouTube player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`;
+    document.querySelectorAll('#videoResults [data-jvc-id]').forEach(card => card.classList.toggle('is-active', card.dataset.jvcId === safe));
     return true;
   };
 
-  // Delegate at document capture level. The Media app is rendered dynamically,
-  // so binding directly to #videoSearch is inherently race-prone.
   document.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
     if (!target) return;
@@ -37,5 +36,6 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     playDirect(id);
+    window.dispatchEvent(new CustomEvent('jarvis:media-direct-play', { detail:{ id } }));
   }, true);
 })();
