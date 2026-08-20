@@ -106,6 +106,33 @@ jobs:
         uses: actions/deploy-pages@v4
         id: deployment
 
+  live-intelligence-smoke:
+    name: Live / Gemini Intelligence
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify deployed Gemini intelligence gateway
+        env:
+          JARVIS_INTELLIGENCE_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -X POST "$JARVIS_INTELLIGENCE_ENDPOINT" \
+            --data '{"query":"Explain why the sky is blue in one concise sentence."}')
+          printf '%s\n' "$response"
+          RESPONSE="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ['RESPONSE'])
+          text = str(data.get('text') or '').strip()
+          assert text, 'Gemini gateway returned no text'
+          assert data.get('provider') == 'gemini', f"unexpected provider: {data.get('provider')}"
+          assert data.get('model') == 'gemini-2.5-flash', f"unexpected model: {data.get('model')}"
+          print('GEMINI_INTELLIGENCE_SMOKE=PASS')
+          PY
+
   live-media-smoke:
     name: Live / Media Search
     needs: deploy
