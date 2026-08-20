@@ -22,7 +22,8 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check required secrets
+      - name: Check gateway configuration
+        id: config
         run: |
           set -euo pipefail
           missing=0
@@ -33,20 +34,26 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo 'Configure the three GitHub Actions secrets before deploying the gateway.'
-            exit 1
+            echo 'Gateway deployment skipped: configure CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and OPENAI_API_KEY in GitHub Actions secrets.'
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/setup-node@v4
+        if: steps.config.outputs.configured == 'true'
         with:
           node-version: 22
       - name: Validate Worker
+        if: steps.config.outputs.configured == 'true'
         run: node --check workers/intelligence/src/index.js
       - name: Deploy Worker
+        if: steps.config.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/intelligence
       - name: Publish endpoint
+        if: steps.config.outputs.configured == 'true'
         run: |
           echo 'Worker deployed. Configure JARVIS_INTELLIGENCE_ENDPOINT in GitHub Actions with the Worker URL.'
