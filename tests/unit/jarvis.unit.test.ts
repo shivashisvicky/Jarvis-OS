@@ -36,6 +36,11 @@ describe('JARVIS command core', () => {
     expect(jarvis.runCommand('play a video', telemetry)).toMatchObject({ intent: 'media', value: 'media' });
   });
 
+  test('keeps browser event commands safe in the Node test environment', () => {
+    expect(jarvis.runCommand('weather in Bhubaneswar', telemetry)).toMatchObject({ intent: 'weather', value: 'weather' });
+    expect(jarvis.runCommand('latest news', telemetry)).toMatchObject({ intent: 'web' });
+  });
+
   test('reports telemetry through the status command', () => {
     const result = jarvis.runCommand('system diagnostics', telemetry);
     expect(result.intent).toBe('status');
