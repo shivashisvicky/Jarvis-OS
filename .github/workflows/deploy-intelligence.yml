@@ -64,6 +64,7 @@ jobs:
           PY
       - name: Deploy Worker
         if: steps.config.outputs.configured == 'true'
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -75,17 +76,23 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY
-      - name: Configure Cloudflare AI Gateway Worker secret
+      - name: Verify deployed Worker directly
         if: steps.config.outputs.configured == 'true'
         working-directory: workers/intelligence
         run: |
           set -euo pipefail
-          printf '%s' "$CLOUDFLARE_API_TOKEN" | npx wrangler secret put CLOUDFLARE_API_TOKEN
-      - name: Verify Worker endpoint
-        if: steps.config.outputs.configured == 'true'
-        working-directory: workers/intelligence
-        run: |
-          set -euo pipefail
-          npx wrangler deployments list --json | head -c 2000 || true
-          echo
-          echo 'Worker deployment completed. Gemini is the sole intelligence provider for this gateway.'
+          endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev'
+          echo "Testing deployed intelligence endpoint: $endpoint"
+          response=$(curl --fail-with-body --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -X POST "$endpoint/" \
+            --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          printf '%s\n' "$response"
+          RESPONSE="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ['RESPONSE'])
+          assert str(data.get('text') or '').strip(), 'Worker returned no text'
+          assert data.get('provider') == 'gemini', f"unexpected provider: {data.get('provider')}"
+          assert data.get('model') == 'gemini-2.5-flash', f"unexpected model: {data.get('model')}"
+          print('INTELLIGENCE_WORKER_SMOKE=PASS')
+          PY
