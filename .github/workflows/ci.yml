@@ -34,11 +34,14 @@ jobs:
         run: pnpm run build
       - name: Verify static runtime assets
         run: |
+          set -euo pipefail
           test -s dist/jarvis-web-shell.js
           test -s dist/jarvis-media-v14.js
+          test -s dist/jarvis-voice-bridge.js
           test -s dist/jarvis-shell-search.css
           grep -q 'jarvis-web-shell.js' dist/index.html
           grep -q 'jarvis-media-v14.js' dist/index.html
+          grep -q 'jarvis-voice-bridge.js' dist/index.html
           ! grep -q 'jarvis-video-provider.js' dist/index.html
       - name: Unit tests
         run: pnpm test -- --reporter=dot
@@ -151,14 +154,19 @@ jobs:
         run: pnpm run build
       - name: Verify static runtime assets
         run: |
+          set -euo pipefail
           test -s dist/jarvis-web-shell.js
           test -s dist/jarvis-media-v14.js
+          test -s dist/jarvis-voice-bridge.js
           test -s dist/jarvis-shell-search.css
           grep -q 'jarvis-web-shell.js' dist/index.html
           grep -q 'jarvis-media-v14.js' dist/index.html
+          grep -q 'jarvis-voice-bridge.js' dist/index.html
           ! grep -q 'jarvis-video-provider.js' dist/index.html
       - name: Browser smoke
         run: pnpm run test:browser:smoke --project=chromium
+      - name: Home intelligence + voice bridge gate
+        run: pnpm exec playwright test tests/e2e/home-intelligence.spec.ts --project=chromium
       - name: Upload Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4
