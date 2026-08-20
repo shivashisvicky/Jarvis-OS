@@ -9,43 +9,13 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260820-13">
   <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260820-13">
-  <link rel="stylesheet" href="./jarvis-shell-search.css?v=20260820-1">
   <title>J.A.R.V.I.S. OS</title>
 </head>
 <body>
-  <div id="app">
-    <button class="nav" data-app="media" type="button" aria-label="Media">▶ <span>Media</span></button>
-    <main id="mediaBootFallback" hidden>
-      <input id="videoQuery" type="search" autocomplete="off" placeholder="Search YouTube videos…">
-      <button id="videoSearch" type="button">SEARCH</button>
-      <div id="mediaState"></div>
-      <div id="videoResults"></div>
-      <div id="jarvisPlayer"></div>
-    </main>
-  </div>
-  <script src="./jarvis-youtube-config.js?v=20260820-6"></script>
-  <script src="./jarvis-web-shell.js?v=20260820-2"></script>
-  <script src="./jarvis-media-v14.js?v=20260820-2"></script>
-  <script src="./jarvis-voice-bridge.js?v=20260820-3"></script>
-  <script src="./jarvis-performance.js?v=20260820-2"></script>
-  <script type="module" src="./src/main.ts?v=20260820-media-v28"></script>
-  <script>
-    (() => {
-      const app = document.getElementById('app');
-      const fallback = document.getElementById('mediaBootFallback');
-      const mediaNav = app?.querySelector('button.nav[data-app="media"]');
-      const activateFallback = () => {
-        if (!app || app.querySelector('.os')) return;
-        if (!mediaNav || !fallback) return;
-        mediaNav.addEventListener('click', () => {
-          fallback.hidden = false;
-          mediaNav.hidden = true;
-        }, { once: true });
-      };
-      activateFallback();
-      window.setTimeout(activateFallback, 1000);
-      window.setTimeout(activateFallback, 5000);
-    })();
-  </script>
+  <div id="app"></div>
+  <script src="./jarvis-youtube-config.js?v=20260820-7"></script>
+  <script src="./jarvis-voice-bridge.js?v=20260820-4"></script>
+  <script src="./jarvis-performance.js?v=20260820-3"></script>
+  <script type="module" src="./src/main.ts?v=20260820-media-v29"></script>
 </body>
 </html>
