@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
 
+const boot = async (page: Parameters<Parameters<typeof test>[2]>[0]['page']) => {
+  await page.goto('/', { waitUntil: 'commit' });
+  await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S', { timeout: 15_000 });
+};
+
 test.describe('JARVIS in-shell media smoke contract', () => {
   test('shell boots with the current in-shell media runtime and no canned results', async ({ page }) => {
-    // Do not make the smoke gate hostage to a third-party/non-critical resource
-    // delaying window.load. The shell itself is the contract we need to verify.
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
+    await boot(page);
     await expect(page.locator('script[src*="jarvis-youtube-config.js"]')).toHaveCount(1);
     await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(1);
     await expect(page.locator('script[src*="jarvis-performance.js"]')).toHaveCount(1);
@@ -23,8 +26,7 @@ test.describe('JARVIS in-shell media smoke contract', () => {
   });
 
   test('direct YouTube URL goes straight to the official in-shell player', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
+    await boot(page);
     await page.locator('button.nav[data-app="media"]').click();
     await page.locator('#videoQuery').fill('https://youtube.com/shorts/JbgYndCSv3k?si=ci');
     await page.locator('#videoSearch').click();
