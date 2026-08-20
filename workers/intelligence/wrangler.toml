@@ -2,10 +2,6 @@ name = "jarvis-intelligence"
 main = "src/index.js"
 compatibility_date = "2026-08-20"
 
-routes = [
-  { pattern = "jarvis-intelligence.shivashisvicky112.workers.dev", zone_name = "workers.dev" }
-]
-
 [vars]
 CLOUDFLARE_ACCOUNT_ID = "__CLOUDFLARE_ACCOUNT_ID__"
 CLOUDFLARE_AI_GATEWAY_ID = "default"
