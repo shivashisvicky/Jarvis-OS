@@ -56,8 +56,12 @@ jobs:
         run: |
           set -euo pipefail
           test -f dist/index.html
+          test -s dist/jarvis-web-shell.js
+          test -s dist/jarvis-media-v14.js
+          test -s dist/jarvis-voice-bridge.js
           grep -q 'jarvis-web-shell.js' dist/index.html
           grep -q 'jarvis-media-v14.js' dist/index.html
+          grep -q 'jarvis-voice-bridge.js' dist/index.html
           grep -q 'data-app="media"' dist/index.html
           grep -q 'videoQuery' dist/index.html
           grep -q 'jarvisPlayer' dist/index.html
@@ -80,8 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
-        id: deployment
         uses: actions/deploy-pages@v4
+        id: deployment
 
   live-media-smoke:
     name: Live / Media Search
@@ -106,7 +110,7 @@ jobs:
           set -e
           URL="https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}"
           for attempt in $(seq 1 20); do
-            if curl --fail --silent --show-error --location --max-time 20 "$URL" -o /tmp/deployed-index.html && grep -q 'data-app="media"' /tmp/deployed-index.html && grep -q 'videoQuery' /tmp/deployed-index.html && grep -q 'jarvisPlayer' /tmp/deployed-index.html; then break; fi
+            if curl --fail --silent --show-error --location --max-time 20 "$URL" -o /tmp/deployed-index.html && grep -q 'data-app="media"' /tmp/deployed-index.html && grep -q 'videoQuery' /tmp/deployed-index.html && grep -q 'jarvisPlayer' /tmp/deployed-index.html && grep -q 'jarvis-voice-bridge.js' /tmp/deployed-index.html; then break; fi
             if [ "$attempt" = 20 ]; then cat /tmp/deployed-index.html || true; exit 1; fi
             sleep 5
           done
@@ -160,7 +164,7 @@ jobs:
           retention-days: 14
 
   live-home-news:
-    name: Live / Home + News
+    name: Live / Home + News + Voice
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -177,15 +181,16 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
-      - name: Verify deployed Home + News
+      - name: Verify deployed Home + News + Voice
         env:
           JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
-        run: pnpm exec playwright test tests/e2e/live-home-news.spec.ts --project=chromium
-      - name: Upload Home + News evidence
+        run: |
+          pnpm exec playwright test tests/e2e/live-home-news.spec.ts tests/e2e/home-intelligence.spec.ts --project=chromium
+      - name: Upload Home + News + Voice evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: deployed-home-news-evidence-${{ github.sha }}
+          name: deployed-home-news-voice-evidence-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
