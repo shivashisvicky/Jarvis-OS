@@ -7,12 +7,14 @@ const boot = async (page: Parameters<Parameters<typeof test>[2]>[0]['page']) => 
 };
 
 test.describe('JARVIS in-shell media smoke contract', () => {
-  test('shell boots with the current in-shell media runtime and no canned results', async ({ page }) => {
+  test('shell boots with the current Vite media runtime and no canned results', async ({ page }) => {
     await boot(page);
-    await expect(page.locator('script[src*="jarvis-youtube-config.js"]')).toHaveCount(1);
-    await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(1);
-    await expect(page.locator('script[src*="jarvis-performance.js"]')).toHaveCount(1);
-    await expect(page.locator('script[src*="jarvis-media-hotfix.js"]')).toHaveCount(1);
+
+    // The current shell is Vite-bundled. Do not assert obsolete pre-Vite runtime
+    // script tags that no longer exist in the production document.
+    await expect(page.locator('script[type="module"]')).toHaveCount(1);
+    await expect(page.locator('script[type="module"]')).toHaveAttribute('src', /assets\/index-[^/]+\.js/);
+
     for (const old of ['jarvis-web-shell.js', 'jarvis-media-v14.js', 'jarvis-video-provider.js', 'jarvis-media-final.js', 'jarvis-media-core-v7', 'jarvis-media-authority-v8', 'jarvis-media-authority-v10', 'jarvis-media-authority-v11', 'jarvis-media-authority.js', 'jarvis-media-runtime-watchdog.js', 'jarvis-runtime-guards.js', 'jarvis-media-v2.js']) {
       await expect(page.locator(`script[src*="${old}"]`)).toHaveCount(0);
     }
