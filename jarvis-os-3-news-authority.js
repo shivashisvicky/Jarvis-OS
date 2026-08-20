@@ -2,14 +2,11 @@
   'use strict';
 
   const ENDPOINT = 'https://api.gdeltproject.org/api/v2/doc/doc';
-  let lastCards = '';
-  let lastTicker = '';
   let loading = false;
   let cachedItems = [];
+  let booted = false;
 
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
-  }[c]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
 
   const queryFor = value => {
     const q = String(value || '').toLowerCase();
@@ -33,18 +30,13 @@
     const cards = document.querySelector('#newsCards');
     const ticker = document.querySelector('#newsTicker');
     if (!cards || !ticker) return;
-
     const safe = items.filter(x => x.title && x.url).slice(0, 8);
     cachedItems = safe;
-
     if (!safe.length) {
       cards.innerHTML = `<div class="empty">${esc(message || 'No live headlines available right now.')}</div>`;
       ticker.innerHTML = '<span>NEWS FEED DEGRADED · RETRY AVAILABLE</span>';
-      lastCards = cards.innerHTML;
-      lastTicker = ticker.innerHTML;
       return;
     }
-
     cards.innerHTML = safe.map(item => `
       <article class="jarvis-news-card">
         <a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="jarvis-news-card-link">
@@ -56,44 +48,28 @@
           </div>
         </a>
       </article>`).join('');
-
     ticker.innerHTML = safe.slice(0, 6).map(item => `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">● ${esc(item.title)}</a>`).join('');
-    lastCards = cards.innerHTML;
-    lastTicker = ticker.innerHTML;
   };
 
   const load = async () => {
     if (loading) return;
     const cards = document.querySelector('#newsCards');
     if (!cards) return;
-
     loading = true;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
+    const timeout = setTimeout(() => controller.abort(), 9000);
     try {
       const genre = document.querySelector('#newsGenre')?.value || 'AI OR technology';
-      const params = new URLSearchParams({
-        query: queryFor(genre),
-        mode: 'artlist',
-        format: 'json',
-        maxrecords: '12',
-        timespan: '24h',
-        sort: 'datedesc'
-      });
-      const response = await fetch(`${ENDPOINT}?${params}`, {
-        cache: 'no-store',
-        signal: controller.signal,
-        headers: { Accept: 'application/json' }
-      });
+      const params = new URLSearchParams({ query: queryFor(genre), mode: 'artlist', format: 'json', maxrecords: '10', timespan: '24h', sort: 'datedesc' });
+      const response = await fetch(`${ENDPOINT}?${params}`, { cache:'no-store', signal:controller.signal, headers:{Accept:'application/json'} });
       if (!response.ok) throw new Error(`News service ${response.status}`);
       const data = await response.json();
       const items = [...new Map((data?.articles || []).map(normalise).filter(x => x.url).map(x => [x.url, x])).values()];
       if (!items.length) throw new Error('No current stories');
       render(items);
     } catch (error) {
-      if (cachedItems.length) render(cachedItems);
-      else render([], error instanceof Error ? error.message : 'Live news is temporarily unavailable.');
+      if (!cachedItems.length) render([], error instanceof Error ? error.message : 'Live news is temporarily unavailable.');
+      else render(cachedItems);
     } finally {
       clearTimeout(timeout);
       loading = false;
@@ -103,44 +79,14 @@
   const wire = () => {
     const refresh = document.querySelector('#refreshNews');
     if (refresh && !refresh.dataset.v3NewsAuthority) {
-      const clone = refresh.cloneNode(true);
-      refresh.replaceWith(clone);
-      clone.dataset.v3NewsAuthority = '1';
-      clone.addEventListener('click', event => {
-        event.preventDefault();
-        load();
-      });
+      refresh.dataset.v3NewsAuthority = '1';
+      refresh.addEventListener('click', event => { event.preventDefault(); void load(); });
     }
-
     const genre = document.querySelector('#newsGenre');
     if (genre && !genre.dataset.v3NewsAuthority) {
-      const clone = genre.cloneNode(true);
-      genre.replaceWith(clone);
-      clone.dataset.v3NewsAuthority = '1';
-      clone.addEventListener('change', load);
+      genre.dataset.v3NewsAuthority = '1';
+      genre.addEventListener('change', () => void load());
     }
-
-    if (document.querySelector('#newsCards') && !document.querySelector('#newsCards').dataset.v3NewsAuthority) {
-      const cards = document.querySelector('#newsCards');
-      cards.dataset.v3NewsAuthority = '1';
-      setTimeout(load, 150);
-    }
-  };
-
-  const observe = () => {
-    const root = document.querySelector('#newsDesk');
-    if (!root || root.dataset.v3NewsObserver) return;
-    root.dataset.v3NewsObserver = '1';
-    new MutationObserver(() => {
-      wire();
-      const cards = document.querySelector('#newsCards');
-      const ticker = document.querySelector('#newsTicker');
-      if (!cards || !ticker) return;
-      if (cachedItems.length && (cards.innerHTML !== lastCards || ticker.innerHTML !== lastTicker)) {
-        cards.innerHTML = lastCards;
-        ticker.innerHTML = lastTicker;
-      }
-    }).observe(root, { childList: true, subtree: true });
   };
 
   const style = () => {
@@ -165,12 +111,23 @@
   };
 
   const boot = () => {
+    if (booted) return;
+    booted = true;
     style();
-    wire();
-    observe();
-    load();
+    const hydrate = () => {
+      wire();
+      const cards = document.querySelector('#newsCards');
+      if (cards && !cards.dataset.v3NewsAuthority) {
+        cards.dataset.v3NewsAuthority = '1';
+        window.setTimeout(() => { void load(); }, 300);
+      } else if (cards && !loading && !cachedItems.length && cards.innerHTML.includes('news-loading')) {
+        window.setTimeout(() => { void load(); }, 300);
+      }
+    };
+    hydrate();
+    new MutationObserver(() => hydrate()).observe(document.body, { childList:true, subtree:true });
   };
 
-  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot, { once:true });
+  else window.setTimeout(boot, 0);
 })();
