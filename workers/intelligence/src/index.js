@@ -59,20 +59,15 @@ export default {
 
     const accountId = String(env.CLOUDFLARE_ACCOUNT_ID || '').trim();
     const gatewayId = String(env.CLOUDFLARE_AI_GATEWAY_ID || 'default').trim();
-    if (!accountId) return json({ error: 'Cloudflare account ID is not configured', code: 'GATEWAY_CONFIGURATION_ERROR' }, 503, origin);
-
     const endpoint = `${CLOUDFLARE_AI_GATEWAY}/v1/${accountId}/${gatewayId}/google-ai-studio/v1/models/${GEMINI_MODEL}:generateContent`;
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': env.GEMINI_API_KEY,
-      };
-      if (env.CLOUDFLARE_API_TOKEN) headers['cf-aig-authorization'] = `Bearer ${env.CLOUDFLARE_API_TOKEN}`;
-
       const upstream = await fetch(endpoint, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': env.GEMINI_API_KEY,
+        },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: system }] },
           contents: [{ role: 'user', parts: [{ text: query }] }],
