@@ -14,21 +14,39 @@
 </head>
 <body>
   <div id="app"></div>
-  <script defer src="./jarvis-youtube-config.js?v=20260820-12"></script>
-  <script defer src="./jarvis-voice-bridge.js?v=20260820-9"></script>
-  <script defer src="./jarvis-performance.js?v=20260820-8"></script>
-  <script type="module" src="./src/main.ts?v=20260820-command-v11"></script>
-  <script defer src="./jarvis-web-search-runtime.js?v=20260820-9"></script>
-  <script defer src="./jarvis-command-runtime.js?v=20260820-6"></script>
-  <script defer src="./jarvis-os-3-command-authority.js?v=20260820-4"></script>
-  <script defer src="./jarvis-os-3-map-intent.js?v=20260820-4"></script>
-  <script defer src="./jarvis-os-3-news-runtime.js?v=20260820-4"></script>
-  <script defer src="./jarvis-media-hotfix.js?v=20260820-9"></script>
-  <script defer src="./jarvis-os-3-media-ui.js?v=20260820-5"></script>
-  <script defer src="./jarvis-os-3-media-authority.js?v=20260820-3"></script>
-  <script defer src="./jarvis-direct-url-runtime.js?v=20260820-6"></script>
-  <script defer src="./jarvis-hud-runtime.js?v=20260820-5"></script>
-  <script defer src="./jarvis-os-3-news-authority.js?v=20260820-5"></script>
+  <script type="module" src="./src/main.ts?v=20260820-core-v12"></script>
+  <script>
+    (() => {
+      const runtimes = [
+        'jarvis-youtube-config.js?v=20260820-12',
+        'jarvis-voice-bridge.js?v=20260820-9',
+        'jarvis-performance.js?v=20260820-8',
+        'jarvis-web-search-runtime.js?v=20260820-9',
+        'jarvis-command-runtime.js?v=20260820-6',
+        'jarvis-os-3-command-authority.js?v=20260820-4',
+        'jarvis-os-3-map-intent.js?v=20260820-4',
+        'jarvis-os-3-news-runtime.js?v=20260820-4',
+        'jarvis-media-hotfix.js?v=20260820-9',
+        'jarvis-os-3-media-ui.js?v=20260820-5',
+        'jarvis-os-3-media-authority.js?v=20260820-3',
+        'jarvis-direct-url-runtime.js?v=20260820-6',
+        'jarvis-hud-runtime.js?v=20260820-5',
+        'jarvis-os-3-news-authority.js?v=20260820-5'
+      ];
+      const load = (src) => new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = './' + src;
+        s.async = true;
+        s.onload = s.onerror = resolve;
+        document.head.appendChild(s);
+      });
+      window.addEventListener('load', () => {
+        window.setTimeout(() => {
+          runtimes.reduce((p, src) => p.then(() => load(src)), Promise.resolve());
+        }, 250);
+      }, { once: true });
+    })();
+  </script>
   <script>
     (() => {
       const idOf = value => {
@@ -50,7 +68,6 @@
         if (!input || !player) return;
         const id = idOf(input.value);
         if (!id) return;
-        player.dataset.videoId = id;
         const existing = player.querySelector('iframe[data-jarvis-direct="1"]');
         if (existing && existing.src.includes(`/embed/${id}`)) return;
         const frame = document.createElement('iframe');
