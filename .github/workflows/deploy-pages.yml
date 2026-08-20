@@ -32,6 +32,8 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Validate Intelligence gateway syntax
+        run: node --check api/openai-intelligence.js
       - name: Check YouTube API configuration
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -57,6 +59,9 @@ jobs:
           test -f dist/index.html
           test -s dist/jarvis-media-layout.css
           test -s dist/jarvis-video-search-v3.css
+          test -s dist/jarvis-intelligence-runtime.js
+          grep -q 'jarvis-intelligence-runtime.js' dist/index.html
+          grep -q 'jarvis-intelligence-endpoint' dist/index.html
           grep -q 'src/main.ts' dist/index.html || grep -q 'assets/index-' dist/index.html
           ! grep -q 'jarvis-web-shell.js' dist/index.html
           ! grep -q 'jarvis-media-v14.js' dist/index.html
