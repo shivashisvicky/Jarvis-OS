@@ -7,8 +7,8 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="J.A.R.V.I.S. personal intelligence workspace">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260820-8">
-  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260820-8">
+  <link rel="stylesheet" href="./jarvis-media-layout.css?v=20260820-9">
+  <link rel="stylesheet" href="./jarvis-video-search-v3.css?v=20260820-9">
   <title>J.A.R.V.I.S. OS</title>
 </head>
 <body>
@@ -25,7 +25,11 @@
   <script src="./jarvis-youtube-config.js?v=20260820-4"></script>
   <script src="./jarvis-performance.js?v=20260820-1"></script>
   <script src="./jarvis-video-provider.js?v=20260820-1"></script>
-  <script type="module" src="./src/main.ts?v=20260820-media-v21"></script>
+  <!-- The final media authority is the live keyword-search path. Keep it loaded
+       at the document level so it can observe the SPA creating #videoQuery,
+       #videoSearch, #videoResults and #jarvisPlayer after navigation. -->
+  <script src="./jarvis-media-final.js?v=20260820-9"></script>
+  <script type="module" src="./src/main.ts?v=20260820-media-v22"></script>
   <script>
     (() => {
       const app = document.getElementById('app');
@@ -42,18 +46,6 @@
       activateFallback();
       window.setTimeout(activateFallback, 1000);
       window.setTimeout(activateFallback, 5000);
-
-      // Keep the media command path authoritative even if the main shell
-      // attaches another handler to the dynamically-created search controls.
-      document.addEventListener('click', event => {
-        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
-        if (!button || typeof window.jarvisVideoSearch !== 'function') return;
-        const input = document.getElementById('videoQuery');
-        if (!input) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void window.jarvisVideoSearch(input.value);
-      }, true);
     })();
   </script>
 </body>
