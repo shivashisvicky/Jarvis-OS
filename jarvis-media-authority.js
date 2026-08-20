@@ -44,12 +44,7 @@
   const add = (items, id, title, channel = 'YouTube', thumbnail = '') => {
     if (!YT_ID.test(id) || seen.has(id)) return;
     seen.add(id);
-    items.push({
-      id,
-      title: String(title || `YouTube video ${id}`),
-      channel: String(channel || 'YouTube'),
-      thumbnail: String(thumbnail || `https://i.ytimg.com/vi/${id}/mqdefault.jpg`),
-    });
+    items.push({ id, title: String(title || `YouTube video ${id}`), channel: String(channel || 'YouTube'), thumbnail: String(thumbnail || `https://i.ytimg.com/vi/${id}/mqdefault.jpg`) });
   };
 
   const parseYouTubeHtml = (html, items) => {
@@ -87,12 +82,7 @@
 
   const parsePiped = payload => {
     const data = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-    return data.map(item => ({
-      id: idFrom(item?.videoId || item?.url || ''),
-      title: item?.title,
-      channel: item?.uploaderName || item?.uploader,
-      thumbnail: item?.thumbnail,
-    })).filter(item => YT_ID.test(item.id));
+    return data.map(item => ({ id: idFrom(item?.videoId || item?.url || ''), title: item?.title, channel: item?.uploaderName || item?.uploader, thumbnail: item?.thumbnail })).filter(item => YT_ID.test(item.id));
   };
 
   const searchPiped = async (base, query) => {
@@ -108,10 +98,7 @@
       const text = await allOrigins('https://raw.githubusercontent.com/TeamPiped/documentation/main/content/docs/public-instances/index.md');
       const found = [...text.matchAll(/\|\s*[^|]+\s*\|\s*(https:\/\/[^\s|]+)\s*\|/g)].map(match => match[1].replace(/\/$/, ''));
       return [...new Set([...found, ...PIPED_SEEDS])];
-    } catch (error) {
-      trace('piped-registry-failed', error);
-      return PIPED_SEEDS;
-    }
+    } catch (error) { trace('piped-registry-failed', error); return PIPED_SEEDS; }
   };
 
   const discoverInvidious = async () => {
@@ -119,10 +106,7 @@
       const text = await allOrigins('https://api.invidious.io/instances.json?sort_by=health');
       const data = JSON.parse(text);
       return data.filter(item => item?.[1]?.api && item?.[1]?.type === 'https').map(item => `https://${item[0]}`);
-    } catch (error) {
-      trace('invidious-registry-failed', error);
-      return [];
-    }
+    } catch (error) { trace('invidious-registry-failed', error); return []; }
   };
 
   const searchInvidious = async (base, query) => {
@@ -166,21 +150,13 @@
       card.type = 'button';
       card.className = 'jvc-card';
       card.dataset.jvcId = video.id;
-      const image = document.createElement('img');
-      image.loading = 'lazy';
-      image.alt = '';
-      image.src = video.thumbnail;
-      const meta = document.createElement('span');
-      meta.className = 'video-meta';
-      const title = document.createElement('strong');
-      title.textContent = video.title;
-      const channel = document.createElement('small');
-      channel.textContent = video.channel;
+      const image = document.createElement('img'); image.loading = 'lazy'; image.alt = ''; image.src = video.thumbnail;
+      const meta = document.createElement('span'); meta.className = 'video-meta';
+      const title = document.createElement('strong'); title.textContent = video.title;
+      const channel = document.createElement('small'); channel.textContent = video.channel;
       meta.append(title, channel);
-      const playIcon = document.createElement('b');
-      playIcon.textContent = '▶';
-      card.append(image, meta, playIcon);
-      box.appendChild(card);
+      const playIcon = document.createElement('b'); playIcon.textContent = '▶';
+      card.append(image, meta, playIcon); box.appendChild(card);
     });
     setState('READY', `${Math.min(items.length, 8)} LIVE YOUTUBE RESULTS`);
     trace('results-rendered', items.map(item => item.id).join(','));
@@ -204,7 +180,6 @@
       ['duckduckgo-proxy', searchDuckDuckGoViaProxy(q)],
       ...PIPED_SEEDS.slice(0, 6).map(base => [`piped:${base}`, searchPiped(base, q)]),
     ];
-
     const discoveredPiped = await discoverPiped();
     providers.push(...discoveredPiped.slice(0, 10).map(base => [`piped-dynamic:${base}`, searchPiped(base, q)]));
     const discoveredInvidious = await discoverInvidious();
@@ -212,23 +187,14 @@
 
     const settled = await Promise.allSettled(providers.map(provider => provider[1]));
     if (run !== generation) return;
-
     const results = [];
     settled.forEach((result, index) => {
       const name = providers[index][0];
       if (result.status === 'fulfilled') {
         trace(`provider-ok:${name}`, result.value.length);
-        for (const item of result.value) {
-          if (!seen.has(item.id)) {
-            seen.add(item.id);
-            results.push(item);
-          }
-        }
-      } else {
-        trace(`provider-failed:${name}`, result.reason?.message || result.reason || 'unknown');
-      }
+        for (const item of result.value) if (!seen.has(item.id)) { seen.add(item.id); results.push(item); }
+      } else trace(`provider-failed:${name}`, result.reason?.message || result.reason || 'unknown');
     });
-
     if (!results.length) {
       box.innerHTML = `<div class="media-degraded-state"><strong>LIVE SEARCH TEMPORARILY UNAVAILABLE</strong><small>Every live provider was attempted. No fabricated results were inserted.</small><a target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">OPEN OFFICIAL YOUTUBE SEARCH ↗</a></div>`;
       setState('DEGRADED', 'ALL LIVE PROVIDERS FAILED');
@@ -242,57 +208,29 @@
     const input = $('#videoQuery');
     const button = $('#videoSearch');
     if (!input || !button) return;
-
     if (button.dataset.mediaAuthorityBound !== '1') {
       button.dataset.mediaAuthorityBound = '1';
-      button.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void search(input.value);
-      }, true);
+      button.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); void search(input.value); }, true);
     }
-
     if (input.dataset.mediaAuthorityBound !== '1') {
       input.dataset.mediaAuthorityBound = '1';
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          void search(input.value);
-        }
-      }, true);
+      input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); event.stopImmediatePropagation(); void search(input.value); } }, true);
     }
-
     const results = $('#videoResults');
     if (results && results.dataset.mediaAuthorityBound !== '1') {
       results.dataset.mediaAuthorityBound = '1';
-      results.addEventListener('click', event => {
-        const card = event.target.closest('.jvc-card[data-jvc-id]');
-        if (!card) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        play(card.dataset.jvcId || '');
-      }, true);
+      results.addEventListener('click', event => { const card = event.target.closest('.jvc-card[data-jvc-id]'); if (!card) return; event.preventDefault(); event.stopImmediatePropagation(); play(card.dataset.jvcId || ''); }, true);
     }
-
-    const directPlay = $('#playVideo');
-    if (directPlay && directPlay.dataset.mediaAuthorityBound !== '1') {
-      directPlay.dataset.mediaAuthorityBound = '1';
-      directPlay.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const raw = String($('#videoUrl')?.value || '').trim();
-        const id = idFrom(raw);
-        if (id) play(id); else setState('READY', 'ENTER A VALID YOUTUBE URL OR ID');
-      }, true);
-    }
-
-    if (!window.__JARVIS_LIVE_MEDIA_READY__) {
-      window.__JARVIS_LIVE_MEDIA_READY__ = true;
-      setState('READY', 'LIVE YOUTUBE SEARCH');
-      trace('media-ready');
-    }
+    if (!window.__JARVIS_LIVE_MEDIA_READY__) { window.__JARVIS_LIVE_MEDIA_READY__ = true; setState('READY', 'LIVE YOUTUBE SEARCH'); trace('media-ready'); }
   };
+
+  window.addEventListener('jarvis:media', event => {
+    const query = String(event.detail?.query ?? '').trim();
+    if (!query) return;
+    const input = $('#videoQuery');
+    if (input) input.value = query;
+    void search(query);
+  });
 
   const observer = new MutationObserver(bind);
   observer.observe(document.documentElement, { childList: true, subtree: true });
