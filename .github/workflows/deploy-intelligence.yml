@@ -22,32 +22,26 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Check gateway configuration
         id: config
         run: |
           set -euo pipefail
-          missing=0
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY; do
             if [ -z "${!name:-}" ]; then
-              echo "MISSING_SECRET=$name"
-              missing=1
+              echo "Missing GitHub secret: $name"
+              exit 1
             fi
           done
-          if [ "$missing" -ne 0 ]; then
-            echo 'Gateway deployment skipped: configure CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and GEMINI_API_KEY in GitHub Actions secrets.'
-            echo 'configured=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
-          fi
+
       - uses: actions/setup-node@v4
-        if: steps.config.outputs.configured == 'true'
         with:
           node-version: 22
+
       - name: Validate Worker
-        if: steps.config.outputs.configured == 'true'
         run: node --check workers/intelligence/src/index.js
-      - name: Inject deployment bindings
-        if: steps.config.outputs.configured == 'true'
+
+      - name: Prepare Wrangler configuration
         working-directory: workers/intelligence
         run: |
           set -euo pipefail
@@ -56,34 +50,44 @@ jobs:
           import os
           p = Path('wrangler.toml')
           text = p.read_text()
-          token = '__CLOUDFLARE_ACCOUNT_ID__'
-          account = os.environ['CLOUDFLARE_ACCOUNT_ID'].strip()
-          if token not in text:
-              raise SystemExit('Cloudflare account placeholder not found in wrangler.toml')
-          p.write_text(text.replace(token, account, 1))
+          text = text.replace('__CLOUDFLARE_ACCOUNT_ID__', os.environ['CLOUDFLARE_ACCOUNT_ID'].strip(), 1)
+          p.write_text(text)
           PY
-      - name: Deploy Worker
-        if: steps.config.outputs.configured == 'true'
-        id: deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/intelligence
-      - name: Configure Gemini Worker secret
-        if: steps.config.outputs.configured == 'true'
+          cat wrangler.toml
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Deploy Worker with Wrangler
         working-directory: workers/intelligence
         run: |
           set -euo pipefail
-          printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY
-      - name: Verify deployed Worker directly
-        if: steps.config.outputs.configured == 'true'
+          wrangler deploy --name jarvis-intelligence
+
+      - name: Configure Gemini Worker secret
         working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          printf '%s' "$GEMINI_API_KEY" | wrangler secret put GEMINI_API_KEY --name jarvis-intelligence
+
+      - name: Show live deployment
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          wrangler deployments list --name jarvis-intelligence
+
+      - name: Verify workers.dev health
         run: |
           set -euo pipefail
           endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev'
-          echo "Testing deployed intelligence endpoint: $endpoint"
-          response=$(curl --fail-with-body --silent --show-error \
+          echo "GET $endpoint/"
+          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors "$endpoint/"
+
+      - name: Verify Gemini intelligence
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev'
+          response=$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors \
             -H 'Content-Type: application/json' \
             -X POST "$endpoint/" \
             --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
