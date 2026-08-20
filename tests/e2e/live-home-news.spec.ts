@@ -24,7 +24,20 @@ test.describe('deployed Home + News gate', () => {
     await page.locator('#refreshNews').click();
     await expect(page.locator('#newsCards > *').first()).toBeVisible({ timeout: 30_000 });
     expect(await page.locator('#newsCards > *').count()).toBeGreaterThan(0);
+  });
 
-    await page.locator('.nav[data-app="news"]').click().catch(() => {});
+  test('Command input stays in the SPA and executes Maps destinations', async ({ page }) => {
+    await page.goto(new URL(LIVE_URL!).toString(), { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#commandInput')).toBeVisible({ timeout: 30_000 });
+
+    const initialUrl = page.url();
+    await page.locator('#commandInput').fill('give me directions to GGP Colony');
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(initialUrl);
+
+    await page.locator('#commandForm button[type="submit"]').click();
+    await expect(page.locator('.nav[data-app="maps"]')).toHaveClass(/selected/, { timeout: 10_000 });
+    await expect(page.locator('#mapQuery')).toHaveValue('GGP Colony', { timeout: 10_000 });
+    await expect(page.locator('#mapResults')).not.toContainText('Search for a place to begin.', { timeout: 15_000 });
   });
 });
