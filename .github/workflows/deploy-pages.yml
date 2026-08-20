@@ -114,13 +114,13 @@ jobs:
     steps:
       - name: Verify deployed Gemini intelligence gateway
         env:
-          JARVIS_INTELLIGENCE_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence
+          JARVIS_INTELLIGENCE_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev
         run: |
           set -euo pipefail
           response=$(curl --fail-with-body --silent --show-error \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json' \
-            -X POST "$JARVIS_INTELLIGENCE_ENDPOINT" \
+            -X POST "$JARVIS_INTELLIGENCE_ENDPOINT/" \
             --data '{"query":"Explain why the sky is blue in one concise sentence."}')
           printf '%s\n' "$response"
           RESPONSE="$response" python - <<'PY'
