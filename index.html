@@ -42,6 +42,18 @@
       activateFallback();
       window.setTimeout(activateFallback, 1000);
       window.setTimeout(activateFallback, 5000);
+
+      // Keep the media command path authoritative even if the main shell
+      // attaches another handler to the dynamically-created search controls.
+      document.addEventListener('click', event => {
+        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
+        if (!button || typeof window.jarvisVideoSearch !== 'function') return;
+        const input = document.getElementById('videoQuery');
+        if (!input) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void window.jarvisVideoSearch(input.value);
+      }, true);
     })();
   </script>
 </body>
