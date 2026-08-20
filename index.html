@@ -14,21 +14,21 @@
 </head>
 <body>
   <div id="app"></div>
-  <script async src="./jarvis-youtube-config.js?v=20260820-11"></script>
-  <script async src="./jarvis-voice-bridge.js?v=20260820-8"></script>
-  <script async src="./jarvis-performance.js?v=20260820-7"></script>
-  <script type="module" async src="./src/main.ts?v=20260820-command-v10"></script>
-  <script async src="./jarvis-web-search-runtime.js?v=20260820-8"></script>
-  <script async src="./jarvis-command-runtime.js?v=20260820-5"></script>
-  <script async src="./jarvis-os-3-command-authority.js?v=20260820-3"></script>
-  <script async src="./jarvis-os-3-map-intent.js?v=20260820-3"></script>
-  <script async src="./jarvis-os-3-news-runtime.js?v=20260820-3"></script>
-  <script async src="./jarvis-media-hotfix.js?v=20260820-8"></script>
-  <script async src="./jarvis-os-3-media-ui.js?v=20260820-4"></script>
-  <script async src="./jarvis-os-3-media-authority.js?v=20260820-2"></script>
-  <script async src="./jarvis-direct-url-runtime.js?v=20260820-5"></script>
-  <script async src="./jarvis-hud-runtime.js?v=20260820-4"></script>
-  <script async src="./jarvis-os-3-news-authority.js?v=20260820-4"></script>
+  <script async src="./jarvis-youtube-config.js?v=20260820-12"></script>
+  <script async src="./jarvis-voice-bridge.js?v=20260820-9"></script>
+  <script async src="./jarvis-performance.js?v=20260820-8"></script>
+  <script type="module" async src="./src/main.ts?v=20260820-command-v11"></script>
+  <script async src="./jarvis-web-search-runtime.js?v=20260820-9"></script>
+  <script async src="./jarvis-command-runtime.js?v=20260820-6"></script>
+  <script async src="./jarvis-os-3-command-authority.js?v=20260820-4"></script>
+  <script async src="./jarvis-os-3-map-intent.js?v=20260820-4"></script>
+  <script async src="./jarvis-os-3-news-runtime.js?v=20260820-4"></script>
+  <script async src="./jarvis-media-hotfix.js?v=20260820-9"></script>
+  <script async src="./jarvis-os-3-media-ui.js?v=20260820-5"></script>
+  <script async src="./jarvis-os-3-media-authority.js?v=20260820-3"></script>
+  <script async src="./jarvis-direct-url-runtime.js?v=20260820-6"></script>
+  <script async src="./jarvis-hud-runtime.js?v=20260820-5"></script>
+  <script async src="./jarvis-os-3-news-authority.js?v=20260820-5"></script>
   <script>
     (() => {
       const idOf = value => {
@@ -44,25 +44,36 @@
         } catch {}
         return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim()) ? String(value).trim() : null;
       };
-      document.addEventListener('click', event => {
-        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
-        if (!button) return;
+      const mount = () => {
         const input = document.querySelector('#videoQuery');
-        const id = input ? idOf(input.value) : null;
-        if (!id) return;
         const player = document.querySelector('#jarvisPlayer');
-        if (!player) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
+        if (!input || !player) return;
+        const id = idOf(input.value);
+        if (!id) return;
         player.dataset.videoId = id;
+        const existing = player.querySelector('iframe[data-jarvis-direct="1"]');
+        if (existing && existing.src.includes(`/embed/${id}`)) return;
         const frame = document.createElement('iframe');
         frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;
         frame.title = 'JARVIS YouTube player';
         frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
         frame.allowFullscreen = true;
         frame.referrerPolicy = 'strict-origin-when-cross-origin';
+        frame.loading = 'eager';
+        frame.dataset.jarvisDirect = '1';
         player.replaceChildren(frame);
-        window.dispatchEvent(new CustomEvent('jarvis:media-direct-play', { detail: { id, src: frame.src } }));
+      };
+      document.addEventListener('click', event => {
+        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
+        if (!button) return;
+        const input = document.querySelector('#videoQuery');
+        if (!idOf(input?.value)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        mount();
+        requestAnimationFrame(mount);
+        setTimeout(mount, 25);
+        setTimeout(mount, 100);
       }, true);
     })();
   </script>
