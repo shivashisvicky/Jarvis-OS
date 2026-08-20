@@ -28,12 +28,19 @@ describe('JARVIS command core', () => {
     expect(jarvis.classifyCommand('open REST client')).toBe('api');
     expect(jarvis.classifyCommand('connect to remote server')).toBe('remote');
     expect(jarvis.classifyCommand('search the internet for TypeScript')).toBe('search');
+    expect(jarvis.classifyCommand('make a note to pay 10 rs to Deepak')).toBe('notes');
   });
 
   test('returns module actions without redirecting the application', () => {
     expect(jarvis.runCommand('open maps', telemetry)).toMatchObject({ intent: 'maps', value: 'maps' });
     expect(jarvis.runCommand('open API Lab', telemetry)).toMatchObject({ intent: 'api', value: 'api' });
     expect(jarvis.runCommand('play a video', telemetry)).toMatchObject({ intent: 'media', value: 'media' });
+  });
+
+  test('creates an actionable note from natural language', () => {
+    const result = jarvis.runCommand('make a note to pay 10 rs to Deepak', telemetry);
+    expect(result).toMatchObject({ intent: 'notes', value: 'notes' });
+    expect(result.reply).toContain('pay 10 rs to Deepak');
   });
 
   test('keeps browser event commands safe in the Node test environment', () => {
