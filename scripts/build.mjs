@@ -16,11 +16,18 @@ const run = (command, args) => new Promise((resolve, reject) => {
   child.on('error', reject);
 });
 
+async function writeYouTubeConfig() {
+  const key = process.env.YOUTUBE_API_KEY || '';
+  const dist = new URL('../dist/', import.meta.url);
+  await mkdir(dist, { recursive: true });
+  await writeFile(new URL('jarvis-youtube-config.js', dist), `window.JARVIS_YOUTUBE_API_KEY=${JSON.stringify(key)};\n`, 'utf8');
+}
+
 async function copyRootStaticAssets() {
   const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const refs = [...index.matchAll(/(?:src|href)=["']\.\/([^"']+)["']/g)]
     .map(match => match[1].split('?')[0].split('#')[0])
-    .filter(path => path && !path.startsWith('src/') && !path.includes('/'));
+    .filter(path => path && !path.startsWith('src/') && path !== 'jarvis-youtube-config.js' && !path.includes('/'));
   const unique = [...new Set(refs)];
   const dist = new URL('../dist/', import.meta.url);
   await mkdir(dist, { recursive: true });
@@ -37,10 +44,8 @@ async function copyRootStaticAssets() {
 try {
   await run('npx', ['tsc', '-b']);
   await run('npx', ['vite', 'build']);
+  await writeYouTubeConfig();
   await copyRootStaticAssets();
-  const key = process.env.YOUTUBE_API_KEY || '';
-  await mkdir(new URL('../dist/', import.meta.url), { recursive: true });
-  await writeFile(new URL('../dist/jarvis-youtube-config.js', import.meta.url), `window.JARVIS_YOUTUBE_API_KEY=${JSON.stringify(key)};\n`, 'utf8');
 } finally {
   if (patched !== source) await writeFile(file, source, 'utf8');
 }
