@@ -1,0 +1,61 @@
+name: Test JARVIS Intelligence POST
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-intelligence-post.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  post-smoke:
+    name: Test Intelligence POST API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test exact POST request
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev/api/intelligence'
+          body='{"query":"Reply with exactly: JARVIS ONLINE"}'
+
+          echo '=== REQUEST ==='
+          echo "POST $endpoint"
+          echo 'Content-Type: application/json'
+          echo "Body: $body"
+          echo
+
+          echo '=== RESPONSE ==='
+          tmp_headers=$(mktemp)
+          tmp_body=$(mktemp)
+          status=$(curl --silent --show-error --max-time 30 \
+            -D "$tmp_headers" -o "$tmp_body" \
+            -w '%{http_code}' \
+            -X POST "$endpoint" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data "$body")
+
+          cat "$tmp_headers"
+          echo
+          cat "$tmp_body"
+          echo
+          echo "HTTP_STATUS=$status"
+
+          if [ "$status" != '200' ]; then
+            echo 'POST_SMOKE=FAIL'
+            exit 1
+          fi
+
+          python - "$tmp_body" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          assert str(data.get('text') or '').strip(), 'missing text'
+          assert data.get('provider') == 'gemini', f"provider={data.get('provider')}"
+          assert data.get('model') == 'gemini-2.5-flash', f"model={data.get('model')}"
+          print('POST_SMOKE=PASS')
+          PY
