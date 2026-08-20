@@ -31,10 +31,15 @@
     }
   };
 
-  wire();
-  new MutationObserver(wire).observe(document.documentElement, { childList:true, subtree:true });
-  window.addEventListener('jarvis:media-play', event => {
-    const id = event.detail?.id || event.detail?.url || current();
-    if (id) window.jarvisV3Media?.play(id);
-  });
+  const boot = () => {
+    wire();
+    if (document.body) new MutationObserver(wire).observe(document.body, { childList:true, subtree:true });
+    window.addEventListener('jarvis:media-play', event => {
+      const id = event.detail?.id || event.detail?.url || current();
+      if (id) window.jarvisV3Media?.play(id);
+    });
+  };
+
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot, { once:true });
+  else setTimeout(boot, 0);
 })();
