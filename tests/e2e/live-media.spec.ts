@@ -23,8 +23,9 @@ async function dumpMediaTransaction(page, label) {
   const resultsText = await page.locator('#videoResults').innerText().catch(() => '');
   const cards = await page.locator(CARD).count().catch(() => -1);
   const player = await page.locator('#jarvisPlayer iframe').getAttribute('src').catch(() => null);
+  const playButtons = await page.getByRole('button', { name: /^PLAY$/i }).count().catch(() => 0);
   const trace = await page.evaluate(() => (window as any).__JARVIS_MEDIA_TRACE__ || []).catch(() => []);
-  console.log(JSON.stringify({ label, query, state, cards, resultsText, player, trace }, null, 2));
+  console.log(JSON.stringify({ label, query, state, cards, resultsText, player, playButtons, trace }, null, 2));
 }
 
 test('media search has no fixed video catalogue', async ({ page }) => {
@@ -35,7 +36,7 @@ test('media search has no fixed video catalogue', async ({ page }) => {
   await expect(page.locator('#videoResults')).not.toContainText(/SAP CPI fixture tutorial|Nyan Cat|NASA Live|India 2026/i);
 });
 
-test('DEPLOYED GATE: common and multi-word searches return real YouTube results', async ({ page }) => {
+test('DEPLOYED GATE: common and multi-word searches return real YouTube results and playback controls work', async ({ page }) => {
   test.skip(!LIVE_URL, 'Production-only live gate');
   test.setTimeout(120_000);
   await openApp(page);
@@ -66,9 +67,19 @@ test('DEPLOYED GATE: common and multi-word searches return real YouTube results'
     try {
       await expect(page.locator('#jarvisPlayer iframe')).toBeVisible({ timeout: 20_000 });
       await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${videoId}`));
+      await expect(page.locator('#jarvisPlayer iframe')).toHaveAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     } catch (error) {
       await dumpMediaTransaction(page, `${query.toUpperCase()}_PLAYER_TIMEOUT`);
       throw error;
+    }
+
+    // The visible PLAY control below the player must also be wired. This was
+    // previously a dead control on the deployed mobile UI.
+    const playButton = page.getByRole('button', { name: /^PLAY$/i }).first();
+    if (await playButton.count()) {
+      await playButton.click();
+      await expect(page.locator('#jarvisPlayer iframe')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('#jarvisPlayer')).toHaveAttribute('data-video-id', videoId);
     }
   }
 });
