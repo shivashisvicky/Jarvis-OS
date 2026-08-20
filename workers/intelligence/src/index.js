@@ -11,7 +11,7 @@ function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
   return {
     'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -34,16 +34,10 @@ export default {
     }
 
     if (request.method === 'GET') {
-      return json({
-        ok: true,
-        service: 'JARVIS Intelligence Gateway',
-        provider: 'gemini',
-        model: GEMINI_MODEL,
-        status: 'online',
-      }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', model: GEMINI_MODEL }, 200, origin);
     }
 
-    if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
+    if (request.method !== 'POST') return json({ error: 'GET, POST or OPTIONS required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
 
