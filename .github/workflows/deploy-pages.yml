@@ -30,6 +30,8 @@ jobs:
           node-version: 22
       - name: Install pnpm
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
       - name: Check YouTube API configuration
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
