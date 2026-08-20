@@ -53,24 +53,19 @@ jobs:
           JARVIS_INTELLIGENCE_ENDPOINT: ${{ secrets.JARVIS_INTELLIGENCE_ENDPOINT }}
         run: |
           set -euo pipefail
-          if [ -n "${JARVIS_INTELLIGENCE_ENDPOINT:-}" ]; then
-            python - <<'PY'
+          python - <<'PY'
           from pathlib import Path
           import os
           p = Path('dist/index.html')
           text = p.read_text()
-          endpoint = os.environ['JARVIS_INTELLIGENCE_ENDPOINT'].strip().rstrip('/')
+          endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
           old = '<meta name="jarvis-intelligence-endpoint" content="/api/openai-intelligence">'
           new = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
           if old not in text:
               raise SystemExit('Expected intelligence endpoint meta tag not found')
           p.write_text(text.replace(old, new, 1))
-          print('JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1')
+          print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint})')
           PY
-          else
-            echo 'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=0'
-            echo 'Static deployment will keep the safe local fallback until the Worker URL is configured.'
-          fi
       - name: Verify generated YouTube configuration
         run: |
           set -euo pipefail
