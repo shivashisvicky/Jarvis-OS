@@ -5,6 +5,7 @@
 
   const ENDPOINT = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || '/api/openai-intelligence';
   const STATIC_PAGES = /(^|\.)github\.io$/i.test(location.hostname);
+  const REMOTE_ENDPOINT = /^https?:\/\//i.test(ENDPOINT);
   const reply = text => {
     const el = document.querySelector('#jarvisReply');
     if (el) { el.textContent = text; el.classList.add('visible'); }
@@ -20,15 +21,19 @@
   const localAnswer = query => {
     const q = query.toLowerCase();
     if (/\btell me about (yourself|you)\b|\bwhat are you\b|\bwho are you\b/.test(q)) {
-      reply('I am JARVIS, your personal intelligence workspace. The local core handles commands, voice, news, web search, maps, media and tools. The remote reasoning gateway is not attached to this GitHub Pages deployment yet.');
+      reply('I am JARVIS, your personal intelligence workspace. The local core handles commands, voice, news, web search, maps, media and tools.');
       return true;
     }
     return false;
   };
   const ask = async query => {
     if (localAnswer(query)) return true;
+    if (STATIC_PAGES && !REMOTE_ENDPOINT) {
+      reply('Remote intelligence is not connected to this deployment yet. The local JARVIS core is still online.');
+      return false;
+    }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       reply('JARVIS intelligence is researching that…');
       const r = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ query }), signal: controller.signal, cache: 'no-store' });
@@ -40,7 +45,7 @@
       return true;
     } catch (error) {
       const message = error?.name === 'AbortError' ? 'The intelligence gateway timed out.' : String(error?.message || error);
-      reply(STATIC_PAGES ? 'Remote intelligence is not available on this static GitHub Pages deployment. The local JARVIS core is still online.' : `Intelligence gateway unavailable: ${message}`);
+      reply(`Intelligence gateway unavailable: ${message}`);
       window.dispatchEvent(new CustomEvent('jarvis:intelligence-error', { detail: { error: message, query } }));
       return false;
     } finally { clearTimeout(timer); }
@@ -62,5 +67,5 @@
     event.preventDefault();
     void ask(query);
   });
-  window.jarvisIntelligence = { ask, available: () => !STATIC_PAGES, endpoint: ENDPOINT };
+  window.jarvisIntelligence = { ask, available: () => REMOTE_ENDPOINT || !STATIC_PAGES, endpoint: ENDPOINT };
 })();
