@@ -1,3 +1,5 @@
+import './live-fix';
+import { AppId, getSetting } from './db';
 export type JarvisIntent='time'|'date'|'calculator'|'snake'|'notes'|'settings'|'files'|'fullscreen'|'status'|'help'|'search'|'maps'|'media'|'api'|'remote'|'web'|'joke'|'name'|'weather'|'song'|'unknown';
 export type Telemetry={online:boolean;battery:number|null;charging:boolean|null;memory:number|null;cores:number|null;network:string};
 export type JarvisResult={intent:JarvisIntent;reply:string;value?:string;url?:string};
