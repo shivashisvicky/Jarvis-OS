@@ -75,6 +75,12 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY
+      - name: Configure Cloudflare AI Gateway Worker secret
+        if: steps.config.outputs.configured == 'true'
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          printf '%s' "$CLOUDFLARE_API_TOKEN" | npx wrangler secret put CLOUDFLARE_API_TOKEN
       - name: Verify Worker endpoint
         if: steps.config.outputs.configured == 'true'
         working-directory: workers/intelligence
