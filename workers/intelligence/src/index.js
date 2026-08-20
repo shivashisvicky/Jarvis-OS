@@ -5,14 +5,13 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const ROUTES = new Set(['/', '/api/openai-intelligence', '/api/intelligence']);
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
   return {
     'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
     'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -28,13 +27,22 @@ function json(data, status, origin) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
 
-    if (!ROUTES.has(url.pathname)) {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', model: GEMINI_MODEL }, 200, origin);
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
+
+    if (request.method === 'GET') {
+      return json({
+        ok: true,
+        service: 'JARVIS Intelligence Gateway',
+        provider: 'gemini',
+        model: GEMINI_MODEL,
+        status: 'online',
+      }, 200, origin);
+    }
+
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
