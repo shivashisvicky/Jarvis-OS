@@ -143,7 +143,7 @@ jobs:
           test -s dist/jarvis-video-search-v3.css
           grep -q 'jarvis-video-provider.js' dist/index.html
       - name: Browser smoke
-        run: pnpm run test:browser:smoke -- --project=chromium
+        run: pnpm run test:browser:smoke --project=chromium
       - name: Upload Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4
