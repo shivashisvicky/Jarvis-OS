@@ -3,18 +3,25 @@
   'use strict';
   if (window.__JARVIS_PERF__) return;
   window.__JARVIS_PERF__ = true;
-
   const metrics = {};
-
   window.jarvisMetrics = {
-    mark: (name) => {
-      metrics[name] = performance.now();
-    },
+    mark: (name) => { metrics[name] = performance.now(); },
     measure: (name, from, to) => {
       if (!metrics[from] || !metrics[to]) return 0;
       const duration = metrics[to] - metrics[from];
       console.log(`[PERF] ${name}: ${Math.round(duration)}ms`);
       return duration;
     }
+  };
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  const nativeClearTimeout = window.clearTimeout.bind(window);
+  let clockTimer = null;
+  window.setTimeout = function(handler, timeout, ...args) {
+    if (typeof handler === 'function' && timeout === 1000 && /updateClock/.test(Function.prototype.toString.call(handler))) {
+      if (clockTimer !== null) nativeClearTimeout(clockTimer);
+      clockTimer = nativeSetTimeout(handler, timeout, ...args);
+      return clockTimer;
+    }
+    return nativeSetTimeout(handler, timeout, ...args);
   };
 })();
