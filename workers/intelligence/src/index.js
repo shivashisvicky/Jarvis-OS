@@ -5,7 +5,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const ROUTES = new Set(['/api/openai-intelligence', '/api/intelligence']);
+const ROUTES = new Set(['/', '/api/openai-intelligence', '/api/intelligence']);
 
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
