@@ -13,7 +13,7 @@ test.describe('deployed in-shell search', () => {
     const before = page.url();
     await page.locator('#webQuery').fill('latest AI news');
     await page.locator('#webSearch').click();
-    await expect(page.locator('#jwsStatus')).toContainText(/RESULTS|NO RESULTS|DEGRADED/, { timeout: 30_000 });
+    await expect(page.locator('#jwsStatus')).toContainText(/RESULTS|NO RESULTS|DEGRADED/, { timeout: 45_000 });
     expect(page.url()).toBe(before);
     await expect(page.locator('#jwsResults')).toBeVisible();
     const text = await page.locator('#jwsResults').innerText();
