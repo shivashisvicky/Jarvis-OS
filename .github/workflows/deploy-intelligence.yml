@@ -19,7 +19,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Check gateway configuration
@@ -27,14 +27,14 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OPENAI_API_KEY; do
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY; do
             if [ -z "${!name:-}" ]; then
               echo "MISSING_SECRET=$name"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo 'Gateway deployment skipped: configure CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and OPENAI_API_KEY in GitHub Actions secrets.'
+            echo 'Gateway deployment skipped: configure CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and GEMINI_API_KEY in GitHub Actions secrets.'
             echo 'configured=false' >> "$GITHUB_OUTPUT"
           else
             echo 'configured=true' >> "$GITHUB_OUTPUT"
@@ -53,12 +53,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/intelligence
-      - name: Configure OpenAI Worker secret
+      - name: Configure Gemini Worker secret
         if: steps.config.outputs.configured == 'true'
         working-directory: workers/intelligence
         run: |
           set -euo pipefail
-          printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
+          printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY
       - name: Verify Worker endpoint
         if: steps.config.outputs.configured == 'true'
         working-directory: workers/intelligence
@@ -66,4 +66,4 @@ jobs:
           set -euo pipefail
           npx wrangler deployments list --json | head -c 2000 || true
           echo
-          echo 'Worker deployment completed. The public endpoint is https://jarvis-intelligence.${CLOUDFLARE_ACCOUNT_ID}.workers.dev only if that account has the corresponding workers.dev subdomain; use the Wrangler deployment URL from this job as the source of truth.'
+          echo 'Worker deployment completed. Gemini is the sole intelligence provider for this gateway.'
