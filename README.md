@@ -37,3 +37,7 @@ The project intentionally avoids a heavyweight desktop wrapper at this stage. El
 5. Offline service worker + install experience
 6. Broader browser compatibility matrix
 7. Performance budget and full SIT suite
+
+## CI/CD
+
+Production Pages deployment is validated through the GitHub Actions deployment workflow. Live Media verification requires the repository `YOUTUBE_API_KEY` Actions secret, restricted to YouTube Data API v3 and the GitHub Pages site origin.
