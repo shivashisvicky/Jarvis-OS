@@ -9,21 +9,26 @@ async function openHome(page) {
   await page.locator('.nav[data-app="home"]').click();
 }
 
-test('home command surface supports local time and India PM queries', async ({ page }) => {
+test('home command surface supports local time and core identity queries', async ({ page }) => {
   await openHome(page);
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible();
+  await expect(page.locator('#voiceBtn')).toBeVisible();
 
   await input.fill('what time is it');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('#jarvisReply')).toContainText(/local time/i);
 
-  await input.fill('who is the prime minister of india');
+  await input.fill('what is my name');
   await page.locator('#commandForm').press('Enter');
-  await expect(page.locator('#jarvisReply')).toContainText(/Narendra Modi/i);
+  await expect(page.locator('#jarvisReply')).toContainText(/Shivashis/i);
 });
 
-test('voice bridge is loaded before the application runtime', async ({ page }) => {
+test('current Vite application owns the voice surface', async ({ page }) => {
   await openHome(page);
-  expect(await page.evaluate(() => typeof (window as any).jarvisCinematicSpeak)).toBe('function');
+  await expect(page.locator('#voiceBtn')).toBeVisible();
+  await expect(page.locator('#commandForm')).toBeVisible();
+  await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
+  await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="jarvis-performance.js"]')).toHaveCount(0);
 });
