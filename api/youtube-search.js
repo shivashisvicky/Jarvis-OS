@@ -1,30 +1,15 @@
-export default async function handler(req, res) {
-  const key = process.env.YOUTUBE_API_KEY;
-  const q = String(req.query?.q || '').trim();
-  if (!key) return res.status(500).json({ error: 'YOUTUBE_API_KEY is not configured' });
-  if (!q) return res.status(400).json({ error: 'q is required' });
-
-  const url = new URL('https://www.googleapis.com/youtube/v3/search');
-  url.searchParams.set('part', 'snippet');
-  url.searchParams.set('type', 'video');
-  url.searchParams.set('maxResults', '8');
-  url.searchParams.set('q', q);
-  url.searchParams.set('key', key);
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    if (!response.ok) return res.status(response.status).json({ error: data?.error?.message || 'YouTube search failed' });
-
-    const results = (data.items || []).map(item => ({
-      id: item.id?.videoId,
-      title: item.snippet?.title || 'Untitled video',
-      channel: item.snippet?.channelTitle || 'YouTube',
-      thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
-    })).filter(item => item.id);
-
-    return res.status(200).json({ results });
-  } catch (error) {
-    return res.status(502).json({ error: error instanceof Error ? error.message : 'YouTube request failed' });
-  }
-}
+const ALL_ORIGINS = 'https://api.allorigins.win/raw?url=';
+const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+const PIPED_SEEDS = [
+  'https://pipedapi.kavin.rocks','https://pipedapi.leptons.xyz','https://pipedapi.nosebs.ru',
+  'https://pipedapi-libre.kavin.rocks','https://piped-api.privacy.com.de','https://pipedapi.adminforge.de',
+  'https://api.piped.yt','https://pipedapi.drgns.space','https://pipedapi.owo.si','https://piped-api.codespace.cz'
+];
+const idFrom = value => { const s=String(value||''); const m=s.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/); if(m)return m[1]; return YT_ID.test(s.trim())?s.trim():''; };
+const add = (items,seen,id,title,channel='YouTube',thumbnail='') => { if(!YT_ID.test(id)||seen.has(id))return; seen.add(id); items.push({id,title:String(title||`YouTube video ${id}`),channel:String(channel||'YouTube'),thumbnail:String(thumbnail||`https://i.ytimg.com/vi/${id}/mqdefault.jpg`)}); };
+const fetchText = async url => { const r=await fetch(`${ALL_ORIGINS}${encodeURIComponent(url)}`,{headers:{Accept:'text/plain,*/*'},signal:AbortSignal.timeout(7000)}); if(!r.ok)throw new Error(`proxy ${r.status}`); return r.text(); };
+const searchYouTubeHtml = async q => { const html=await fetchText(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`); const items=[],seen=new Set(); const re=/"videoRenderer":\{[\s\S]*?"videoId":"([A-Za-z0-9_-]{11})"[\s\S]*?"title":\{"runs":\[\{"text":"([^"\\]*(?:\\.[^"\\]*)*)"/g; let m; while((m=re.exec(html))&&items.length<8){let title=m[2];try{title=JSON.parse(`"${title}"`)}catch{}add(items,seen,m[1],title)} return items; };
+const searchDuckDuckGo = async q => { const html=await fetchText(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(`${q} site:youtube.com/watch`)}`); const items=[],seen=new Set(); const links=html.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_?=&%.-]+/g)||[]; for(const link of links){add(items,seen,idFrom(link),'YouTube result');if(items.length>=8)break;} return items; };
+const searchPiped = async (base,q) => { const r=await fetch(`${base}/search?q=${encodeURIComponent(q)}&filter=videos`,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)}); if(!r.ok)throw new Error(`piped ${r.status}`); const data=await r.json(); const items=[],seen=new Set(); for(const item of Array.isArray(data)?data:(Array.isArray(data?.items)?data.items:[])){add(items,seen,idFrom(item?.videoId||item?.url||''),item?.title,item?.uploaderName||item?.uploader,item?.thumbnail);if(items.length>=8)break;} return items; };
+const searchFallback = async q => { const attempts=[searchYouTubeHtml(q),searchDuckDuckGo(q),...PIPED_SEEDS.slice(0,6).map(base=>searchPiped(base,q))]; const settled=await Promise.allSettled(attempts); const results=[],seen=new Set(); for(const result of settled){if(result.status!=='fulfilled')continue; for(const item of result.value||[]){add(results,seen,item.id,item.title,item.channel,item.thumbnail);if(results.length>=8)break;} if(results.length>=8)break;} return results; };
+export default async function handler(req,res){ const key=process.env.YOUTUBE_API_KEY; const q=String(req.query?.q||'').trim(); if(!q)return res.status(400).json({error:'q is required'}); if(key){const url=new URL('https://www.googleapis.com/youtube/v3/search');url.searchParams.set('part','snippet');url.searchParams.set('type','video');url.searchParams.set('maxResults','8');url.searchParams.set('q',q);url.searchParams.set('key',key);try{const r=await fetch(url,{signal:AbortSignal.timeout(7000)});const data=await r.json();if(r.ok){const results=(data.items||[]).map(item=>({id:item.id?.videoId,title:item.snippet?.title||'Untitled video',channel:item.snippet?.channelTitle||'YouTube',thumbnail:item.snippet?.thumbnails?.medium?.url||item.snippet?.thumbnails?.default?.url||''})).filter(item=>item.id);return res.status(200).json({results,provider:'youtube-api'});}if(r.status!==429)return res.status(r.status).json({error:data?.error?.message||'YouTube search failed'});}catch{}} try{const results=await searchFallback(q);if(results.length)return res.status(200).json({results,provider:'fallback'});return res.status(503).json({error:'No live video providers returned results'});}catch(error){return res.status(502).json({error:error instanceof Error?error.message:'Video search failed'});}}
