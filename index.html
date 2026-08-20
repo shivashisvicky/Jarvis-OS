@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./jarvis-futuristic-hud.css?v=20260820-21">
   <title>J.A.R.V.I.S. OS</title>
   <script src="./jarvis-voice-bridge.js?v=20260820-10"></script>
-  <script src="./jarvis-core-acceptance.js?v=20260820-1"></script>
+  <script src="./jarvis-core-acceptance.js?v=20260820-2"></script>
 </head>
 <body>
   <div id="app"></div>
@@ -20,80 +20,17 @@
   <script>
     (() => {
       const runtimes = [
-        'jarvis-youtube-config.js?v=20260820-12',
-        'jarvis-performance.js?v=20260820-8',
-        'jarvis-web-search-runtime.js?v=20260820-9',
-        'jarvis-command-runtime.js?v=20260820-6',
-        'jarvis-os-3-command-authority.js?v=20260820-4',
-        'jarvis-os-3-map-intent.js?v=20260820-4',
-        'jarvis-os-3-home-authority.js?v=20260820-1',
-        'jarvis-os-3-news-runtime.js?v=20260820-4',
-        'jarvis-media-hotfix.js?v=20260820-9',
-        'jarvis-os-3-media-ui.js?v=20260820-5',
-        'jarvis-os-3-media-authority.js?v=20260820-3',
-        'jarvis-direct-url-runtime.js?v=20260820-6',
-        'jarvis-hud-runtime.js?v=20260820-5',
-        'jarvis-os-3-news-authority.js?v=20260820-5'
+        'jarvis-youtube-config.js?v=20260820-12','jarvis-performance.js?v=20260820-8','jarvis-web-search-runtime.js?v=20260820-9','jarvis-command-runtime.js?v=20260820-6','jarvis-os-3-command-authority.js?v=20260820-4','jarvis-os-3-map-intent.js?v=20260820-4','jarvis-os-3-home-authority.js?v=20260820-1','jarvis-os-3-news-runtime.js?v=20260820-4','jarvis-media-hotfix.js?v=20260820-9','jarvis-os-3-media-ui.js?v=20260820-5','jarvis-os-3-media-authority.js?v=20260820-3','jarvis-direct-url-runtime.js?v=20260820-6','jarvis-hud-runtime.js?v=20260820-5','jarvis-os-3-news-authority.js?v=20260820-5'
       ];
-      const load = (src) => new Promise(resolve => {
-        const s = document.createElement('script');
-        s.src = './' + src;
-        s.async = true;
-        s.onload = s.onerror = resolve;
-        document.head.appendChild(s);
-      });
-      window.addEventListener('load', () => {
-        window.setTimeout(() => {
-          runtimes.reduce((p, src) => p.then(() => load(src)), Promise.resolve());
-        }, 250);
-      }, { once: true });
+      const load = src => new Promise(resolve => { const s=document.createElement('script'); s.src='./'+src; s.async=true; s.onload=s.onerror=resolve; document.head.appendChild(s); });
+      window.addEventListener('load', () => window.setTimeout(() => runtimes.reduce((p,src)=>p.then(()=>load(src)),Promise.resolve()),250), {once:true});
     })();
   </script>
   <script>
     (() => {
-      const idOf = value => {
-        try {
-          const u = new URL(String(value).trim());
-          const h = u.hostname.replace(/^www\./, '').toLowerCase();
-          if (h === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || null;
-          if (h === 'youtube.com' || h === 'm.youtube.com') {
-            if (u.pathname === '/watch') return u.searchParams.get('v');
-            const p = u.pathname.split('/').filter(Boolean);
-            if (['shorts','live','embed'].includes(p[0])) return p[1] || null;
-          }
-        } catch {}
-        return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim()) ? String(value).trim() : null;
-      };
-      const mount = () => {
-        const input = document.querySelector('#videoQuery');
-        const player = document.querySelector('#jarvisPlayer');
-        if (!input || !player) return;
-        const id = idOf(input.value);
-        if (!id) return;
-        const existing = player.querySelector('iframe[data-jarvis-direct="1"]');
-        if (existing && existing.src.includes(`/embed/${id}`)) return;
-        const frame = document.createElement('iframe');
-        frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;
-        frame.title = 'JARVIS YouTube player';
-        frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-        frame.allowFullscreen = true;
-        frame.referrerPolicy = 'strict-origin-when-cross-origin';
-        frame.loading = 'eager';
-        frame.dataset.jarvisDirect = '1';
-        player.replaceChildren(frame);
-      };
-      document.addEventListener('click', event => {
-        const button = event.target instanceof Element ? event.target.closest('#videoSearch') : null;
-        if (!button) return;
-        const input = document.querySelector('#videoQuery');
-        if (!idOf(input?.value)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        mount();
-        requestAnimationFrame(mount);
-        setTimeout(mount, 25);
-        setTimeout(mount, 100);
-      }, true);
+      const idOf = value => { try { const u=new URL(String(value).trim()); const h=u.hostname.replace(/^www\./,'').toLowerCase(); if(h==='youtu.be') return u.pathname.split('/').filter(Boolean)[0]||null; if(h==='youtube.com'||h==='m.youtube.com'){ if(u.pathname==='/watch') return u.searchParams.get('v'); const p=u.pathname.split('/').filter(Boolean); if(['shorts','live','embed'].includes(p[0])) return p[1]||null; } } catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(value).trim())?String(value).trim():null; };
+      const mount=()=>{ const input=document.querySelector('#videoQuery'),player=document.querySelector('#jarvisPlayer'); if(!input||!player)return; const id=idOf(input.value); if(!id)return; const existing=player.querySelector('iframe[data-jarvis-direct="1"]'); if(existing&&existing.src.includes(`/embed/${id}`))return; const frame=document.createElement('iframe'); frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`; frame.title='JARVIS YouTube player'; frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen=true; frame.referrerPolicy='strict-origin-when-cross-origin'; frame.loading='eager'; frame.dataset.jarvisDirect='1'; player.replaceChildren(frame); };
+      document.addEventListener('click',event=>{ const button=event.target instanceof Element?event.target.closest('#videoSearch'):null; if(!button)return; const input=document.querySelector('#videoQuery'); if(!idOf(input?.value))return; event.preventDefault(); event.stopImmediatePropagation(); mount(); requestAnimationFrame(mount); setTimeout(mount,25); setTimeout(mount,100); },true);
     })();
   </script>
 </body>
