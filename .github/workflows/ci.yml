@@ -77,10 +77,21 @@ jobs:
       - name: Health check
         run: |
           python - <<'PY'
-          import json, urllib.request
-          data=json.load(urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=10))
-          assert data['ok'] is True
-          print('HEALTH_OK=1')
+          import json, time, urllib.request
+          url='http://127.0.0.1:8765/health'
+          last=None
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(url, timeout=3) as response:
+                      data=json.load(response)
+                  assert data['ok'] is True, data
+                  print(f'HEALTH_OK=1 attempt={attempt + 1}')
+                  break
+              except Exception as exc:
+                  last=exc
+                  time.sleep(0.5)
+          else:
+              raise SystemExit(f'Health check failed after 30 attempts: {last}')
           PY
       - name: Live keyword extraction gate
         run: |
