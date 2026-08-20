@@ -1,4 +1,4 @@
-/* J.A.R.V.I.S. Video Search - server-authoritative provider */
+/* J.A.R.V.I.S. Video Search - server-authoritative provider with static Pages fallback */
 (() => {
   'use strict';
   if (window.__JARVIS_VIDEO_PROVIDER__) return;
@@ -76,6 +76,22 @@
     }).filter(Boolean);
   }
 
+  function normalizeYouTubeDataApi(payload) {
+    const seen = new Set();
+    return (Array.isArray(payload?.items) ? payload.items : []).map(item => {
+      const id = item?.id?.videoId || '';
+      if (!id || seen.has(id)) return null;
+      seen.add(id);
+      const snippet = item?.snippet || {};
+      return {
+        id,
+        title: String(snippet.title || 'YouTube result'),
+        channel: String(snippet.channelTitle || 'YouTube'),
+        thumbnail: String(snippet?.thumbnails?.medium?.url || snippet?.thumbnails?.default?.url || `https://i.ytimg.com/vi/${id}/mqdefault.jpg`),
+      };
+    }).filter(Boolean);
+  }
+
   function apiCandidates() {
     const configured = String(window.JARVIS_VIDEO_API_URL || '').trim();
     const candidates = [];
@@ -105,9 +121,25 @@
     }
   }
 
+  async function searchYouTubeDataApi(query) {
+    const key = String(window.JARVIS_YOUTUBE_API_KEY || '').trim();
+    if (!key) throw new Error('No YouTube Data API key configured');
+    const target = new URL('https://www.googleapis.com/youtube/v3/search');
+    target.searchParams.set('part', 'snippet');
+    target.searchParams.set('type', 'video');
+    target.searchParams.set('maxResults', '12');
+    target.searchParams.set('q', query);
+    target.searchParams.set('key', key);
+    trace('youtube-data-api:request', { query });
+    const payload = await fetchJson(target.toString(), query);
+    const results = normalizeYouTubeDataApi(payload);
+    if (!results.length) throw new Error('YouTube Data API returned no video results');
+    trace('youtube-data-api:success', { count: results.length });
+    return results;
+  }
+
   async function searchServer(query) {
     const candidates = apiCandidates();
-    if (!candidates.length) throw new Error('No video API configured');
     let lastError = null;
     for (const candidate of candidates) {
       try {
@@ -123,6 +155,13 @@
         lastError = error;
         trace('api:failure', { url: candidate, error: String(error) });
       }
+    }
+
+    try {
+      return await searchYouTubeDataApi(query);
+    } catch (error) {
+      lastError = error;
+      trace('youtube-data-api:failure', { error: String(error) });
     }
     throw lastError || new Error('Video API failed');
   }
