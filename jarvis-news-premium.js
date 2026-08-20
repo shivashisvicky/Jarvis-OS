@@ -18,14 +18,15 @@
     host.classList.add('jarvis-news-grid');
     [...host.querySelectorAll('.news-card')].forEach((card, index) => {
       card.classList.toggle('jarvis-news-lead', index === 0);
+      const link = card.matches('a') ? card : card.querySelector('a');
       const meta = card.querySelector('small');
-      const link = card.querySelector('a');
       const title = card.querySelector('strong');
-      if (!meta || !link || !title || meta.dataset.premiumDone === '1') return;
+      if (!link || !meta || !title || meta.dataset.premiumDone === '1') return;
       const raw = meta.textContent || '';
       const parts = raw.split(' · ');
-      const source = parts[0] || 'LIVE NEWS';
-      const date = parts.slice(1).join(' · ');
+      const fallbackSource = card.querySelector('.news-source')?.textContent?.trim() || 'LIVE NEWS';
+      const source = parts[0] || fallbackSource;
+      const date = parts.length > 1 ? parts.slice(1).join(' · ') : raw;
       meta.replaceChildren();
       const sourceEl = document.createElement('span');
       sourceEl.className = SOURCE_CLASS;
@@ -43,10 +44,12 @@
     frame = requestAnimationFrame(enhance);
   };
   window.addEventListener('jarvis:news-updated', schedule);
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once: true });
   else schedule();
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = './jarvis-news-premium.css?v=20260821-3';
+  style.href = './jarvis-news-premium.css?v=20260821-4';
   document.head.appendChild(style);
 })();
