@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const ROUTES = new Set(['/api/openai-intelligence', '/api/intelligence']);
 
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
@@ -29,8 +30,8 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
 
-    if (url.pathname !== '/api/openai-intelligence') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini' }, 200, origin);
+    if (!ROUTES.has(url.pathname)) {
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', routes: [...ROUTES] }, 200, origin);
     }
 
     if (request.method === 'OPTIONS') {
@@ -73,18 +74,10 @@ export default {
             'x-goog-api-key': env.GEMINI_API_KEY,
           },
           body: JSON.stringify({
-            system_instruction: {
-              parts: [{ text: system }],
-            },
-            contents: [{
-              role: 'user',
-              parts: [{ text: query }],
-            }],
+            system_instruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [{ text: query }] }],
             tools: [{ google_search: {} }],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 900,
-            },
+            generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
           }),
         },
       );
@@ -97,9 +90,7 @@ export default {
       }
 
       const text = String(
-        data?.candidates?.[0]?.content?.parts
-          ?.map(part => part?.text || '')
-          .join('') || ''
+        data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || ''
       ).trim();
 
       if (!text) return json({ error: 'Gemini returned no text', code: 'EMPTY_RESPONSE' }, 502, origin);
@@ -113,13 +104,7 @@ export default {
             .map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
         : [];
 
-      return json({
-        text,
-        model: GEMINI_MODEL,
-        provider: 'gemini',
-        grounded: sources.length > 0,
-        sources,
-      }, 200, origin);
+      return json({ text, model: GEMINI_MODEL, provider: 'gemini', grounded: sources.length > 0, sources }, 200, origin);
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed', code: 'GATEWAY_FAILED' }, 502, origin);
     }
