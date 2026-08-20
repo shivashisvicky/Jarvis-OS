@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 
 const base = process.env.MEDIA_DEMO_URL || 'http://127.0.0.1:8765';
 const browser = await chromium.launch({ headless: true });
