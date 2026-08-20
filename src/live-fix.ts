@@ -2,7 +2,7 @@ const escapeHtml = (value: unknown): string => String(value ?? '').replace(/[&<>
 
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => Promise.race([
   promise,
-  new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms))
+  new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
 ]);
 
 async function searchMaps(term: string): Promise<void> {
@@ -86,29 +86,34 @@ function wireLiveRecovery(): void {
       void searchNews(newsGenre.value || 'WORLD');
     }, true);
   }
-  if (document.querySelector('#newsDesk') && !document.querySelector('#newsDesk')?.dataset.liveRecoveryBoot) {
-    const desk = document.querySelector<HTMLElement>('#newsDesk');
-    if (desk) desk.dataset.liveRecoveryBoot = '1';
+  const desk = document.querySelector<HTMLElement>('#newsDesk');
+  if (desk && !desk.dataset.liveRecoveryBoot) {
+    desk.dataset.liveRecoveryBoot = '1';
     void searchNews(newsGenre?.value || 'WORLD');
   }
 }
 
-window.addEventListener('jarvis:maps', event => {
-  const detail = (event as CustomEvent<{place?: string}>).detail;
-  const destination = String(detail?.place ?? '').trim();
-  if (!destination) return;
-  let attempts = 0;
-  const timer = window.setInterval(() => {
-    attempts += 1;
-    const input = document.querySelector<HTMLInputElement>('#mapQuery');
-    if (input) {
-      window.clearInterval(timer);
-      input.value = destination;
-      void searchMaps(destination);
-    } else if (attempts >= 50) window.clearInterval(timer);
-  }, 60);
-});
+if (typeof window !== 'undefined') {
+  window.addEventListener('jarvis:maps', event => {
+    const detail = (event as CustomEvent<{place?: string}>).detail;
+    const destination = String(detail?.place ?? '').trim();
+    if (!destination) return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      const input = document.querySelector<HTMLInputElement>('#mapQuery');
+      if (input) {
+        window.clearInterval(timer);
+        input.value = destination;
+        void searchMaps(destination);
+      } else if (attempts >= 50) {
+        window.clearInterval(timer);
+      }
+    }, 60);
+  });
 
-const observer = new MutationObserver(() => wireLiveRecovery());
-observer.observe(document.documentElement, {childList:true,subtree:true});
+  const observer = new MutationObserver(() => wireLiveRecovery());
+  observer.observe(document.documentElement, {childList:true,subtree:true});
+}
+
 wireLiveRecovery();
