@@ -39,6 +39,7 @@ export default {
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
+    if (!env.CLOUDFLARE_API_TOKEN) return json({ error: 'Cloudflare AI Gateway token is not configured', code: 'GATEWAY_AUTH_UNAVAILABLE' }, 503, origin);
 
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
@@ -68,6 +69,7 @@ export default {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
           'x-goog-api-key': env.GEMINI_API_KEY,
         },
         body: JSON.stringify({
