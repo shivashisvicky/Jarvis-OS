@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: jarvis-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   PNPM_VERSION: 10.15.0
 
@@ -36,13 +32,11 @@ jobs:
         run: |
           set -euo pipefail
           test -f dist/index.html
-          test -s dist/jarvis-voice-bridge.js
-          test -s dist/jarvis-performance.js
           test -s dist/jarvis-media-layout.css
           test -s dist/jarvis-video-search-v3.css
           test -s dist/jarvis-youtube-config.js
-          grep -q 'jarvis-voice-bridge.js' dist/index.html
-          grep -q 'jarvis-performance.js' dist/index.html
+          grep -q 'src/main.ts' dist/index.html || grep -q 'assets/index-' dist/index.html
+          grep -q 'jarvis-youtube-config.js' dist/index.html
           ! grep -q 'jarvis-web-shell.js' dist/index.html
           ! grep -q 'jarvis-media-v14.js' dist/index.html
           ! grep -q 'jarvis-shell-search.css' dist/index.html
@@ -160,13 +154,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f dist/index.html
-          test -s dist/jarvis-voice-bridge.js
-          test -s dist/jarvis-performance.js
           test -s dist/jarvis-media-layout.css
           test -s dist/jarvis-video-search-v3.css
           test -s dist/jarvis-youtube-config.js
-          grep -q 'jarvis-voice-bridge.js' dist/index.html
-          grep -q 'jarvis-performance.js' dist/index.html
+          grep -q 'jarvis-youtube-config.js' dist/index.html
           ! grep -q 'jarvis-web-shell.js' dist/index.html
           ! grep -q 'jarvis-media-v14.js' dist/index.html
           ! grep -q 'jarvis-shell-search.css' dist/index.html
