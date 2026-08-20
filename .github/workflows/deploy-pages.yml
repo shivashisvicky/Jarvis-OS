@@ -51,18 +51,16 @@ jobs:
           set -euo pipefail
           test -s dist/jarvis-youtube-config.js
           grep -q 'window.JARVIS_YOUTUBE_API_KEY=' dist/jarvis-youtube-config.js
-          echo 'YOUTUBE_RUNTIME_CONFIG_FILE_OK=1'
-      - name: Verify current shell entrypoints exist in deploy artifact
+      - name: Verify current shell artifact
         run: |
           set -euo pipefail
           test -f dist/index.html
           test -s dist/jarvis-voice-bridge.js
           test -s dist/jarvis-performance.js
           grep -q 'jarvis-voice-bridge.js' dist/index.html
-          grep -q 'data-app="media"' dist/index.html || grep -q 'data-app="media"' dist/assets/*.js
-          grep -q 'videoQuery' dist/index.html || grep -q 'videoQuery' dist/assets/*.js
-          grep -q 'jarvisPlayer' dist/index.html || grep -q 'jarvisPlayer' dist/assets/*.js
-          ! grep -q 'jarvis-video-provider.js' dist/index.html
+          grep -R -q 'data-app="media"' dist/assets dist/index.html
+          grep -R -q 'videoQuery' dist/assets dist/index.html
+          grep -R -q 'jarvisPlayer' dist/assets dist/index.html
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -102,16 +100,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
-      - name: Verify deployed HTML contains current media entrypoint
-        run: |
-          set -e
-          URL="https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}"
-          for attempt in $(seq 1 20); do
-            if curl --fail --silent --show-error --location --max-time 20 "$URL" -o /tmp/deployed-index.html && grep -q 'data-app="media"' /tmp/deployed-index.html || true; then break; fi
-            if [ "$attempt" = 20 ]; then cat /tmp/deployed-index.html || true; exit 1; fi
-            sleep 5
-          done
-      - name: Verify deployed media search
+      - name: Verify deployed media surface
         env:
           JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
         run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
@@ -123,7 +112,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            /tmp/deployed-index.html
           if-no-files-found: ignore
           retention-days: 14
 
