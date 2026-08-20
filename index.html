@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#03070b">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="J.A.R.V.I.S. personal intelligence workspace">
@@ -14,36 +14,20 @@
 </head>
 <body>
   <div id="app"></div>
-  <script src="./jarvis-youtube-config.js?v=20260820-10"></script>
-  <script src="./jarvis-voice-bridge.js?v=20260820-7"></script>
-  <script src="./jarvis-performance.js?v=20260820-6"></script>
-  <script type="module" src="./src/main.ts?v=20260820-command-v9"></script>
-  <script>
-    (() => {
-      const runtimes = [
-        './jarvis-web-search-runtime.js?v=20260820-7',
-        './jarvis-command-runtime.js?v=20260820-4',
-        './jarvis-os-3-command-authority.js?v=20260820-2',
-        './jarvis-os-3-map-intent.js?v=20260820-2',
-        './jarvis-os-3-news-runtime.js?v=20260820-2',
-        './jarvis-media-hotfix.js?v=20260820-7',
-        './jarvis-os-3-media-ui.js?v=20260820-2',
-        './jarvis-os-3-media-authority.js?v=20260820-1',
-        './jarvis-direct-url-runtime.js?v=20260820-2',
-        './jarvis-hud-runtime.js?v=20260820-3',
-        './jarvis-os-3-news-authority.js?v=20260820-2'
-      ];
-      const loadRuntime = src => new Promise(resolve => {
-        const s = document.createElement('script');
-        s.src = src;
-        s.async = true;
-        s.onload = s.onerror = resolve;
-        document.head.appendChild(s);
-      });
-      const start = () => runtimes.reduce((p, src) => p.then(() => loadRuntime(src)), Promise.resolve());
-      if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 1500 });
-      else setTimeout(start, 0);
-    })();
-  </script>
+  <script async src="./jarvis-youtube-config.js?v=20260820-11"></script>
+  <script async src="./jarvis-voice-bridge.js?v=20260820-8"></script>
+  <script async src="./jarvis-performance.js?v=20260820-7"></script>
+  <script type="module" async src="./src/main.ts?v=20260820-command-v10"></script>
+  <script async src="./jarvis-web-search-runtime.js?v=20260820-8"></script>
+  <script async src="./jarvis-command-runtime.js?v=20260820-5"></script>
+  <script async src="./jarvis-os-3-command-authority.js?v=20260820-3"></script>
+  <script async src="./jarvis-os-3-map-intent.js?v=20260820-3"></script>
+  <script async src="./jarvis-os-3-news-runtime.js?v=20260820-3"></script>
+  <script async src="./jarvis-media-hotfix.js?v=20260820-8"></script>
+  <script async src="./jarvis-os-3-media-ui.js?v=20260820-3"></script>
+  <script async src="./jarvis-os-3-media-authority.js?v=20260820-2"></script>
+  <script async src="./jarvis-direct-url-runtime.js?v=20260820-3"></script>
+  <script async src="./jarvis-hud-runtime.js?v=20260820-4"></script>
+  <script async src="./jarvis-os-3-news-authority.js?v=20260820-3"></script>
 </body>
 </html>
