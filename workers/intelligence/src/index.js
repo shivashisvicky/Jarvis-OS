@@ -4,6 +4,8 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
   return {
@@ -28,7 +30,7 @@ export default {
     const origin = request.headers.get('Origin') || '';
 
     if (url.pathname !== '/api/openai-intelligence') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway' }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini' }, 200, origin);
     }
 
     if (request.method === 'OPTIONS') {
@@ -36,7 +38,9 @@ export default {
     }
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
-    if (!env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
+    if (!env.GEMINI_API_KEY) {
+      return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
+    }
 
     let body;
     try {
@@ -52,43 +56,72 @@ export default {
     const system = [
       'You are JARVIS, the intelligence layer of a personal operating system.',
       'Be concise, useful and truthful. Do not invent sources or facts.',
-      'When current information is needed, use web search.',
+      'Use Google Search grounding when current information, recent events, recommendations or verification would improve the answer.',
       'Prefer a direct answer, then a short explanation or next action.',
       'Do not claim to have performed an action unless the application explicitly did it.',
       'For media requests, identify useful candidates or explain what to search; never fabricate video IDs.',
-      'When web search is used, preserve useful source links in the response when available.'
+      'When grounded sources are available, preserve useful source titles and links in a compact Sources section.'
     ].join(' ');
 
     try {
-      const upstream = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      const upstream = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': env.GEMINI_API_KEY,
+          },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: system }],
+            },
+            contents: [{
+              role: 'user',
+              parts: [{ text: query }],
+            }],
+            tools: [{ google_search: {} }],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 900,
+            },
+          }),
         },
-        body: JSON.stringify({
-          model: env.OPENAI_MODEL || 'gpt-5.6-luna',
-          input: [
-            { role: 'system', content: system },
-            { role: 'user', content: query },
-          ],
-          tools: [{ type: 'web_search' }],
-          max_output_tokens: 900,
-          store: false,
-        }),
-      });
+      );
 
       const data = await upstream.json();
       if (!upstream.ok) {
-        return json({ error: data?.error?.message || 'OpenAI request failed' }, upstream.status, origin);
+        const providerMessage = data?.error?.message || 'Gemini request failed';
+        const status = upstream.status === 429 ? 429 : upstream.status;
+        return json({ error: providerMessage, code: upstream.status === 429 ? 'GEMINI_RATE_LIMITED' : 'GEMINI_REQUEST_FAILED' }, status, origin);
       }
 
-      const text = String(data?.output_text || '').trim();
-      if (!text) return json({ error: 'OpenAI returned no text' }, 502, origin);
+      const text = String(
+        data?.candidates?.[0]?.content?.parts
+          ?.map(part => part?.text || '')
+          .join('') || ''
+      ).trim();
 
-      return json({ text, model: env.OPENAI_MODEL || 'gpt-5.6-luna' }, 200, origin);
+      if (!text) return json({ error: 'Gemini returned no text', code: 'EMPTY_RESPONSE' }, 502, origin);
+
+      const grounding = data?.candidates?.[0]?.groundingMetadata;
+      const sources = Array.isArray(grounding?.groundingChunks)
+        ? grounding.groundingChunks
+            .map(chunk => chunk?.web)
+            .filter(source => source?.uri)
+            .slice(0, 6)
+            .map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
+        : [];
+
+      return json({
+        text,
+        model: GEMINI_MODEL,
+        provider: 'gemini',
+        grounded: sources.length > 0,
+        sources,
+      }, 200, origin);
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed' }, 502, origin);
+      return json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed', code: 'GATEWAY_FAILED' }, 502, origin);
     }
   },
 };
