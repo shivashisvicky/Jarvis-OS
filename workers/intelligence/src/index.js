@@ -5,9 +5,11 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
+const TTS_PATHS = new Set(['/api/tts', '/api/jarvis-tts']);
 
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
@@ -25,6 +27,50 @@ function json(data, status, origin) {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders(origin) },
   });
+}
+
+function audio(bytes, origin) {
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      'Content-Type': 'audio/wav',
+      'Cache-Control': 'no-store',
+      ...corsHeaders(origin),
+    },
+  });
+}
+
+function pcmToWav(pcm) {
+  const sampleRate = 24000;
+  const channels = 1;
+  const bits = 16;
+  const blockAlign = channels * bits / 8;
+  const byteRate = sampleRate * blockAlign;
+  const buffer = new ArrayBuffer(44 + pcm.byteLength);
+  const view = new DataView(buffer);
+  const write = (offset, value) => { for (let i = 0; i < value.length; i += 1) view.setUint8(offset + i, value.charCodeAt(i)); };
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + pcm.byteLength, true);
+  write(8, 'WAVE');
+  write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bits, true);
+  write(36, 'data');
+  view.setUint32(40, pcm.byteLength, true);
+  new Uint8Array(buffer, 44).set(pcm);
+  return new Uint8Array(buffer);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 const SYSTEM = 'You are JARVIS, the intelligence layer of a personal operating system. Be concise, useful and truthful. Do not invent facts or sources. Prefer a direct answer followed by a short explanation or next action. Do not claim to have performed an action unless the application explicitly did it. For media requests, identify useful candidates or explain what to search; never fabricate video IDs.';
@@ -47,6 +93,37 @@ async function callGemini(query, apiKey) {
   return { text, model: GEMINI_MODEL, provider: 'gemini', grounded: false, sources: [] };
 }
 
+async function callGeminiTTS(text, rate, apiKey) {
+  const safeRate = Math.min(1.2, Math.max(0.8, Number(rate) || 0.92));
+  const pace = safeRate < 0.87 ? 'deliberate and slightly slow' : safeRate < 0.97 ? 'calm and measured' : safeRate < 1.08 ? 'natural conversational' : 'brisk but clear';
+  const prompt = [
+    'You are the permanent JARVIS voice for a personal intelligence system.',
+    'Use one consistent adult male-presenting voice with a polished, restrained British English / neutral RP-style accent.',
+    'Deep, composed, intelligent, cinematic but natural. Crisp articulation, controlled breath, no exaggerated acting.',
+    `Delivery pace: ${pace}. Target speech-rate setting: ${safeRate.toFixed(2)}x. Keep the pace consistent from start to finish.`,
+    'Do not add words, commentary, greetings, sound effects, or quotation marks. Speak only the transcript below.',
+    '',
+    `TRANSCRIPT:\n${text.slice(0, 6000)}`,
+  ].join('\n');
+  const endpoint = `${GEMINI_API}/${GEMINI_TTS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+      },
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini TTS request failed'), { status: response.status, provider: 'gemini-tts' });
+  const encoded = data?.candidates?.[0]?.content?.parts?.find(part => part?.inlineData?.data)?.inlineData?.data;
+  if (!encoded) throw Object.assign(new Error('Gemini TTS returned no audio'), { status: 502, provider: 'gemini-tts' });
+  return pcmToWav(base64ToBytes(encoded));
+}
+
 async function callGroq(query, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -67,14 +144,29 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL }, 200, origin);
     }
-    if (!INTELLIGENCE_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
+    if (!INTELLIGENCE_PATHS.has(url.pathname) && !TTS_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
 
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
+
+    if (TTS_PATHS.has(url.pathname)) {
+      const text = String(body?.text || '').trim();
+      const rate = Number(body?.rate ?? 0.92);
+      if (!text) return json({ error: 'text is required' }, 400, origin);
+      if (text.length > 6000) return json({ error: 'text is too long' }, 413, origin);
+      if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'TTS_UNAVAILABLE' }, 503, origin);
+      try {
+        const wav = await callGeminiTTS(text, rate, env.GEMINI_API_KEY);
+        return audio(wav, origin);
+      } catch (error) {
+        return json({ error: error?.message || 'TTS request failed', code: 'TTS_FAILED', provider: error?.provider || 'gemini-tts' }, error?.status || 502, origin);
+      }
+    }
+
     const query = String(body?.query || '').trim();
     if (!query) return json({ error: 'query is required' }, 400, origin);
     if (query.length > 4000) return json({ error: 'query is too long' }, 413, origin);
