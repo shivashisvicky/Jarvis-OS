@@ -16,20 +16,37 @@
     const q = String(raw || '').trim().toLowerCase();
     return /\b(time|clock|date|today|weather|temperature|forecast|my name|who am i|joke|sing|maps?|directions?|navigate|note|notes|remember|remind me|youtube|play|video|games?|snake|calculator|settings|files|sftp|api lab)\b/.test(q);
   };
+  const isMathExpression = raw => {
+    const q = String(raw || '').trim().toLowerCase().replace(/[=?]+$/,'').trim();
+    if (!q || q.length > 80) return false;
+    if (!/[+\-*/%]/.test(q)) return false;
+    return /^[0-9\s()+\-*/%.]+$/.test(q);
+  };
+  const calculate = raw => {
+    const expression = String(raw || '').trim().replace(/[=?]+$/,'').trim();
+    if (!/^[0-9\s()+\-*/%.]+$/.test(expression)) return false;
+    try {
+      const value = Function(`"use strict"; return (${expression})`)();
+      if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+      reply(`${expression} = ${value}`);
+      return true;
+    } catch { return false; }
+  };
   const isExplicitWebSearch = raw => /^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\b/i.test(String(raw || '').trim());
   const isSimpleLookup = raw => {
     const q = String(raw || '').trim();
-    if (!q || q.length > 80 || /[?!]/.test(q) || isLocalCommand(q) || isExplicitWebSearch(q)) return false;
+    if (!q || q.length > 80 || /[?!]/.test(q) || isLocalCommand(q) || isExplicitWebSearch(q) || isMathExpression(q)) return false;
     if (!/^[\p{L}\p{N}][\p{L}\p{N} .,'&+\-()]{1,79}$/u.test(q)) return false;
     if (q.split(/\s+/).length > 6) return false;
     return !/^(tell|what|who|why|how|can|could|should|is|are|do|does|will|where|when|which)\b/i.test(q);
   };
-  const isWebSearchQuery = raw => isExplicitWebSearch(raw) || isSimpleLookup(raw);
+  const isFreshWebQuery = raw => /\b(latest|breaking|news|headlines|current events|recent|today's news|right now)\b/i.test(String(raw || ''));
+  const isWebSearchQuery = raw => isExplicitWebSearch(raw) || isSimpleLookup(raw) || isFreshWebQuery(raw);
   const isIntelligenceQuery = raw => {
     const q = String(raw || '').trim().toLowerCase();
-    if (!q || isLocalCommand(q)) return false;
+    if (!q || isLocalCommand(q) || isMathExpression(q)) return false;
     if (isWebSearchQuery(q)) return true;
-    return /\b(explain|summari[sz]e|compare|why|how|best|recommend|find|research|tell me about|what is|what are|who is|latest|current|today's|analy[sz]e|which|should i|is it|can you)\b/.test(q) || q.length > 55;
+    return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what is|what are|who is|analy[sz]e|which|should i|is it|can you|could you)\b/.test(q) || q.length > 55;
   };
   const localAnswer = query => {
     const q = query.toLowerCase();
@@ -68,6 +85,7 @@
   };
   const ask = async query => {
     if (localAnswer(query)) return true;
+    if (isMathExpression(query)) return calculate(query);
     if (isWebSearchQuery(query)) return searchWeb(query.replace(/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\s+/i, '').trim());
     if (STATIC_PAGES && !REMOTE_ENDPOINT) {
       reply('Remote intelligence is not connected to this deployment yet. The local JARVIS core is still online.');
@@ -96,7 +114,7 @@
     if (!form) return;
     const input = form.querySelector('#commandInput');
     const query = input?.value?.trim() || '';
-    if (!isIntelligenceQuery(query)) return;
+    if (!isIntelligenceQuery(query) && !isMathExpression(query)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     void ask(query);
@@ -104,7 +122,7 @@
   document.addEventListener('submit', intercept, true);
   window.addEventListener('jarvis:voice-command', event => {
     const query = String(event.detail?.text || '').trim();
-    if (!isIntelligenceQuery(query)) return;
+    if (!isIntelligenceQuery(query) && !isMathExpression(query)) return;
     event.preventDefault();
     void ask(query);
   });
