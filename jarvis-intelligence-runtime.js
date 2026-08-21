@@ -13,9 +13,10 @@
     } catch {}
     return 0.92;
   };
-  const reply = text => {
+  const reply = (text, speak = true) => {
     const el = document.querySelector('#jarvisReply');
     if (el) { el.textContent = text; el.classList.add('visible'); }
+    if (!speak) return;
     if (typeof window.jarvisSpeak === 'function') window.jarvisSpeak(text);
     else if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
@@ -87,7 +88,7 @@
     return true;
   };
   const searchWeb = query => {
-    reply(`Searching the web for “${query}”…`);
+    reply(`Searching the web for “${query}”…`, false);
     const nav = document.querySelector('[data-app="web"]');
     if (nav) nav.click();
     else {
@@ -108,7 +109,7 @@
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      reply('JARVIS intelligence is researching that…');
+      reply('JARVIS intelligence is researching that…', false);
       const r = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ query }), signal: controller.signal, cache: 'no-store' });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.error || `Gateway HTTP ${r.status}`);
