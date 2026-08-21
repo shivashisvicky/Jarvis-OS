@@ -18,7 +18,7 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept, X-JARVIS-TTS-Mode',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -36,8 +36,9 @@ function audio(bytes, origin) {
     status: 200,
     headers: {
       'Content-Type': 'audio/wav',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Accept-Ranges': 'bytes',
+      'X-JARVIS-TTS': `${GEMINI_TTS_MODEL};mode=wav`,
       ...corsHeaders(origin),
     },
   });
@@ -155,6 +156,27 @@ async function callGeminiTTSFallback(text, rate, apiKey) {
   return pcmToWav(base64ToBytes(encoded), sampleRate, channels);
 }
 
+async function searchGdelt(query) {
+  const target = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+  target.searchParams.set('query', query);
+  target.searchParams.set('mode', 'artlist');
+  target.searchParams.set('maxrecords', '12');
+  target.searchParams.set('timespan', '3months');
+  target.searchParams.set('format', 'json');
+  target.searchParams.set('sort', 'HybridRel');
+  const response = await fetch(target.toString(), { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`GDELT search failed with HTTP ${response.status}`);
+  const data = await response.json();
+  const articles = Array.isArray(data?.articles) ? data.articles : [];
+  return articles.slice(0, 10).map(article => ({
+    title: String(article?.title || '').trim(),
+    link: String(article?.url || '').trim(),
+    source: String(article?.domain || 'GDELT').trim(),
+    snippet: '',
+    published: String(article?.seendate || '').trim(),
+  })).filter(article => article.title && article.link);
+}
+
 async function callGroq(query, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -175,8 +197,22 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true, search: 'gdelt' }, 200, origin);
     }
+
+    if (request.method === 'GET' && url.pathname === '/api/search') {
+      if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
+      const query = String(url.searchParams.get('q') || '').trim();
+      if (!query) return json({ error: 'q is required', results: [] }, 400, origin);
+      if (query.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
+      try {
+        const results = await searchGdelt(query);
+        return json({ results, provider: 'gdelt', query }, 200, origin);
+      } catch (error) {
+        return json({ error: error?.message || 'Search failed', code: 'SEARCH_FAILED', results: [] }, 502, origin);
+      }
+    }
+
     if (!INTELLIGENCE_PATHS.has(url.pathname) && !TTS_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
@@ -190,18 +226,22 @@ export default {
       if (!text) return json({ error: 'text is required' }, 400, origin);
       if (text.length > 6000) return json({ error: 'text is too long' }, 413, origin);
       if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'TTS_UNAVAILABLE' }, 503, origin);
+      const forceWav = url.searchParams.get('format') === 'wav' || request.headers.get('X-JARVIS-TTS-Mode') === 'wav' || body?.stream === false;
       try {
-        const stream = await streamGeminiTTS(text, rate, env.GEMINI_API_KEY);
-        return new Response(stream.body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'X-Accel-Buffering': 'no',
-            'X-JARVIS-TTS': GEMINI_TTS_MODEL,
-            ...corsHeaders(origin),
-          },
-        });
+        if (!forceWav) {
+          const stream = await streamGeminiTTS(text, rate, env.GEMINI_API_KEY);
+          return new Response(stream.body, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream; charset=utf-8',
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'X-Accel-Buffering': 'no',
+              'X-JARVIS-TTS': GEMINI_TTS_MODEL,
+              ...corsHeaders(origin),
+            },
+          });
+        }
+        return audio(await callGeminiTTSFallback(text, rate, env.GEMINI_API_KEY), origin);
       } catch (streamError) {
         try {
           const wav = await callGeminiTTSFallback(text, rate, env.GEMINI_API_KEY);
