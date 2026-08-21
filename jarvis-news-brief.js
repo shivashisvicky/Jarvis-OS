@@ -7,9 +7,9 @@
     AI: 'artificial intelligence news when:1d -sports -celebrity',
     TECH: 'technology software news when:1d -sports -entertainment'
   };
-  const clean = html => {
+  const clean = value => {
     const box = document.createElement('div');
-    box.innerHTML = String(html || '');
+    box.innerHTML = String(value || '');
     return (box.textContent || '').replace(/\s+/g, ' ').trim();
   };
   const normalize = value => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -22,7 +22,7 @@
   let retryTimer;
   async function enrich() {
     const select = document.querySelector('#newsGenre');
-    const cards = [...document.querySelectorAll('#newsCards .news-dense-item')];
+    const cards = [...document.querySelectorAll('#newsCards a.news-dense-item, #newsCards a.news-card')];
     if (!select || !cards.length || running) return false;
     const category = select.value || 'WORLD';
     const feed = `https://news.google.com/rss/search?q=${encodeURIComponent(queries[category] || queries.WORLD)}&hl=en-IN&gl=IN&ceid=IN:en`;
@@ -33,24 +33,19 @@
       const response = await fetch(url.toString(), {cache:'no-store', headers:{Accept:'application/json'}});
       const data = await response.json();
       if (!response.ok || data.status !== 'ok' || !Array.isArray(data.items)) return false;
-      const feedItems = data.items.map(item => ({
-        title: normalize(item.title),
-        brief: summarize(item.description)
-      })).filter(item => item.brief);
+      const feedItems = data.items.map(item => ({title: normalize(item.title), brief: summarize(item.description)})).filter(item => item.brief);
       let added = 0;
       cards.forEach(card => {
         if (card.querySelector('.news-brief')) return;
-        const title = normalize(card.querySelector('.news-title')?.textContent);
-        const exact = feedItems.find(item => item.title === title);
-        const partial = exact || feedItems.find(item => item.title && (item.title.includes(title) || title.includes(item.title)));
-        if (!partial) return;
-        const copy = card.querySelector('.news-copy');
-        const meta = copy?.querySelector('.news-meta');
-        if (!copy || !meta) return;
+        const title = normalize(card.querySelector('.news-title, strong')?.textContent || card.textContent);
+        const match = feedItems.find(item => item.title === title) || feedItems.find(item => item.title && (item.title.includes(title) || title.includes(item.title)));
+        if (!match) return;
+        const copy = card.querySelector('.news-copy') || card;
+        const anchor = copy.querySelector('.news-meta, small');
         const node = document.createElement('span');
         node.className = 'news-brief';
-        node.textContent = partial.brief;
-        copy.insertBefore(node, meta);
+        node.textContent = match.brief;
+        if (anchor) copy.insertBefore(node, anchor); else copy.appendChild(node);
         added++;
       });
       return added > 0 || cards.every(card => card.querySelector('.news-brief'));
@@ -61,19 +56,20 @@
       running = false;
     }
   }
-  function retryBriefs(attempts = 12) {
+  function retryBriefs(attempts = 16) {
     window.clearTimeout(retryTimer);
     let left = attempts;
     const tick = async () => {
       const done = await enrich();
       if (done || --left <= 0) return;
-      retryTimer = window.setTimeout(tick, 500);
+      retryTimer = window.setTimeout(tick, 400);
     };
-    retryTimer = window.setTimeout(tick, 250);
+    retryTimer = window.setTimeout(tick, 150);
   }
+  const schedule = () => retryBriefs();
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelector('#newsGenre')?.addEventListener('change', () => retryBriefs());
-    retryBriefs();
+    document.querySelector('#newsGenre')?.addEventListener('change', schedule);
+    schedule();
   }, {once:true});
-  window.addEventListener('jarvis:news-updated', () => retryBriefs());
+  window.addEventListener('jarvis:news-updated', schedule);
 })();
