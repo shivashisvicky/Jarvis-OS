@@ -55,14 +55,14 @@
   window.jarvisLoadFeature = loadFeature;
   window.jarvisFeatureLoaded = name => loaded.has(name);
 
-  // Do not boot heavy modules on page load. A first interaction is a good
-  // opportunity to warm the voice runtime without delaying the first paint.
+  // Do not boot heavy modules on page load. A first command interaction is a
+  // safe point to warm voice without delaying the initial paint.
   let warmed = false;
   const warmVoice = event => {
     if (warmed) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (!target.closest('#commandInput, #voiceBtn, #testVoice')) return;
+    if (!target.closest('#commandInput, #commandForm .execute, #voiceBtn, #testVoice')) return;
     warmed = true;
     void loadFeature('voice').catch(() => {});
     document.removeEventListener('pointerdown', warmVoice, true);
