@@ -1,7 +1,7 @@
 /* J.A.R.V.I.S. Voice Authority
  * One generated voice for every device/browser. Native OS voices are not
- * used for JARVIS output. Gemini TTS supplies the voice; Web Audio supplies
- * reliable playback and the exact user-selected speech rate.
+ * used for JARVIS output. Gemini TTS is streamed and Web Audio schedules the
+ * PCM chunks so iPhone/Android do not wait for a complete audio file.
  */
 (() => {
   'use strict';
@@ -11,12 +11,11 @@
   const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || '/api/openai-intelligence';
   const base = endpoint.replace(/\/api\/(?:openai-intelligence|intelligence)\/?$/, '');
   const ttsEndpoint = `${base}/api/tts`;
-  let currentAudio = null;
-  let currentObjectUrl = null;
   let requestId = 0;
-  const queue = [];
   let playing = false;
   let audioContext = null;
+  const queue = [];
+  const activeSources = new Set();
 
   const rate = () => {
     try {
@@ -28,73 +27,150 @@
     return .92;
   };
 
-  const unlockAudio = () => {
+  const getAudioContext = () => {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
-      if (!audioContext) audioContext = new Ctx();
-      if (audioContext.state === 'suspended') void audioContext.resume();
+      if (!audioContext || audioContext.state === 'closed') audioContext = new Ctx({ latencyHint: 'interactive' });
       return audioContext;
     } catch { return null; }
+  };
+
+  const prime = () => {
+    const ctx = getAudioContext();
+    if (!ctx) return null;
+    try {
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') void ctx.resume();
+      const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      source.onended = () => { try { source.disconnect(); } catch {} };
+    } catch {}
+    return ctx;
   };
 
   const stop = () => {
     requestId += 1;
     queue.length = 0;
-    if (currentAudio) {
-      try { currentAudio.pause(); } catch {}
-      try { currentAudio.src = ''; } catch {}
-      currentAudio = null;
+    for (const source of activeSources) {
+      try { source.stop(); } catch {}
+      try { source.disconnect(); } catch {}
     }
-    if (currentObjectUrl) {
-      try { URL.revokeObjectURL(currentObjectUrl); } catch {}
-      currentObjectUrl = null;
-    }
+    activeSources.clear();
     playing = false;
   };
 
-  const playWithWebAudio = async (bytes, playbackRate) => {
-    const ctx = unlockAudio();
-    if (!ctx) return false;
-    try {
-      if (ctx.state === 'suspended') await ctx.resume();
-      const buffer = await ctx.decodeAudioData(bytes.slice(0));
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      source.buffer = buffer;
-      source.playbackRate.value = playbackRate;
-      gain.gain.value = .96;
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      currentAudio = source;
-      await new Promise((resolve, reject) => {
-        source.onended = resolve;
-        try { source.start(0); } catch (error) { reject(error); }
-      });
-      currentAudio = null;
-      return true;
-    } catch {
-      currentAudio = null;
-      return false;
-    }
+  const decodeBase64 = value => {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
   };
 
-  const playWithMediaElement = async (blob, playbackRate) => {
-    const url = URL.createObjectURL(blob);
-    currentObjectUrl = url;
-    const audio = new Audio(url);
-    currentAudio = audio;
-    audio.preload = 'auto';
-    audio.volume = .96;
-    audio.playbackRate = playbackRate;
-    await audio.play();
+  const playPcmChunk = (bytes, sampleRate = 24000, channels = 1, state) => {
+    const ctx = getAudioContext();
+    if (!ctx || !bytes?.byteLength) return false;
+    const usable = bytes.byteLength - (bytes.byteLength % 2);
+    if (!usable) return false;
+    const samples = new Int16Array(bytes.buffer, bytes.byteOffset, usable / 2);
+    const frameCount = Math.floor(samples.length / channels);
+    if (!frameCount) return false;
+    const buffer = ctx.createBuffer(channels, frameCount, sampleRate);
+    for (let ch = 0; ch < channels; ch += 1) {
+      const channel = buffer.getChannelData(ch);
+      for (let i = 0; i < frameCount; i += 1) channel[i] = samples[i * channels + ch] / 32768;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = rate();
+    const gain = ctx.createGain();
+    gain.gain.value = .96;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    activeSources.add(source);
+    source.onended = () => {
+      activeSources.delete(source);
+      try { source.disconnect(); gain.disconnect(); } catch {}
+    };
+    const now = ctx.currentTime;
+    const lead = state.started ? 0.012 : 0.075;
+    state.nextTime = Math.max(state.nextTime, now + lead);
+    source.start(state.nextTime);
+    state.nextTime += buffer.duration / source.playbackRate.value;
+    state.started = true;
+    return true;
+  };
+
+  const playWavFallback = async arrayBuffer => {
+    const ctx = prime();
+    if (!ctx) throw new Error('Web Audio is unavailable on this device.');
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') await ctx.resume();
+    const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = rate();
+    const gain = ctx.createGain();
+    gain.gain.value = .96;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    activeSources.add(source);
     await new Promise((resolve, reject) => {
-      audio.onended = resolve;
-      audio.onerror = () => reject(new Error('Generated JARVIS audio could not be decoded.'));
+      source.onended = () => { activeSources.delete(source); resolve(); };
+      try { source.start(0); } catch (error) { reject(error); }
     });
-    URL.revokeObjectURL(url);
-    currentObjectUrl = null;
-    currentAudio = null;
+    try { source.disconnect(); gain.disconnect(); } catch {}
+  };
+
+  const consumeSse = async (response, id) => {
+    if (!response.body) throw new Error('TTS stream has no body.');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let textBuffer = '';
+    let audioSeen = false;
+    let carry = new Uint8Array(0);
+    const state = { nextTime: 0, started: false };
+
+    const processEvent = raw => {
+      const lines = raw.split(/\n/);
+      const dataLines = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trim());
+      if (!dataLines.length) return;
+      const payload = dataLines.join('\n');
+      if (payload === '[DONE]') return;
+      let event;
+      try { event = JSON.parse(payload); } catch { return; }
+      if (event?.event_type !== 'step.delta' || event?.delta?.type !== 'audio' || !event?.delta?.data) return;
+      if (id !== requestId) return;
+      const incoming = decodeBase64(event.delta.data);
+      const combined = new Uint8Array(carry.byteLength + incoming.byteLength);
+      combined.set(carry, 0);
+      combined.set(incoming, carry.byteLength);
+      const usable = combined.byteLength - (combined.byteLength % 2);
+      const chunk = combined.slice(0, usable);
+      carry = combined.slice(usable);
+      const sampleRate = Number(event.delta.sample_rate) || 24000;
+      const channels = Number(event.delta.channels) || 1;
+      if (chunk.byteLength && playPcmChunk(chunk, sampleRate, channels, state)) audioSeen = true;
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      textBuffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+      let boundary;
+      while ((boundary = textBuffer.indexOf('\n\n')) >= 0) {
+        const event = textBuffer.slice(0, boundary);
+        textBuffer = textBuffer.slice(boundary + 2);
+        processEvent(event);
+      }
+      if (id !== requestId) { try { await reader.cancel(); } catch {} return false; }
+    }
+    textBuffer += decoder.decode();
+    if (textBuffer.trim()) processEvent(textBuffer);
+    if (!audioSeen) throw new Error('JARVIS TTS returned no audio.');
+    if (carry.byteLength) playPcmChunk(carry, 24000, 1, state);
+    return true;
   };
 
   const playNext = async () => {
@@ -105,7 +181,7 @@
     try {
       const response = await fetch(ttsEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, audio/wav' },
         body: JSON.stringify({ text: item.text, rate: rate() }),
         cache: 'no-store',
       });
@@ -114,17 +190,13 @@
         throw new Error(`TTS HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ''}`);
       }
       if (id !== requestId) return;
-      const arrayBuffer = await response.arrayBuffer();
-      if (id !== requestId) return;
-      const playbackRate = rate();
-      const played = await playWithWebAudio(arrayBuffer, playbackRate);
-      if (!played) await playWithMediaElement(new Blob([arrayBuffer], { type: 'audio/wav' }), playbackRate);
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) await consumeSse(response, id);
+      else await playWavFallback(await response.arrayBuffer());
     } catch (error) {
       if (id === requestId) window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error) } }));
     } finally {
       playing = false;
-      currentAudio = null;
-      if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch {} currentObjectUrl = null; }
       if (id === requestId) playNext();
     }
   };
@@ -132,8 +204,7 @@
   const speakGenerated = (text, options = {}) => {
     const clean = String(text || '').trim();
     if (!clean) return false;
-    // This runs synchronously for clicks/taps, satisfying browser audio activation.
-    unlockAudio();
+    prime();
     stop();
     queue.push({ id: requestId, text: clean, options });
     void playNext();
@@ -145,8 +216,18 @@
   window.jarvisSpeak = speakGenerated;
   window.jarvisVoiceAuthorityStop = stop;
 
+  const unlockOnGesture = () => prime();
+  document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('touchstart', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) prime();
+  });
+
   window.addEventListener('jarvis:speech-rate-changed', () => {
-    if (currentAudio?.playbackRate) currentAudio.playbackRate.value = rate();
+    for (const source of activeSources) {
+      try { source.playbackRate.value = rate(); } catch {}
+    }
   });
 
   if ('speechSynthesis' in window) {
