@@ -1,0 +1,56 @@
+name: Deploy JARVIS Search Gateway
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/search/**'
+      - '.github/workflows/deploy-search.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo 'Missing CLOUDFLARE_API_TOKEN'; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo 'Missing CLOUDFLARE_ACCOUNT_ID'; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare Wrangler config
+        working-directory: workers/search
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path('wrangler.toml')
+          p.write_text(p.read_text().replace('__CLOUDFLARE_ACCOUNT_ID__', os.environ['CLOUDFLARE_ACCOUNT_ID'], 1))
+          PY
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+      - name: Validate Worker
+        run: node --check workers/search/src/index.js
+      - name: Deploy
+        working-directory: workers/search
+        run: wrangler deploy --name jarvis-search
+      - name: Smoke test search GET
+        run: |
+          set -euo pipefail
+          url='https://jarvis-search.shivashisvicky112.workers.dev/api/search?q=Hrithik%20Roshan'
+          status=$(curl --silent --show-error --output /tmp/search.json --write-out '%{http_code}' -H 'Accept: application/json' "$url")
+          cat /tmp/search.json
+          test "$status" = 200
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/search.json'))
+          assert isinstance(d.get('results'), list), d
+          print('SEARCH_GATEWAY_SMOKE=PASS results=', len(d['results']))
+          PY
