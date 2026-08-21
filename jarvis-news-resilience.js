@@ -35,9 +35,17 @@
     } catch {}
   }
 
+  function normalizeNewsQuery(query) {
+    const raw = String(query || '').trim();
+    if (/^geopolitics\s+OR\s+international\s+OR\s+global$/i.test(raw)) return 'world news';
+    if (/^international\s+relations\s+OR\s+world\s+news$/i.test(raw)) return 'international news';
+    return raw;
+  }
+
   async function gdeltFallback(query) {
+    const effectiveQuery = normalizeNewsQuery(query);
     const target = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
-    target.searchParams.set('query', query);
+    target.searchParams.set('query', effectiveQuery);
     target.searchParams.set('mode', 'artlist');
     target.searchParams.set('maxrecords', '10');
     target.searchParams.set('timespan', '14days');
@@ -65,7 +73,7 @@
         .filter(item => item.title && /^https?:\/\//i.test(item.link))
         .slice(0, 10);
       if (!results.length) throw new Error('GDELT returned no articles');
-      return { results, provider: 'gdelt-browser-fallback', query };
+      return { results, provider: 'gdelt-browser-fallback', query: effectiveQuery };
     } finally {
       clearTimeout(timer);
     }
@@ -80,9 +88,14 @@
       return originalFetch(input, init);
     }
 
-    const originalPromise = originalFetch(input, init);
-    const query = url.searchParams.get('q') || '';
-    const fallbackPromise = gdeltFallback(query);
+    const originalQuery = url.searchParams.get('q') || '';
+    const effectiveQuery = normalizeNewsQuery(originalQuery);
+    const requestUrlString = effectiveQuery === originalQuery
+      ? url.toString()
+      : (() => { const rewritten = new URL(url.toString()); rewritten.searchParams.set('q', effectiveQuery); return rewritten.toString(); })();
+    const requestInput = requestUrlString;
+    const originalPromise = originalFetch(requestInput, init);
+    const fallbackPromise = gdeltFallback(effectiveQuery);
 
     try {
       const winner = await Promise.race([
@@ -90,11 +103,11 @@
           if (!response.ok) throw new Error(`gateway HTTP ${response.status}`);
           const data = await response.clone().json();
           if (!Array.isArray(data?.results) || !data.results.length) throw new Error('gateway returned no results');
-          writeCache(url.toString(), data);
+          writeCache(requestUrlString, data);
           return response;
         }),
         fallbackPromise.then(data => {
-          writeCache(url.toString(), data);
+          writeCache(requestUrlString, data);
           return jsonResponse(data);
         }),
       ]);
@@ -102,12 +115,12 @@
     } catch (error) {
       try {
         const data = await fallbackPromise;
-        writeCache(url.toString(), data);
+        writeCache(requestUrlString, data);
         return jsonResponse(data);
       } catch {
-        const cached = readCache(url.toString());
+        const cached = readCache(requestUrlString);
         if (cached) return jsonResponse({ ...cached, provider: 'cached-news', stale: true });
-        return originalPromise.catch(() => jsonResponse({ error: String(error?.message || 'News unavailable'), code: 'NEWS_CLIENT_UNAVAILABLE', results: [], query }, 502));
+        return originalPromise.catch(() => jsonResponse({ error: String(error?.message || 'News unavailable'), code: 'NEWS_CLIENT_UNAVAILABLE', results: [], query: effectiveQuery }, 502));
       }
     }
   };
