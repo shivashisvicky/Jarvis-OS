@@ -1,4 +1,5 @@
 (() => {
+  'use strict';
   const SOURCE_CLASS = 'jarvis-news-source';
   const relTime = value => {
     const t = Date.parse(value);
@@ -44,12 +45,12 @@
     frame = requestAnimationFrame(enhance);
   };
   window.addEventListener('jarvis:news-updated', schedule);
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once: true });
-  else schedule();
-  const style = document.createElement('link');
-  style.rel = 'stylesheet';
-  style.href = './jarvis-news-premium.css?v=20260821-4';
-  document.head.appendChild(style);
+  // Observe only the news container, not the entire document.
+  const boot = () => {
+    const host = document.querySelector('#newsCards');
+    if (host) new MutationObserver(schedule).observe(host, { childList: true, subtree: true });
+    schedule();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
