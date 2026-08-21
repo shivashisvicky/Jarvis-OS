@@ -1,114 +1,60 @@
 (() => {
-  const GDELT = 'https://api.gdeltproject.org/api/v2/doc/doc';
+  // World News bridge: keep the existing main.ts UI, but never let the browser call GDELT directly.
+  // The request is proxied through the JARVIS Intelligence Gateway, which can fall back to Google News RSS.
+  const GATEWAY = 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search';
+  const originalFetch = window.fetch.bind(window);
   const originalSetTimeout = window.setTimeout.bind(window);
-  let activeRun = 0;
 
-  // Prevent the legacy 650ms World boot call in main.ts from competing with this controller.
-  window.setTimeout = ((fn, delay, ...args) => {
-    try {
-      const source = typeof fn === 'function' ? Function.prototype.toString.call(fn) : '';
-      if (delay <= 800 && /loadNews\(['\"]WORLD['\"]\)/.test(source)) return 0;
-    } catch {}
-    return originalSetTimeout(fn, delay, ...args);
+  const toArticles = (payload) => ({
+    articles: (Array.isArray(payload?.results) ? payload.results : []).map((item) => ({
+      title: item?.title || '',
+      url: item?.link || '',
+      domain: item?.source || 'LIVE NEWS',
+      seendate: item?.published || ''
+    })).filter((item) => item.title && /^https?:\/\//i.test(item.url))
   });
 
-  const esc = (value) => String(value ?? '').replace(/[&<>\"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'
-  }[c]));
-
-  const trusted = [
-    'reuters.com','bbc.com','bbc.co.uk','apnews.com','aljazeera.com','theguardian.com',
-    'nytimes.com','washingtonpost.com','ft.com','dw.com','france24.com','npr.org',
-    'cnbc.com','cnn.com','abcnews.go.com','thehindu.com','indianexpress.com'
-  ];
-
-  function queryFor(category) {
-    if (category === 'INDIA') return '(India OR Indian) sourcelang:English';
-    if (category === 'AI') return '("artificial intelligence" OR AI) sourcelang:English';
-    if (category === 'TECH') return '(technology OR software) sourcelang:English';
-    return '(international OR geopolitics OR "global affairs" OR "world news") sourcelang:English -sports -celebrity -entertainment';
-  }
-
-  async function fetchGdelt(query) {
-    const controller = new AbortController();
-    const timer = originalSetTimeout(() => controller.abort(), 5000);
-    const url = new URL(GDELT);
-    url.searchParams.set('query', query);
-    url.searchParams.set('mode', 'artlist');
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('maxrecords', '25');
-    url.searchParams.set('timespan', '24h');
-    url.searchParams.set('sort', 'datedesc');
-    try {
-      const response = await fetch(url, { cache: 'no-store', signal: controller.signal, headers: { Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`GDELT HTTP ${response.status}`);
-      const data = await response.json();
-      const articles = Array.isArray(data?.articles) ? data.articles : [];
-      if (!articles.length) throw new Error('GDELT returned no articles');
-      return articles;
-    } catch (error) {
-      if (error?.name === 'AbortError') throw new Error('GDELT timeout after 5s');
-      throw error;
-    } finally { clearTimeout(timer); }
-  }
-
-  function rank(articles) {
-    const cleaned = articles.filter(a => a?.title && /^https?:\/\//i.test(a?.url));
-    const good = cleaned.filter(a => trusted.some(d => String(a.domain || '').toLowerCase().endsWith(d)));
-    const rest = cleaned.filter(a => !trusted.some(d => String(a.domain || '').toLowerCase().endsWith(d)) && !/wikipedia|facebook|youtube|reddit|quora/i.test(String(a.domain || '')));
-    return [...good, ...rest].slice(0, 5);
-  }
-
-  function render(cards, articles) {
-    const items = rank(articles);
-    cards.innerHTML = items.map((a, i) => {
-      const rawDate = String(a.seendate || '');
-      const date = rawDate.length >= 8 ? `${rawDate.slice(4,6)}/${rawDate.slice(6,8)}` : '';
-      return `<a class="news-dense-item" href="${esc(a.url)}" target="_blank" rel="noreferrer"><span class="news-rank">${String(i+1).padStart(2,'0')}</span><span class="news-copy"><strong class="news-title">${esc(a.title)}</strong><span class="news-meta"><span class="news-source">${esc(a.domain || 'LIVE NEWS')}</span>${date ? `<span class="news-country">${date}</span>` : ''}</span></span><span class="news-open">OPEN</span></a>`;
-    }).join('') || '<div class="news-empty">No usable live headlines returned.</div>';
-    return items.length;
-  }
-
-  async function load(category = 'WORLD') {
-    const status = document.querySelector('#newsStatus');
-    const cards = document.querySelector('#newsCards');
-    if (!status || !cards) return;
-    const run = ++activeRun;
-    status.textContent = 'SCANNING';
-    cards.innerHTML = '<div class="news-empty">Fetching live headlines…</div>';
-    try {
-      const articles = await fetchGdelt(queryFor(category));
-      if (run !== activeRun) return;
-      const count = render(cards, articles);
-      status.textContent = count ? `${count} RESULTS` : 'DEGRADED';
-    } catch (error) {
-      if (run !== activeRun) return;
-      status.textContent = 'DEGRADED';
-      cards.innerHTML = `<div class="news-empty"><strong>World News diagnostic</strong><br>${esc(error?.message || 'News request failed')}<br><small>Source: GDELT · 5 second client timeout</small></div>`;
-      console.warn('JARVIS World News failed', error);
+  window.fetch = async (input, init) => {
+    const raw = typeof input === 'string' ? input : input?.url || '';
+    if (!/^https:\/\/api\.gdeltproject\.org\/api\/v2\/doc\/doc(?:\?|$)/i.test(raw)) {
+      return originalFetch(input, init);
     }
-  }
 
-  function wire() {
-    const button = document.querySelector('#refreshNews');
-    const select = document.querySelector('#newsGenre');
-    const cards = document.querySelector('#newsCards');
-    if (!button || !select || !cards || button.dataset.worldNewsBound === '1') return false;
-    const replacement = button.cloneNode(true);
-    button.replaceWith(replacement);
-    replacement.dataset.worldNewsBound = '1';
-    replacement.addEventListener('click', () => load(select.value || 'WORLD'));
-    originalSetTimeout(() => load(select.value || 'WORLD'), 100);
-    return true;
-  }
+    const source = new URL(raw);
+    const query = source.searchParams.get('query') || 'world news';
+    const target = new URL(GATEWAY);
+    target.searchParams.set('q', query);
 
-  function boot() {
-    if (wire()) return;
-    const observer = new MutationObserver(() => { if (wire()) observer.disconnect(); });
-    observer.observe(document.body, { childList: true, subtree: true });
-    originalSetTimeout(() => observer.disconnect(), 15000);
-  }
+    const controller = new AbortController();
+    const timer = originalSetTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await originalFetch(target.toString(), {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { Accept: 'application/json' }
+      });
+      const text = await response.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch {}
+      if (!response.ok) {
+        const detail = payload?.providers?.length
+          ? payload.providers.map((p) => `${p.provider}: ${p.code || p.status}`).join(' | ')
+          : payload?.error || `HTTP ${response.status}`;
+        throw new Error(`News gateway HTTP ${response.status}: ${detail}`);
+      }
+      const normalized = toArticles(payload);
+      if (!normalized.articles.length) throw new Error('News gateway returned zero usable articles');
+      return new Response(JSON.stringify(normalized), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('News gateway timeout after 12s');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  console.info('[JARVIS] World News browser bridge active: GDELT -> Intelligence Gateway');
 })();
