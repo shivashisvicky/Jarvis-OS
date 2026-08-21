@@ -24,14 +24,34 @@ test('home command surface supports local time and core identity queries', async
   await expect(page.locator('#jarvisReply')).toContainText(/Shivashis/i);
 });
 
+test('navigation phrases stay in the local command router', async ({ page }) => {
+  await openHome(page);
+  const input = page.locator('#commandInput');
+  await input.fill('take me to bhubaneswar');
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps');
+  await expect(page.locator('#mapQuery')).toHaveValue(/bhubaneswar/i);
+  await expect(page.locator('#webQuery')).toHaveCount(0);
+});
+
 test('current Vite application owns the voice surface', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
   await expect(page.locator('#commandForm')).toBeVisible();
   await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
   await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(0);
-  // jarvis-performance.js is a lightweight guard only; its presence is allowed
-  // and does not imply that the legacy voice/runtime stack has been restored.
   await expect(page.locator('script[src*="jarvis-live-media.js"]')).toHaveCount(1);
   await expect(page.locator('script[src*="jarvis-web-search.js"]')).toHaveCount(1);
+});
+
+test('mobile viewport keeps the full shell usable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openHome(page);
+  await expect(page.locator('.topbar')).toBeVisible();
+  await expect(page.locator('.workspace')).toBeVisible();
+  await expect(page.locator('#commandInput')).toBeVisible();
+  await expect(page.locator('#voiceBtn')).toBeVisible();
+  await expect(page.locator('.rail')).toBeVisible();
+  await expect(page.locator('.nav[data-app="maps"]')).toBeVisible();
+  await expect(page.locator('.nav[data-app="media"]')).toBeVisible();
 });
