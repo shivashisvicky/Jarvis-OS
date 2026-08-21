@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
@@ -37,26 +37,21 @@ async function callGemini(query, apiKey) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: SYSTEM }] },
       contents: [{ role: 'user', parts: [{ text: query }] }],
-      tools: [{ google_search: {} }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
+      generationConfig: { temperature: 0.2, maxOutputTokens: 700 },
     }),
   });
   const data = await response.json();
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini request failed'), { status: response.status, provider: 'gemini' });
   const text = String(data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '').trim();
   if (!text) throw Object.assign(new Error('Gemini returned no text'), { status: 502, provider: 'gemini' });
-  const grounding = data?.candidates?.[0]?.groundingMetadata;
-  const sources = Array.isArray(grounding?.groundingChunks)
-    ? grounding.groundingChunks.map(chunk => chunk?.web).filter(source => source?.uri).slice(0, 6).map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
-    : [];
-  return { text, model: GEMINI_MODEL, provider: 'gemini', grounded: sources.length > 0, sources };
+  return { text, model: GEMINI_MODEL, provider: 'gemini', grounded: false, sources: [] };
 }
 
 async function callGroq(query, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: GROQ_MODEL, temperature: 0.2, max_tokens: 900, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: query }] }),
+    body: JSON.stringify({ model: GROQ_MODEL, temperature: 0.2, max_tokens: 700, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: query }] }),
   });
   const data = await response.json();
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Groq request failed'), { status: response.status, provider: 'groq' });
