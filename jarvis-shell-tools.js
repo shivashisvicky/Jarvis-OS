@@ -3,20 +3,10 @@
   if (window.__JARVIS_SHELL_TOOLS__) return;
   window.__JARVIS_SHELL_TOOLS__ = true;
 
-  // Home/Command must render immediately. News is fetched only after REFRESH.
+  // Engineering surfaces are layered onto the stable shell. Do not monkey-patch
+  // window.fetch: that broke the existing News pipeline and affected unrelated apps.
   const nativeFetch = window.fetch.bind(window);
-  let allowNewsFetch = false;
-  const newsUrl = url => /api\.gdeltproject\.org\/api\/v2\/doc\/doc|news\.google\.com\/rss\/search|api\.rss2json\.com/i.test(url);
-  window.fetch = (input, init) => {
-    const url = typeof input === 'string' ? input : input?.url || '';
-    if (!allowNewsFetch && newsUrl(url)) {
-      if (/api\.rss2json\.com/i.test(url)) return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-      return Promise.resolve(new Response(JSON.stringify({ articles: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-    }
-    return nativeFetch(input, init);
-  };
 
-  const esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#039;' }[c]));
   const decorateApi = () => {
     const host = document.querySelector('#workspace');
     if (!host || host.dataset.jarvisApi === '1') return;
@@ -42,7 +32,6 @@
     document.querySelector('#sftpCommand').addEventListener('click',command);document.querySelector('#sftpCopy').addEventListener('click',async()=>{command();try{await navigator.clipboard.writeText(document.querySelector('#sftpOutput').textContent);document.querySelector('#sftpCopy').textContent='COPIED';setTimeout(()=>document.querySelector('#sftpCopy').textContent='COPY',1000)}catch{}});
   };
   const decorate=()=>{decorateApi();decorateSftp()};
-  document.addEventListener('click',event=>{const app=event.target?.closest?.('[data-app]')?.getAttribute('data-app');if(app==='api'||app==='remote')setTimeout(decorate,0);if(event.target?.closest?.('#refreshNews'))allowNewsFetch=true},true);
-  window.addEventListener('jarvis:news-updated',()=>{allowNewsFetch=true});
+  document.addEventListener('click',event=>{const app=event.target?.closest?.('[data-app]')?.getAttribute('data-app');if(app==='api'||app==='remote')setTimeout(decorate,0)},true);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(decorate,0),{once:true});else setTimeout(decorate,0);
 })();
