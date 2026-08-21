@@ -1,7 +1,19 @@
 (() => {
-  const GATEWAY = 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search';
   const SEARCH = 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
+  const GATEWAY = 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search';
+  const originalSetTimeout = window.setTimeout.bind(window);
   let active = 0;
+
+  // The SPA used to start its own news request while this final loader was also
+  // starting one. Block only that legacy boot callback. User-triggered refresh
+  // is replaced below, so the final loader owns the news surface completely.
+  window.setTimeout = ((fn, delay, ...args) => {
+    try {
+      const source = typeof fn === 'function' ? Function.prototype.toString.call(fn) : '';
+      if (delay <= 800 && /loadNews\(['\"]WORLD['\"]\)/.test(source)) return 0;
+    } catch {}
+    return originalSetTimeout(fn, delay, ...args);
+  });
 
   const esc = (value) => String(value ?? '').replace(/[&<>\"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#039;'
@@ -16,7 +28,7 @@
 
   const timeoutFetch = async (url, ms = 9000) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
+    const timer = originalSetTimeout(() => controller.abort(), ms);
     try {
       const response = await fetch(url, {
         method: 'GET',
@@ -33,7 +45,7 @@
     }
   };
 
-  const render = (cards, items, degraded = false) => {
+  const render = (cards, items) => {
     const usable = items.filter((item) => item && item.title && /^https?:\/\//i.test(item.link)).slice(0, 5);
     cards.innerHTML = usable.map((item, i) => {
       const published = item.published || item.date || '';
@@ -52,27 +64,34 @@
     cards.innerHTML = '<div class="news-empty">Fetching live headlines…</div>';
     const q = queryFor(category);
 
-    try {
-      const data = await timeoutFetch(`${GATEWAY}?q=${encodeURIComponent(q)}`, 9000);
-      if (run !== active) return;
-      const count = render(cards, data.results || [], false);
-      status.textContent = `${count} RESULTS`;
-      if (count) return;
-      throw new Error('Gateway returned no usable articles');
-    } catch (gatewayError) {
-      if (run !== active) return;
+    // Stable search gateway first, then the intelligence news aggregator.
+    // This avoids depending on a single upstream news provider.
+    const attempts = [
+      `${SEARCH}?provider=bing&q=${encodeURIComponent(q)}`,
+      `${GATEWAY}?q=${encodeURIComponent(q)}`,
+      `${SEARCH}?provider=brave&q=${encodeURIComponent(`${q} Reuters BBC Guardian Al Jazeera`)}`
+    ];
+
+    let lastError = null;
+    for (const endpoint of attempts) {
       try {
-        const data = await timeoutFetch(`${SEARCH}?provider=brave&q=${encodeURIComponent(`${q} Reuters BBC Guardian Al Jazeera`)}`, 9000);
+        const data = await timeoutFetch(endpoint, 9000);
         if (run !== active) return;
-        const count = render(cards, data.results || [], true);
-        status.textContent = count ? `${count} RESULTS · DEGRADED` : 'NO RESULTS · DEGRADED';
-      } catch (fallbackError) {
-        if (run !== active) return;
-        cards.innerHTML = '<div class="news-empty">Live news is temporarily unavailable. Tap REFRESH to retry.</div>';
-        status.textContent = 'DEGRADED';
-        console.warn('JARVIS final news loader failed', gatewayError, fallbackError);
+        const count = render(cards, data.results || []);
+        if (count > 0) {
+          status.textContent = `${count} RESULTS`;
+          return;
+        }
+        lastError = new Error('Provider returned no usable articles');
+      } catch (error) {
+        lastError = error;
       }
     }
+
+    if (run !== active) return;
+    cards.innerHTML = '<div class="news-empty">Live news is temporarily unavailable. Tap REFRESH to retry.</div>';
+    status.textContent = 'DEGRADED';
+    console.warn('JARVIS final news loader failed all providers', lastError);
   };
 
   const wire = () => {
@@ -86,10 +105,10 @@
     replacement.dataset.finalNewsBound = '1';
     replacement.addEventListener('click', () => load(select.value || 'WORLD'));
 
-    window.setTimeout(() => {
+    originalSetTimeout(() => {
       const text = cards.textContent?.trim() || '';
       if (!text || text === 'Loading live intelligence…' || text === 'Fetching headlines…') load(select.value || 'WORLD');
-    }, 1200);
+    }, 250);
     return true;
   };
 
@@ -99,7 +118,7 @@
       if (wire()) observer.disconnect();
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    window.setTimeout(() => observer.disconnect(), 15000);
+    originalSetTimeout(() => observer.disconnect(), 15000);
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
