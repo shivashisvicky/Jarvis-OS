@@ -24,5 +24,19 @@
   <script src="./jarvis-intelligence-runtime.js?v=20260821-intelligence-v5" defer></script>
   <script src="./jarvis-news-gateway-bridge.js?v=20260822-news-gateway-v1"></script>
   <script type="module" src="./src/main.ts?v=20260822-news-v16"></script>
+  <script>
+    (() => {
+      if (window.__jarvisNewsCategorySwitch) return;
+      window.__jarvisNewsCategorySwitch = true;
+      document.addEventListener('change', event => {
+        const target = event.target;
+        if (!(target instanceof HTMLSelectElement) || target.id !== 'newsGenre') return;
+        window.requestAnimationFrame(() => {
+          const refresh = document.querySelector('#refreshNews');
+          if (refresh instanceof HTMLButtonElement && !refresh.disabled) refresh.click();
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
