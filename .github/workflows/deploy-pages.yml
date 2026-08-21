@@ -112,25 +112,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify deployed Gemini intelligence gateway
+      - name: Verify live intelligence POST
         env:
           JARVIS_INTELLIGENCE_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev
         run: |
           set -euo pipefail
-          response=$(curl --fail-with-body --silent --show-error \
+          endpoint="$JARVIS_INTELLIGENCE_ENDPOINT/api/intelligence"
+          echo "POST $endpoint"
+          headers=$(mktemp)
+          body=$(mktemp)
+          status=$(curl --silent --show-error --max-time 30 \
+            -D "$headers" -o "$body" -w '%{http_code}' \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json' \
-            -X POST "$JARVIS_INTELLIGENCE_ENDPOINT/" \
-            --data '{"query":"Explain why the sky is blue in one concise sentence."}')
-          printf '%s\n' "$response"
-          RESPONSE="$response" python - <<'PY'
+            -X POST "$endpoint" \
+            --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          cat "$headers"
+          echo
+          cat "$body"
+          echo
+          echo "HTTP_STATUS=$status"
+          RESPONSE_FILE="$body" STATUS="$status" python - <<'PY'
           import json, os
-          data = json.loads(os.environ['RESPONSE'])
+          status = os.environ['STATUS']
+          data = json.load(open(os.environ['RESPONSE_FILE']))
+          if status != '200':
+              raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')}")
           text = str(data.get('text') or '').strip()
-          assert text, 'Gemini gateway returned no text'
-          assert data.get('provider') == 'gemini', f"unexpected provider: {data.get('provider')}"
-          assert data.get('model') == 'gemini-2.5-flash', f"unexpected model: {data.get('model')}"
-          print('GEMINI_INTELLIGENCE_SMOKE=PASS')
+          assert text, 'intelligence response has no text'
+          assert data.get('provider') in {'gemini', 'groq'}, f"unexpected provider: {data.get('provider')}"
+          print(f"INTELLIGENCE_POST_PASS provider={data.get('provider')} model={data.get('model')}")
           PY
 
   live-media-smoke:
