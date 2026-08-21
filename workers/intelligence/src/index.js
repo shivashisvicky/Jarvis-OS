@@ -161,7 +161,7 @@ async function searchGdelt(query) {
   target.searchParams.set('query', query);
   target.searchParams.set('mode', 'artlist');
   target.searchParams.set('maxrecords', '12');
-  target.searchParams.set('timespan', '3months');
+  target.searchParams.set('timespan', '14days');
   target.searchParams.set('format', 'json');
   target.searchParams.set('sort', 'HybridRel');
   const response = await fetch(target.toString(), { headers: { Accept: 'application/json' } });
@@ -175,6 +175,46 @@ async function searchGdelt(query) {
     snippet: '',
     published: String(article?.seendate || '').trim(),
   })).filter(article => article.title && article.link);
+}
+
+function decodeXml(value) {
+  return String(value || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .trim();
+}
+
+async function searchGoogleNews(query) {
+  const target = new URL('https://news.google.com/rss/search');
+  target.searchParams.set('q', query);
+  target.searchParams.set('hl', 'en-IN');
+  target.searchParams.set('gl', 'IN');
+  target.searchParams.set('ceid', 'IN:en');
+  const response = await fetch(target.toString(), { headers: { Accept: 'application/rss+xml, application/xml, text/xml' } });
+  if (!response.ok) throw new Error(`Google News RSS failed with HTTP ${response.status}`);
+  const xml = await response.text();
+  const items = [];
+  for (const match of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const item = match[1];
+    const title = decodeXml(item.match(/<title>([\s\S]*?)<\/title>/i)?.[1]);
+    const link = decodeXml(item.match(/<link>([\s\S]*?)<\/link>/i)?.[1]);
+    const source = decodeXml(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || 'Google News');
+    const published = decodeXml(item.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1]);
+    if (title && link) items.push({ title, link, source, snippet: '', published });
+    if (items.length >= 10) break;
+  }
+  if (!items.length) throw new Error('Google News RSS returned no articles');
+  return items;
+}
+
+async function searchNews(query) {
+  try {
+    const results = await searchGdelt(query);
+    if (results.length) return { results, provider: 'gdelt' };
+  } catch {}
+  const results = await searchGoogleNews(query);
+  return { results, provider: 'google-news-rss' };
 }
 
 async function callGroq(query, apiKey) {
@@ -197,7 +237,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true, search: 'gdelt' }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true, search: 'gdelt+google-news-rss' }, 200, origin);
     }
 
     if (request.method === 'GET' && url.pathname === '/api/search') {
@@ -206,8 +246,8 @@ export default {
       if (!query) return json({ error: 'q is required', results: [] }, 400, origin);
       if (query.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
       try {
-        const results = await searchGdelt(query);
-        return json({ results, provider: 'gdelt', query }, 200, origin);
+        const result = await searchNews(query);
+        return json({ ...result, query }, 200, origin);
       } catch (error) {
         return json({ error: error?.message || 'Search failed', code: 'SEARCH_FAILED', results: [] }, 502, origin);
       }
