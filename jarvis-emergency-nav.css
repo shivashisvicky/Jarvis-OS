@@ -1,0 +1,7 @@
+/* Emergency navigation recovery: remove expensive paint/compositing from the live shell. */
+*,*::before,*::after{animation:none!important;transition:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;text-shadow:none!important;box-shadow:none!important;mix-blend-mode:normal!important}
+body::before,body::after,.os::before,.os::after,.core-visual::before,.core-visual::after,.core-orb::before,.core-orb::after,.core-orb span::before,.core-orb span::after{display:none!important;content:none!important}
+.core-visual,.core-ring,.core-orb,.core-grid,.hud-label,.metric,.news-track{transform:none!important}
+.nav,.module-card,.brand,[data-app],button{pointer-events:auto!important}
+.rail{z-index:100!important;position:relative!important}
+.workspace{z-index:1!important;position:relative!important}
