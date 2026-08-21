@@ -6,15 +6,28 @@
   const ENDPOINT = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || '/api/openai-intelligence';
   const STATIC_PAGES = /(^|\.)github\.io$/i.test(location.hostname);
   const REMOTE_ENDPOINT = /^https?:\/\//i.test(ENDPOINT);
+  const speechRate = () => {
+    try {
+      const getter = window.jarvisGetSpeechRate || window.jarvisGetEffectiveSpeechRate;
+      if (typeof getter === 'function') return Number(getter()) || 0.92;
+    } catch {}
+    return 0.92;
+  };
   const reply = text => {
     const el = document.querySelector('#jarvisReply');
     if (el) { el.textContent = text; el.classList.add('visible'); }
     if (typeof window.jarvisSpeak === 'function') window.jarvisSpeak(text);
-    else if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(text), { rate: .84, pitch: .54, lang: 'en-GB' })); }
+    else if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = speechRate();
+      utterance.pitch = .54;
+      utterance.lang = 'en-GB';
+      speechSynthesis.speak(utterance);
+    }
   };
   const isLocalCommand = raw => {
     const q = String(raw || '').trim().toLowerCase();
-    return /\b(time|clock|date|today|weather|temperature|forecast|my name|who am i|joke|sing|maps?|directions?|navigate|note|notes|remember|remind me|youtube|play|video|games?|snake|calculator|settings|files|sftp|api lab)\b/.test(q);
+    return /\b(time|clock|date|today|weather|temperature|forecast|my name|who am i|joke|sing|maps?|directions?|navigate|navigate me|take me to|go to|open maps?|note|notes|remember|remind me|youtube|play|video|games?|snake|calculator|settings|files|sftp|api lab)\b/.test(q);
   };
   const isMathExpression = raw => {
     const q = String(raw || '').trim().toLowerCase().replace(/[=?]+$/,'').trim();
@@ -36,6 +49,7 @@
   const isSimpleLookup = raw => {
     const q = String(raw || '').trim();
     if (!q || q.length > 80 || /[?!]/.test(q) || isLocalCommand(q) || isExplicitWebSearch(q) || isMathExpression(q)) return false;
+    if (/^(?:take me|go to|navigate|directions?|open maps?)\b/i.test(q)) return false;
     if (!/^[\p{L}\p{N}][\p{L}\p{N} .,'&+\-()]{1,79}$/u.test(q)) return false;
     if (q.split(/\s+/).length > 6) return false;
     return !/^(tell|what|who|why|how|can|could|should|is|are|do|does|will|where|when|which)\b/i.test(q);
