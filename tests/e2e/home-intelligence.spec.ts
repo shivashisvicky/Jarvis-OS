@@ -34,11 +34,12 @@ test('navigation phrases stay in the local command router', async ({ page }) => 
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
-test('current Vite application owns the voice surface', async ({ page }) => {
+test('one generated voice authority owns speech across the shell', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
   await expect(page.locator('#commandForm')).toBeVisible();
   await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
+  await expect(page.locator('script[src*="jarvis-voice-authority.js"]')).toHaveCount(1);
   await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(0);
   await expect(page.locator('script[src*="jarvis-live-media.js"]')).toHaveCount(1);
   await expect(page.locator('script[src*="jarvis-web-search.js"]')).toHaveCount(1);
