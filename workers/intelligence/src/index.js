@@ -7,7 +7,6 @@ const ALLOWED_ORIGINS = new Set([
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
-const LEGACY_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const INTERACTIONS_API = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -44,9 +43,7 @@ function audio(bytes, origin) {
   });
 }
 
-function pcmToWav(pcm) {
-  const sampleRate = 24000;
-  const channels = 1;
+function pcmToWav(pcm, sampleRate = 24000, channels = 1) {
   const bits = 16;
   const blockAlign = channels * bits / 8;
   const byteRate = sampleRate * blockAlign;
@@ -122,7 +119,7 @@ async function streamGeminiTTS(text, rate, apiKey) {
     body: JSON.stringify({
       model: GEMINI_TTS_MODEL,
       input: ttsPrompt(text, rate),
-      response_format: { type: 'audio', mime_type: 'audio/l16', sample_rate: 24000 },
+      response_format: { type: 'audio' },
       generation_config: { speech_config: [{ voice: 'Kore' }] },
       stream: true,
     }),
@@ -134,24 +131,28 @@ async function streamGeminiTTS(text, rate, apiKey) {
   return response;
 }
 
-async function callLegacyTTS(text, rate, apiKey) {
-  const safeRate = Math.min(1.2, Math.max(0.8, Number(rate) || 0.92));
-  const response = await fetch(`${GEMINI_API}/${LEGACY_TTS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+async function callGeminiTTSFallback(text, rate, apiKey) {
+  const response = await fetch(INTERACTIONS_API, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+      'Api-Revision': '2026-05-20',
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: ttsPrompt(text, safeRate) }] }],
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-      },
+      model: GEMINI_TTS_MODEL,
+      input: ttsPrompt(text, rate),
+      response_format: { type: 'audio', mime_type: 'audio/l16', delivery: 'inline' },
+      generation_config: { speech_config: [{ voice: 'Kore' }] },
     }),
   });
   const data = await response.json();
-  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Legacy Gemini TTS request failed'), { status: response.status, provider: 'gemini-2.5-tts' });
-  const encoded = data?.candidates?.[0]?.content?.parts?.find(part => part?.inlineData?.data)?.inlineData?.data;
-  if (!encoded) throw Object.assign(new Error('Legacy Gemini TTS returned no audio'), { status: 502, provider: 'gemini-2.5-tts' });
-  return pcmToWav(base64ToBytes(encoded));
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini TTS request failed'), { status: response.status, provider: 'gemini-3.1-tts' });
+  const encoded = data?.output_audio?.data;
+  if (!encoded) throw Object.assign(new Error('Gemini TTS returned no audio'), { status: 502, provider: 'gemini-3.1-tts' });
+  const sampleRate = Number(data?.output_audio?.sample_rate) || 24000;
+  const channels = Number(data?.output_audio?.channels) || 1;
+  return pcmToWav(base64ToBytes(encoded), sampleRate, channels);
 }
 
 async function callGroq(query, apiKey) {
@@ -203,10 +204,10 @@ export default {
         });
       } catch (streamError) {
         try {
-          const wav = await callLegacyTTS(text, rate, env.GEMINI_API_KEY);
+          const wav = await callGeminiTTSFallback(text, rate, env.GEMINI_API_KEY);
           return audio(wav, origin);
-        } catch (legacyError) {
-          return json({ error: streamError?.message || legacyError?.message || 'TTS request failed', code: 'TTS_FAILED', provider: streamError?.provider || legacyError?.provider || 'gemini-tts' }, streamError?.status || legacyError?.status || 502, origin);
+        } catch (fallbackError) {
+          return json({ error: streamError?.message || fallbackError?.message || 'TTS request failed', code: 'TTS_FAILED', provider: streamError?.provider || fallbackError?.provider || 'gemini-3.1-tts' }, streamError?.status || fallbackError?.status || 502, origin);
         }
       }
     }
