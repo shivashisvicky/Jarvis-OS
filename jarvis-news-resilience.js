@@ -2,6 +2,7 @@
   'use strict';
 
   const INTELLIGENCE_HOST = 'jarvis-intelligence.shivashisvicky112.workers.dev';
+  const SEARCH_ENDPOINT = 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
   const CACHE_PREFIX = 'jarvis-news-cache-v1:';
   const CACHE_TTL = 15 * 60 * 1000;
   const originalFetch = window.fetch.bind(window);
@@ -40,6 +41,38 @@
     if (/^geopolitics\s+OR\s+international\s+OR\s+global$/i.test(raw)) return 'world news';
     if (/^international\s+relations\s+OR\s+world\s+news$/i.test(raw)) return 'international news';
     return raw;
+  }
+
+  async function searchWorkerFallback(query) {
+    const effectiveQuery = `${normalizeNewsQuery(query)} latest`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const target = new URL(SEARCH_ENDPOINT);
+      target.searchParams.set('provider', 'brave');
+      target.searchParams.set('q', effectiveQuery);
+      const response = await originalFetch(target.toString(), {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`search worker HTTP ${response.status}`);
+      const data = await response.json();
+      const results = (Array.isArray(data?.results) ? data.results : [])
+        .map(item => ({
+          title: String(item?.title || '').trim(),
+          link: String(item?.link || '').trim(),
+          source: String(item?.source || data?.provider || 'LIVE NEWS').trim(),
+          snippet: String(item?.snippet || '').trim(),
+          published: String(item?.published || '').trim(),
+        }))
+        .filter(item => item.title && /^https?:\/\//i.test(item.link))
+        .slice(0, 10);
+      if (!results.length) throw new Error('search worker returned no results');
+      return { results, provider: 'search-worker-fallback', query: effectiveQuery };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function gdeltFallback(query) {
@@ -93,35 +126,36 @@
     const requestUrlString = effectiveQuery === originalQuery
       ? url.toString()
       : (() => { const rewritten = new URL(url.toString()); rewritten.searchParams.set('q', effectiveQuery); return rewritten.toString(); })();
-    const requestInput = requestUrlString;
-    const originalPromise = originalFetch(requestInput, init);
-    const fallbackPromise = gdeltFallback(effectiveQuery);
+
+    const gatewayPromise = originalFetch(requestUrlString, init).then(async response => {
+      if (!response.ok) throw new Error(`gateway HTTP ${response.status}`);
+      const data = await response.clone().json();
+      if (!Array.isArray(data?.results) || !data.results.length) throw new Error('gateway returned no results');
+      writeCache(requestUrlString, data);
+      return response;
+    });
+
+    const searchPromise = searchWorkerFallback(effectiveQuery).then(data => {
+      writeCache(requestUrlString, data);
+      return jsonResponse(data);
+    });
+
+    const gdeltPromise = gdeltFallback(effectiveQuery).then(data => {
+      writeCache(requestUrlString, data);
+      return jsonResponse(data);
+    });
 
     try {
-      const winner = await Promise.race([
-        originalPromise.then(async response => {
-          if (!response.ok) throw new Error(`gateway HTTP ${response.status}`);
-          const data = await response.clone().json();
-          if (!Array.isArray(data?.results) || !data.results.length) throw new Error('gateway returned no results');
-          writeCache(requestUrlString, data);
-          return response;
-        }),
-        fallbackPromise.then(data => {
-          writeCache(requestUrlString, data);
-          return jsonResponse(data);
-        }),
-      ]);
-      return winner;
+      return await Promise.any([gatewayPromise, searchPromise, gdeltPromise]);
     } catch (error) {
-      try {
-        const data = await fallbackPromise;
-        writeCache(requestUrlString, data);
-        return jsonResponse(data);
-      } catch {
-        const cached = readCache(requestUrlString);
-        if (cached) return jsonResponse({ ...cached, provider: 'cached-news', stale: true });
-        return originalPromise.catch(() => jsonResponse({ error: String(error?.message || 'News unavailable'), code: 'NEWS_CLIENT_UNAVAILABLE', results: [], query: effectiveQuery }, 502));
-      }
+      const cached = readCache(requestUrlString);
+      if (cached) return jsonResponse({ ...cached, provider: 'cached-news', stale: true });
+      return jsonResponse({
+        error: String(error?.message || 'News unavailable'),
+        code: 'NEWS_CLIENT_UNAVAILABLE',
+        results: [],
+        query: effectiveQuery,
+      }, 502);
     }
   };
 })();
