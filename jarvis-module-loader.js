@@ -14,7 +14,8 @@
   };
 
   const loaded = new Map();
-  const assetUrl = name => `./${name}?v=20260821-phase0-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const pending = new Map();
+  const assetUrl = name => `./${name}?v=20260821-phase1-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
@@ -42,21 +43,28 @@
 
   async function loadFeature(name) {
     if (loaded.has(name)) return loaded.get(name);
+    if (pending.has(name)) return pending.get(name);
     const feature = features[name];
     if (!feature) return;
     const promise = (async () => {
       for (const css of feature.css || []) await loadCss(css);
       for (const script of feature.scripts || []) await loadScript(script);
     })();
-    loaded.set(name, promise);
-    try { await promise; } catch (error) { loaded.delete(name); throw error; }
+    pending.set(name, promise);
+    try {
+      await promise;
+      loaded.set(name, true);
+      return true;
+    } catch (error) {
+      throw error;
+    } finally {
+      pending.delete(name);
+    }
   }
 
   window.jarvisLoadFeature = loadFeature;
   window.jarvisFeatureLoaded = name => loaded.has(name);
 
-  // Do not boot heavy modules on page load. A first command interaction is a
-  // safe point to warm voice without delaying the initial paint.
   let warmed = false;
   const warmVoice = event => {
     if (warmed) return;
