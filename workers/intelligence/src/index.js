@@ -216,23 +216,37 @@ function decodeXml(value) {
     .trim();
 }
 
+function stripMarkup(value) {
+  return decodeXml(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function parseRss(xml, fallbackSource) {
   const items = [];
-  const blocks = [...String(xml || '').matchAll(/<(item|entry)\b[\s\S]*?<\/(item|entry)>/gi)];
+  const blocks = [...String(xml || '').matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)];
   for (const match of blocks) {
     const item = match[0];
-    const title = decodeXml(item.match(/<title(?:\s[^>]*)?>([\s\S]*?)<\/title>/i)?.[1]);
-    const linkMatch = item.match(/<link[^>]*href=["']([^"']+)["'][^>]*>/i) || item.match(/<link[^>]*>([\s\S]*?)<\/link>/i);
-    const link = decodeXml(linkMatch?.[1]);
-    const source = decodeXml(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || fallbackSource);
-    const published = decodeXml(
+    const title = stripMarkup(item.match(/<title(?:\s[^>]*)?>([\s\S]*?)<\/title>/i)?.[1]);
+
+    const atomLinks = [...item.matchAll(/<link\b([^>]*)>/gi)].map(match => {
+      const attrs = match[1] || '';
+      const href = attrs.match(/\bhref=["']([^"']+)["']/i)?.[1];
+      const rel = attrs.match(/\brel=["']([^"']+)["']/i)?.[1]?.toLowerCase();
+      return { href: href ? decodeXml(href) : '', rel: rel || '' };
+    });
+    const atomAlternate = atomLinks.find(link => link.href && (!link.rel || link.rel === 'alternate'))?.href;
+    const elementLink = item.match(/<link(?:\s[^>]*)?>([\s\S]*?)<\/link>/i)?.[1];
+    const link = decodeXml(atomAlternate || elementLink || '');
+
+    const source = stripMarkup(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || fallbackSource);
+    const published = stripMarkup(
       item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i)?.[1] ||
       item.match(/<published[^>]*>([\s\S]*?)<\/published>/i)?.[1] ||
       item.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i)?.[1] || ''
     );
-    const description = decodeXml(item.match(/<(description|summary|content)[^>]*>([\s\S]*?)<\/(description|summary|content)>/i)?.[2] || '');
-    if (title && link) items.push({ title, link, source, snippet: description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), published });
-    if (items.length >= 8) break;
+    const description = stripMarkup(item.match(/<(description|summary|content)[^>]*>([\s\S]*?)<\/(description|summary|content)>/i)?.[2] || '');
+
+    if (title && link) items.push({ title, link, source, snippet: description, published });
+    if (items.length >= 12) break;
   }
   return items;
 }
@@ -251,6 +265,19 @@ async function fetchRssFeed(source, url) {
   return results;
 }
 
+function canonicalNewsKey(item) {
+  const raw = String(item?.link || '').trim();
+  if (!raw) return String(item?.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  try {
+    const url = new URL(raw);
+    url.hash = '';
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'output', 'ocid'].forEach(param => url.searchParams.delete(param));
+    return url.toString().replace(/\/$/, '').toLowerCase();
+  } catch {
+    return raw.toLowerCase().replace(/\/$/, '');
+  }
+}
+
 async function searchNews(query) {
   const category = newsCategory(query);
   const sources = rssSources(category);
@@ -264,9 +291,10 @@ async function searchNews(query) {
     if (result.status === 'fulfilled') all.push(...result.value);
     else failures.push({ provider: source, status: result.reason?.status || 502, code: result.reason?.code || 'RSS_FAILED', error: result.reason?.message || 'RSS request failed' });
   }
+
   const seen = new Set();
   const filtered = all.filter(item => {
-    const key = String(item.link || item.title).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const key = canonicalNewsKey(item);
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -275,6 +303,7 @@ async function searchNews(query) {
     const tb = Date.parse(b.published || '') || 0;
     return tb - ta;
   }).slice(0, 12);
+
   if (!filtered.length) throw Object.assign(new Error('All configured RSS news sources failed'), { status: 502, code: 'NEWS_RSS_UNAVAILABLE', providers: failures });
   return {
     results: filtered,
@@ -309,7 +338,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true, search: 'gdelt+google-news-rss' }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true, search: 'multi-source-rss' }, 200, origin);
     }
 
     if (request.method === 'GET' && url.pathname === '/api/search') {
