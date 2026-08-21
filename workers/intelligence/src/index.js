@@ -171,25 +171,40 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 7000, provider = 
   }
 }
 
-async function searchGdelt(query) {
-  const target = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
-  target.searchParams.set('query', query);
-  target.searchParams.set('mode', 'artlist');
-  target.searchParams.set('maxrecords', '12');
-  target.searchParams.set('timespan', '14days');
-  target.searchParams.set('format', 'json');
-  target.searchParams.set('sort', 'HybridRel');
-  const response = await fetchWithTimeout(target.toString(), { headers: { Accept: 'application/json' } }, 7000, 'gdelt');
-  if (!response.ok) throw new Error(`GDELT search failed with HTTP ${response.status}`);
-  const data = await response.json();
-  const articles = Array.isArray(data?.articles) ? data.articles : [];
-  return articles.slice(0, 10).map(article => ({
-    title: String(article?.title || '').trim(),
-    link: String(article?.url || '').trim(),
-    source: String(article?.domain || 'GDELT').trim(),
-    snippet: '',
-    published: String(article?.seendate || '').trim(),
-  })).filter(article => article.title && article.link);
+function rssSources(category) {
+  const common = [
+    ['BBC World', 'https://feeds.bbci.co.uk/news/world/rss.xml'],
+    ['NPR World', 'https://feeds.npr.org/1004/rss.xml'],
+    ['Al Jazeera', 'https://www.aljazeera.com/xml/rss/all.xml'],
+    ['DW World', 'https://rss.dw.com/rdf/rss-en-world'],
+  ];
+  if (category === 'INDIA') return [
+    ['BBC India', 'https://feeds.bbci.co.uk/news/world/asia/india/rss.xml'],
+    ['India Today', 'https://www.indiatoday.in/rss/home'],
+    ['Indian Express', 'https://indianexpress.com/feed/'],
+    ['Times of India India', 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms'],
+  ];
+  if (category === 'AI') return [
+    ['TechCrunch', 'https://techcrunch.com/category/artificial-intelligence/feed/'],
+    ['WIRED', 'https://www.wired.com/feed/rss'],
+    ['Ars Technica', 'https://feeds.arstechnica.com/arstechnica/index'],
+    ['BBC Technology', 'https://feeds.bbci.co.uk/news/technology/rss.xml'],
+  ];
+  if (category === 'TECH') return [
+    ['BBC Technology', 'https://feeds.bbci.co.uk/news/technology/rss.xml'],
+    ['TechCrunch', 'https://techcrunch.com/feed/'],
+    ['WIRED', 'https://www.wired.com/feed/rss'],
+    ['Ars Technica', 'https://feeds.arstechnica.com/arstechnica/index'],
+  ];
+  return common;
+}
+
+function newsCategory(query) {
+  const q = String(query || '').toLowerCase();
+  if (q.includes('artificial intelligence') || q.includes('"ai"') || q === 'ai') return 'AI';
+  if (q.includes('india') || q.includes('indian')) return 'INDIA';
+  if (q.includes('technology') || q.includes('software')) return 'TECH';
+  return 'WORLD';
 }
 
 function decodeXml(value) {
@@ -197,48 +212,81 @@ function decodeXml(value) {
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'").replace(/&#x2F;/g, '/')
     .trim();
 }
 
-async function searchGoogleNews(query) {
-  const target = new URL('https://news.google.com/rss/search');
-  target.searchParams.set('q', query);
-  target.searchParams.set('hl', 'en-IN');
-  target.searchParams.set('gl', 'IN');
-  target.searchParams.set('ceid', 'IN:en');
-  const response = await fetchWithTimeout(target.toString(), { headers: { Accept: 'application/rss+xml, application/xml, text/xml' } }, 7000, 'google-news-rss');
-  if (!response.ok) throw new Error(`Google News RSS failed with HTTP ${response.status}`);
-  const xml = await response.text();
+function parseRss(xml, fallbackSource) {
   const items = [];
-  for (const match of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
-    const item = match[1];
-    const title = decodeXml(item.match(/<title>([\s\S]*?)<\/title>/i)?.[1]);
-    const link = decodeXml(item.match(/<link>([\s\S]*?)<\/link>/i)?.[1]);
-    const source = decodeXml(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || 'Google News');
-    const published = decodeXml(item.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1]);
-    if (title && link) items.push({ title, link, source, snippet: '', published });
-    if (items.length >= 10) break;
+  const blocks = [...String(xml || '').matchAll(/<(item|entry)\b[\s\S]*?<\/(item|entry)>/gi)];
+  for (const match of blocks) {
+    const item = match[0];
+    const title = decodeXml(item.match(/<title(?:\s[^>]*)?>([\s\S]*?)<\/title>/i)?.[1]);
+    const linkMatch = item.match(/<link[^>]*href=["']([^"']+)["'][^>]*>/i) || item.match(/<link[^>]*>([\s\S]*?)<\/link>/i);
+    const link = decodeXml(linkMatch?.[1]);
+    const source = decodeXml(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || fallbackSource);
+    const published = decodeXml(
+      item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i)?.[1] ||
+      item.match(/<published[^>]*>([\s\S]*?)<\/published>/i)?.[1] ||
+      item.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i)?.[1] || ''
+    );
+    const description = decodeXml(item.match(/<(description|summary|content)[^>]*>([\s\S]*?)<\/(description|summary|content)>/i)?.[2] || '');
+    if (title && link) items.push({ title, link, source, snippet: description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), published });
+    if (items.length >= 8) break;
   }
-  if (!items.length) throw new Error('Google News RSS returned no articles');
   return items;
 }
 
+async function fetchRssFeed(source, url) {
+  const response = await fetchWithTimeout(url, {
+    headers: {
+      Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.1',
+      'User-Agent': 'JARVIS-News/1.0',
+    },
+  }, 4500, source);
+  if (!response.ok) throw Object.assign(new Error(`${source} RSS HTTP ${response.status}`), { status: response.status, provider: source, code: 'RSS_HTTP_ERROR' });
+  const xml = await response.text();
+  const results = parseRss(xml, source);
+  if (!results.length) throw Object.assign(new Error(`${source} RSS returned no articles`), { status: 502, provider: source, code: 'RSS_EMPTY' });
+  return results;
+}
+
 async function searchNews(query) {
+  const category = newsCategory(query);
+  const sources = rssSources(category);
+  const started = Date.now();
+  const settled = await Promise.allSettled(sources.map(([source, url]) => fetchRssFeed(source, url)));
   const failures = [];
-  try {
-    const results = await searchGdelt(query);
-    if (results.length) return { results, provider: 'gdelt', diagnostics: { attempted: ['gdelt'], failures: [] } };
-    failures.push({ provider: 'gdelt', status: 502, code: 'NO_RESULTS', error: 'GDELT returned no articles' });
-  } catch (error) {
-    failures.push({ provider: error?.provider || 'gdelt', status: error?.status || 502, code: error?.code || 'UPSTREAM_FAILED', error: error?.message || 'GDELT request failed' });
+  const all = [];
+  for (let i = 0; i < settled.length; i += 1) {
+    const result = settled[i];
+    const [source] = sources[i];
+    if (result.status === 'fulfilled') all.push(...result.value);
+    else failures.push({ provider: source, status: result.reason?.status || 502, code: result.reason?.code || 'RSS_FAILED', error: result.reason?.message || 'RSS request failed' });
   }
-  try {
-    const results = await searchGoogleNews(query);
-    return { results, provider: 'google-news-rss', diagnostics: { attempted: ['gdelt', 'google-news-rss'], failures } };
-  } catch (error) {
-    failures.push({ provider: error?.provider || 'google-news-rss', status: error?.status || 502, code: error?.code || 'UPSTREAM_FAILED', error: error?.message || 'Google News request failed' });
-    throw Object.assign(new Error('All configured news providers failed'), { status: 502, code: 'NEWS_UPSTREAM_FAILED', providers: failures });
-  }
+  const seen = new Set();
+  const filtered = all.filter(item => {
+    const key = String(item.link || item.title).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => {
+    const ta = Date.parse(a.published || '') || 0;
+    const tb = Date.parse(b.published || '') || 0;
+    return tb - ta;
+  }).slice(0, 12);
+  if (!filtered.length) throw Object.assign(new Error('All configured RSS news sources failed'), { status: 502, code: 'NEWS_RSS_UNAVAILABLE', providers: failures });
+  return {
+    results: filtered,
+    provider: 'multi-source-rss',
+    diagnostics: {
+      category,
+      attempted: sources.map(([source]) => source),
+      succeeded: sources.map(([source], i) => settled[i].status === 'fulfilled' ? source : null).filter(Boolean),
+      failures,
+      latencyMs: Date.now() - started,
+    },
+  };
 }
 
 async function callGroq(query, apiKey) {
