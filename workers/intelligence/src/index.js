@@ -6,9 +6,11 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
-const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const GEMINI_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
+const LEGACY_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
+const INTERACTIONS_API = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
 const TTS_PATHS = new Set(['/api/tts', '/api/jarvis-tts']);
 
@@ -95,24 +97,50 @@ async function callGemini(query, apiKey) {
   return { text, model: GEMINI_MODEL, provider: 'gemini', grounded: false, sources: [] };
 }
 
-async function callGeminiTTS(text, rate, apiKey) {
+function ttsPrompt(text, rate) {
   const safeRate = Math.min(1.2, Math.max(0.8, Number(rate) || 0.92));
   const pace = safeRate < 0.87 ? 'deliberate and slightly slow' : safeRate < 0.97 ? 'calm and measured' : safeRate < 1.08 ? 'natural conversational' : 'brisk but clear';
-  const prompt = [
+  return [
     'You are the permanent JARVIS voice for a personal intelligence system.',
-    'Use one consistent adult male-presenting voice with a polished British English / neutral RP-style accent.',
+    'Use one consistent polished adult voice with restrained British English / neutral RP-style delivery.',
     'Deep, composed, intelligent, cinematic but natural. Crisp articulation, controlled breath, no exaggerated acting.',
-    `Delivery pace: ${pace}. Target speech-rate setting: ${safeRate.toFixed(2)}x. Keep the pace consistent from start to finish.`,
-    'Do not add words, commentary, greetings, sound effects, or quotation marks. Speak only the transcript below.',
-    '',
+    `Delivery pace: ${pace}. Target rate: ${safeRate.toFixed(2)}x.`,
+    'Speak only the transcript. Do not add words, commentary, greetings, sound effects, or quotation marks.',
     `TRANSCRIPT:\n${text.slice(0, 6000)}`,
   ].join('\n');
-  const endpoint = `${GEMINI_API}/${GEMINI_TTS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(endpoint, {
+}
+
+async function streamGeminiTTS(text, rate, apiKey) {
+  const response = await fetch(INTERACTIONS_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'x-goog-api-key': apiKey,
+      'Api-Revision': '2026-05-20',
+    },
+    body: JSON.stringify({
+      model: GEMINI_TTS_MODEL,
+      input: ttsPrompt(text, rate),
+      response_format: { type: 'audio', mime_type: 'audio/l16', sample_rate: 24000 },
+      generation_config: { speech_config: [{ voice: 'Kore' }] },
+      stream: true,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw Object.assign(new Error(detail || `Gemini TTS stream failed with HTTP ${response.status}`), { status: response.status, provider: 'gemini-3.1-tts' });
+  }
+  return response;
+}
+
+async function callLegacyTTS(text, rate, apiKey) {
+  const safeRate = Math.min(1.2, Math.max(0.8, Number(rate) || 0.92));
+  const response = await fetch(`${GEMINI_API}/${LEGACY_TTS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts: [{ text: ttsPrompt(text, safeRate) }] }],
       generationConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
@@ -120,9 +148,9 @@ async function callGeminiTTS(text, rate, apiKey) {
     }),
   });
   const data = await response.json();
-  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini TTS request failed'), { status: response.status, provider: 'gemini-tts' });
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Legacy Gemini TTS request failed'), { status: response.status, provider: 'gemini-2.5-tts' });
   const encoded = data?.candidates?.[0]?.content?.parts?.find(part => part?.inlineData?.data)?.inlineData?.data;
-  if (!encoded) throw Object.assign(new Error('Gemini TTS returned no audio'), { status: 502, provider: 'gemini-tts' });
+  if (!encoded) throw Object.assign(new Error('Legacy Gemini TTS returned no audio'), { status: 502, provider: 'gemini-2.5-tts' });
   return pcmToWav(base64ToBytes(encoded));
 }
 
@@ -146,7 +174,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL, tts: GEMINI_TTS_MODEL, ttsStreaming: true }, 200, origin);
     }
     if (!INTELLIGENCE_PATHS.has(url.pathname) && !TTS_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
@@ -162,10 +190,24 @@ export default {
       if (text.length > 6000) return json({ error: 'text is too long' }, 413, origin);
       if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'TTS_UNAVAILABLE' }, 503, origin);
       try {
-        const wav = await callGeminiTTS(text, rate, env.GEMINI_API_KEY);
-        return audio(wav, origin);
-      } catch (error) {
-        return json({ error: error?.message || 'TTS request failed', code: 'TTS_FAILED', provider: error?.provider || 'gemini-tts' }, error?.status || 502, origin);
+        const stream = await streamGeminiTTS(text, rate, env.GEMINI_API_KEY);
+        return new Response(stream.body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'X-Accel-Buffering': 'no',
+            'X-JARVIS-TTS': GEMINI_TTS_MODEL,
+            ...corsHeaders(origin),
+          },
+        });
+      } catch (streamError) {
+        try {
+          const wav = await callLegacyTTS(text, rate, env.GEMINI_API_KEY);
+          return audio(wav, origin);
+        } catch (legacyError) {
+          return json({ error: streamError?.message || legacyError?.message || 'TTS request failed', code: 'TTS_FAILED', provider: streamError?.provider || legacyError?.provider || 'gemini-tts' }, streamError?.status || legacyError?.status || 502, origin);
+        }
       }
     }
 
