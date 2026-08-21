@@ -2,6 +2,19 @@ const browserOnly = (): void => {
   const escapeHtml = (value: unknown): string => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c] ?? c));
   const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => Promise.race([promise, new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms))]);
 
+  // The gateway's public CORS contract intentionally stays simple. Safari will
+  // preflight a custom X-JARVIS-Trace request header, so strip that diagnostic
+  // header at the browser boundary and keep the trace in the URL/body instead.
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    if (headers.has('X-JARVIS-Trace')) {
+      headers.delete('X-JARVIS-Trace');
+      console.info('[JARVIS CORS] stripped non-simple X-JARVIS-Trace header');
+    }
+    return nativeFetch(input, {...init, headers});
+  };
+
   const searchMaps = async (term: string): Promise<void> => {
     const results = document.querySelector<HTMLElement>('#mapResults');
     const frame = document.querySelector<HTMLElement>('#mapFrame');
