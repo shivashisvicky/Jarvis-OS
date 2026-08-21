@@ -55,15 +55,16 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import os
+          import os,re
           p = Path('dist/index.html')
           text = p.read_text()
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
-          old = '<meta name="jarvis-intelligence-endpoint" content="/api/openai-intelligence">'
-          new = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
-          if old not in text:
-              raise SystemExit('Expected intelligence endpoint meta tag not found')
-          p.write_text(text.replace(old, new, 1))
+          pattern = r'<meta\s+name="jarvis-intelligence-endpoint"\s+content="[^"]*"\s*/?>'
+          replacement = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
+          text, count = re.subn(pattern, replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Intelligence endpoint meta tag not found in built artifact')
+          p.write_text(text)
           print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint})')
           PY
       - name: Verify generated YouTube configuration
@@ -121,12 +122,7 @@ jobs:
           echo "POST $endpoint"
           headers=$(mktemp)
           body=$(mktemp)
-          status=$(curl --silent --show-error --max-time 30 \
-            -D "$headers" -o "$body" -w '%{http_code}' \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json' \
-            -X POST "$endpoint" \
-            --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          status=$(curl --silent --show-error --max-time 30 -D "$headers" -o "$body" -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -X POST "$endpoint" --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
           cat "$headers"
           echo
           cat "$body"
@@ -136,8 +132,7 @@ jobs:
           import json, os
           status = os.environ['STATUS']
           data = json.load(open(os.environ['RESPONSE_FILE']))
-          if status != '200':
-              raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')}")
+          if status != '200': raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')}")
           text = str(data.get('text') or '').strip()
           assert text, 'intelligence response has no text'
           assert data.get('provider') in {'gemini', 'groq'}, f"unexpected provider: {data.get('provider')}"
