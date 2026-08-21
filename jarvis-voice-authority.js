@@ -72,6 +72,7 @@
   const playPcmChunk = (bytes, sampleRate = 24000, channels = 1, state) => {
     const ctx = getAudioContext();
     if (!ctx || !bytes?.byteLength) return false;
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') void ctx.resume();
     const usable = bytes.byteLength - (bytes.byteLength % 2);
     if (!usable) return false;
     const samples = new Int16Array(bytes.buffer, bytes.byteOffset, usable / 2);
@@ -84,7 +85,7 @@
     }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = rate();
+    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -98,7 +99,7 @@
     const lead = state.started ? 0.012 : 0.075;
     state.nextTime = Math.max(state.nextTime, now + lead);
     source.start(state.nextTime);
-    state.nextTime += buffer.duration / source.playbackRate.value;
+    state.nextTime += buffer.duration;
     state.started = true;
     return true;
   };
@@ -110,7 +111,7 @@
     const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = rate();
+    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -222,12 +223,6 @@
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) prime();
-  });
-
-  window.addEventListener('jarvis:speech-rate-changed', () => {
-    for (const source of activeSources) {
-      try { source.playbackRate.value = rate(); } catch {}
-    }
   });
 
   if ('speechSynthesis' in window) {
