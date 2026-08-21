@@ -12,10 +12,23 @@
     if (typeof window.jarvisSpeak === 'function') window.jarvisSpeak(text);
     else if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(text), { rate: .84, pitch: .54, lang: 'en-GB' })); }
   };
+  const isLocalCommand = raw => {
+    const q = String(raw || '').trim().toLowerCase();
+    return /\b(time|clock|date|today|weather|temperature|forecast|my name|who am i|joke|sing|maps?|directions?|navigate|note|notes|remember|remind me|youtube|play|video|games?|snake|calculator|settings|files|sftp|api lab)\b/.test(q);
+  };
+  const isExplicitWebSearch = raw => /^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\b/i.test(String(raw || '').trim());
+  const isSimpleLookup = raw => {
+    const q = String(raw || '').trim();
+    if (!q || q.length > 80 || /[?!]/.test(q) || isLocalCommand(q) || isExplicitWebSearch(q)) return false;
+    if (!/^[\p{L}\p{N}][\p{L}\p{N} .,'&+\-()]{1,79}$/u.test(q)) return false;
+    if (q.split(/\s+/).length > 6) return false;
+    return !/^(tell|what|who|why|how|can|could|should|is|are|do|does|will|where|when|which)\b/i.test(q);
+  };
+  const isWebSearchQuery = raw => isExplicitWebSearch(raw) || isSimpleLookup(raw);
   const isIntelligenceQuery = raw => {
     const q = String(raw || '').trim().toLowerCase();
-    if (!q) return false;
-    if (/\b(time|clock|date|today|weather|temperature|forecast|my name|who am i|joke|sing|maps?|directions?|navigate|note|notes|remember|remind me|youtube|play|video|games?|snake|calculator|settings|files|sftp|api lab)\b/.test(q)) return false;
+    if (!q || isLocalCommand(q)) return false;
+    if (isWebSearchQuery(q)) return true;
     return /\b(explain|summari[sz]e|compare|why|how|best|recommend|find|research|tell me about|what is|what are|who is|latest|current|today's|analy[sz]e|which|should i|is it|can you)\b/.test(q) || q.length > 55;
   };
   const localAnswer = query => {
@@ -26,8 +39,36 @@
     }
     return false;
   };
+  const waitForWebSearch = (query, attempts = 0) => {
+    const input = document.querySelector('#webQuery');
+    const button = document.querySelector('#webSearch');
+    if (input && button) {
+      input.value = query;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      button.click();
+      return true;
+    }
+    if (attempts >= 80) {
+      reply(`I could not open the web search for “${query}”.`);
+      return false;
+    }
+    setTimeout(() => waitForWebSearch(query, attempts + 1), 75);
+    return true;
+  };
+  const searchWeb = query => {
+    reply(`Searching the web for “${query}”…`);
+    const nav = document.querySelector('[data-app="web"]');
+    if (nav) nav.click();
+    else {
+      const existing = document.querySelector('#webQuery');
+      if (!existing) return reply('The web search module is unavailable right now.');
+    }
+    waitForWebSearch(query);
+    return true;
+  };
   const ask = async query => {
     if (localAnswer(query)) return true;
+    if (isWebSearchQuery(query)) return searchWeb(query.replace(/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\s+/i, '').trim());
     if (STATIC_PAGES && !REMOTE_ENDPOINT) {
       reply('Remote intelligence is not connected to this deployment yet. The local JARVIS core is still online.');
       return false;
