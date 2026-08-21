@@ -46,7 +46,7 @@
     const q = String(raw || '').trim().toLowerCase();
     if (!q || isLocalCommand(q) || isMathExpression(q)) return false;
     if (isWebSearchQuery(q)) return true;
-    return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what is|what are|who is|analy[sz]e|which|should i|is it|can you|could you)\b/.test(q) || q.length > 55 || /\?$/.test(q);
+    return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what(?: is|['’]s| are| was| were)|who(?: is|['’]s)|analy[sz]e|which|should i|is it|can you|could you|do you|does)\b/.test(q) || q.length > 55 || /\?$/.test(q);
   };
   const localAnswer = query => {
     const q = query.toLowerCase();
