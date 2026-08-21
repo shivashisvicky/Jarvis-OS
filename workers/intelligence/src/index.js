@@ -156,6 +156,21 @@ async function callGeminiTTSFallback(text, rate, apiKey) {
   return pcmToWav(base64ToBytes(encoded), sampleRate, channels);
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 7000, provider = 'upstream') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw Object.assign(new Error(`${provider} upstream timeout after ${timeoutMs}ms`), { status: 504, code: 'UPSTREAM_TIMEOUT', provider });
+    }
+    throw Object.assign(new Error(error?.message || `${provider} upstream request failed`), { status: 502, code: 'UPSTREAM_FETCH_FAILED', provider });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function searchGdelt(query) {
   const target = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
   target.searchParams.set('query', query);
@@ -164,7 +179,7 @@ async function searchGdelt(query) {
   target.searchParams.set('timespan', '14days');
   target.searchParams.set('format', 'json');
   target.searchParams.set('sort', 'HybridRel');
-  const response = await fetch(target.toString(), { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(target.toString(), { headers: { Accept: 'application/json' } }, 7000, 'gdelt');
   if (!response.ok) throw new Error(`GDELT search failed with HTTP ${response.status}`);
   const data = await response.json();
   const articles = Array.isArray(data?.articles) ? data.articles : [];
@@ -191,7 +206,7 @@ async function searchGoogleNews(query) {
   target.searchParams.set('hl', 'en-IN');
   target.searchParams.set('gl', 'IN');
   target.searchParams.set('ceid', 'IN:en');
-  const response = await fetch(target.toString(), { headers: { Accept: 'application/rss+xml, application/xml, text/xml' } });
+  const response = await fetchWithTimeout(target.toString(), { headers: { Accept: 'application/rss+xml, application/xml, text/xml' } }, 7000, 'google-news-rss');
   if (!response.ok) throw new Error(`Google News RSS failed with HTTP ${response.status}`);
   const xml = await response.text();
   const items = [];
@@ -209,12 +224,21 @@ async function searchGoogleNews(query) {
 }
 
 async function searchNews(query) {
+  const failures = [];
   try {
     const results = await searchGdelt(query);
-    if (results.length) return { results, provider: 'gdelt' };
-  } catch {}
-  const results = await searchGoogleNews(query);
-  return { results, provider: 'google-news-rss' };
+    if (results.length) return { results, provider: 'gdelt', diagnostics: { attempted: ['gdelt'], failures: [] } };
+    failures.push({ provider: 'gdelt', status: 502, code: 'NO_RESULTS', error: 'GDELT returned no articles' });
+  } catch (error) {
+    failures.push({ provider: error?.provider || 'gdelt', status: error?.status || 502, code: error?.code || 'UPSTREAM_FAILED', error: error?.message || 'GDELT request failed' });
+  }
+  try {
+    const results = await searchGoogleNews(query);
+    return { results, provider: 'google-news-rss', diagnostics: { attempted: ['gdelt', 'google-news-rss'], failures } };
+  } catch (error) {
+    failures.push({ provider: error?.provider || 'google-news-rss', status: error?.status || 502, code: error?.code || 'UPSTREAM_FAILED', error: error?.message || 'Google News request failed' });
+    throw Object.assign(new Error('All configured news providers failed'), { status: 502, code: 'NEWS_UPSTREAM_FAILED', providers: failures });
+  }
 }
 
 async function callGroq(query, apiKey) {
@@ -249,7 +273,7 @@ export default {
         const result = await searchNews(query);
         return json({ ...result, query }, 200, origin);
       } catch (error) {
-        return json({ error: error?.message || 'Search failed', code: 'SEARCH_FAILED', results: [] }, 502, origin);
+        return json({ error: error?.message || 'Search failed', code: error?.code || 'SEARCH_FAILED', providers: error?.providers || [], results: [], query }, error?.status || 502, origin);
       }
     }
 
