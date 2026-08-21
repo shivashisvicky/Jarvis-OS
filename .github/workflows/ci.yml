@@ -35,11 +35,18 @@ jobs:
           test -s dist/jarvis-media-layout.css
           test -s dist/jarvis-video-search-v3.css
           test -s dist/jarvis-youtube-config.js
+          test -s dist/jarvis-module-loader.js
+          test -s dist/jarvis-web-search.js
+          test -s dist/jarvis-live-media.js
+          test -s dist/jarvis-voice-authority.js
           grep -q 'assets/index-' dist/index.html
-          ! grep -q 'jarvis-web-shell.js' dist/index.html
-          ! grep -q 'jarvis-media-v14.js' dist/index.html
-          ! grep -q 'jarvis-shell-search.css' dist/index.html
-          ! grep -q 'jarvis-video-provider.js' dist/index.html
+          grep -q 'jarvis-module-loader.js' dist/index.html
+          ! grep -q 'jarvis-emergency-click-fix.js' dist/index.html
+          ! grep -q 'jarvis-shell-tools.js' dist/index.html
+          ! grep -q 'jarvis-live-media.js' dist/index.html
+          ! grep -q 'jarvis-web-search.js' dist/index.html
+          ! grep -q 'jarvis-voice-authority.js' dist/index.html
+          ! grep -q 'jarvis-mobile-unified.js' dist/index.html
       - name: Unit tests
         run: pnpm test -- --reporter=dot
       - name: Security audit
@@ -156,11 +163,18 @@ jobs:
           test -s dist/jarvis-media-layout.css
           test -s dist/jarvis-video-search-v3.css
           test -s dist/jarvis-youtube-config.js
+          test -s dist/jarvis-module-loader.js
+          test -s dist/jarvis-web-search.js
+          test -s dist/jarvis-live-media.js
+          test -s dist/jarvis-voice-authority.js
           grep -q 'assets/index-' dist/index.html
-          ! grep -q 'jarvis-web-shell.js' dist/index.html
-          ! grep -q 'jarvis-media-v14.js' dist/index.html
-          ! grep -q 'jarvis-shell-search.css' dist/index.html
-          ! grep -q 'jarvis-video-provider.js' dist/index.html
+          grep -q 'jarvis-module-loader.js' dist/index.html
+          ! grep -q 'jarvis-emergency-click-fix.js' dist/index.html
+          ! grep -q 'jarvis-shell-tools.js' dist/index.html
+          ! grep -q 'jarvis-live-media.js' dist/index.html
+          ! grep -q 'jarvis-web-search.js' dist/index.html
+          ! grep -q 'jarvis-voice-authority.js' dist/index.html
+          ! grep -q 'jarvis-mobile-unified.js' dist/index.html
       - name: Browser smoke
         run: pnpm run test:browser:smoke --project=chromium
       - name: Home intelligence + voice bridge gate
