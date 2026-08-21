@@ -1,0 +1,70 @@
+name: Live News API Diagnostic
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe production news API
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe World News endpoint
+        env:
+          NEWS_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search
+        run: |
+          set -euo pipefail
+          url="$NEWS_ENDPOINT?q=%28international%20OR%20geopolitics%20OR%20%22global%20affairs%22%29"
+          echo "=== WORLD NEWS RAW RESPONSE ==="
+          curl --silent --show-error --max-time 25 --connect-timeout 8 \
+            -D /tmp/headers -o /tmp/body -w '\nHTTP_STATUS=%{http_code}\nTOTAL_TIME=%{time_total}\n' "$url"
+          cat /tmp/headers
+          echo
+          cat /tmp/body
+          echo
+          RESPONSE_FILE=/tmp/body python - <<'PY'
+          import json, os
+          raw=open(os.environ['RESPONSE_FILE']).read()
+          print('=== WORLD NEWS PARSED ===')
+          try:
+              data=json.loads(raw)
+          except Exception as exc:
+              raise SystemExit(f'INVALID_JSON: {exc}')
+          print('provider=', data.get('provider'))
+          print('count=', len(data.get('results') or []))
+          print('code=', data.get('code'))
+          print('error=', data.get('error'))
+          print('diagnostics=', data.get('diagnostics'))
+          print('providers=', data.get('providers'))
+          for i, item in enumerate((data.get('results') or [])[:5], 1):
+              print(f'{i}. {item.get("title")} | {item.get("source")} | {item.get("link")}')
+          if not data.get('results'):
+              raise SystemExit('NEWS_API_RETURNED_ZERO_RESULTS')
+          PY
+
+      - name: Probe AI News endpoint
+        env:
+          NEWS_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search
+        run: |
+          set -euo pipefail
+          url="$NEWS_ENDPOINT?q=%28artificial%20intelligence%20OR%20AI%29"
+          echo "=== AI NEWS RAW RESPONSE ==="
+          curl --silent --show-error --max-time 25 --connect-timeout 8 \
+            -D /tmp/headers-ai -o /tmp/body-ai -w '\nHTTP_STATUS=%{http_code}\nTOTAL_TIME=%{time_total}\n' "$url"
+          cat /tmp/headers-ai
+          echo
+          cat /tmp/body-ai
+          echo
+          RESPONSE_FILE=/tmp/body-ai python - <<'PY'
+          import json, os
+          data=json.load(open(os.environ['RESPONSE_FILE']))
+          print('provider=', data.get('provider'))
+          print('count=', len(data.get('results') or []))
+          print('code=', data.get('code'))
+          print('error=', data.get('error'))
+          print('diagnostics=', data.get('diagnostics'))
+          if not data.get('results'):
+              raise SystemExit('AI_NEWS_API_RETURNED_ZERO_RESULTS')
+          PY
