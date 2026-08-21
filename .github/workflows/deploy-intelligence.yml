@@ -73,19 +73,41 @@ jobs:
           assert data.get('provider') in {'gemini', 'groq'}, f"unexpected provider: {data.get('provider')}"
           print(f"INTELLIGENCE_WORKER_SMOKE=PASS provider={data.get('provider')} model={data.get('model')}")
           PY
-      - name: Verify generated JARVIS TTS
+      - name: Verify streaming JARVIS TTS
         run: |
           set -euo pipefail
           endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev/api/tts'
-          status=$(curl --silent --show-error --max-time 45 -o /tmp/jarvis-tts.wav -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: audio/wav' -X POST "$endpoint" --data '{"text":"JARVIS online.","rate":0.92}')
+          status=$(curl --silent --show-error --no-buffer --max-time 45 -D /tmp/jarvis-tts.headers -o /tmp/jarvis-tts.body -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: text/event-stream, audio/wav' -X POST "$endpoint" --data '{"text":"JARVIS online.","rate":0.92}')
           echo "HTTP_STATUS=$status"
+          cat /tmp/jarvis-tts.headers
           test "$status" = 200
-          test -s /tmp/jarvis-tts.wav
+          test -s /tmp/jarvis-tts.body
           python - <<'PY'
+          import base64, json
           from pathlib import Path
-          data = Path('/tmp/jarvis-tts.wav').read_bytes()
-          assert data[:4] == b'RIFF', f'not a WAV file: {data[:12]!r}'
-          assert data[8:12] == b'WAVE', 'missing WAVE header'
-          assert len(data) > 44, 'audio payload is empty'
-          print(f'TTS_WORKER_SMOKE=PASS bytes={len(data)}')
+          headers = Path('/tmp/jarvis-tts.headers').read_text(errors='replace').lower()
+          body = Path('/tmp/jarvis-tts.body').read_bytes()
+          if 'content-type: text/event-stream' in headers:
+              text = body.decode('utf-8', errors='replace')
+              audio_bytes = 0
+              for line in text.splitlines():
+                  if not line.startswith('data:'):
+                      continue
+                  payload = line[5:].strip()
+                  if not payload or payload == '[DONE]':
+                      continue
+                  try:
+                      event = json.loads(payload)
+                  except json.JSONDecodeError:
+                      continue
+                  delta = event.get('delta') or {}
+                  if event.get('event_type') == 'step.delta' and delta.get('type') == 'audio' and delta.get('data'):
+                      audio_bytes += len(base64.b64decode(delta['data']))
+              assert audio_bytes > 0, 'stream returned no audio deltas'
+              print(f'TTS_STREAM_SMOKE=PASS pcm_bytes={audio_bytes}')
+          else:
+              assert body[:4] == b'RIFF', f'fallback is not WAV: {body[:12]!r}'
+              assert body[8:12] == b'WAVE', 'fallback missing WAVE header'
+              assert len(body) > 44, 'fallback audio payload is empty'
+              print(f'TTS_FALLBACK_SMOKE=PASS wav_bytes={len(body)}')
           PY
