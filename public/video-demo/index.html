@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#03070b">
+  <meta name="description" content="J.A.R.V.I.S. keyword video player demo">
+  <title>J.A.R.V.I.S. Video Lab</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#05080c;color:#eef4f8}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#10202a 0,#05080c 45%,#020406 100%)}
+    main{width:min(1180px,94vw);margin:0 auto;padding:32px 0 60px}.eyebrow{font:700 12px/1.2 ui-monospace,monospace;letter-spacing:.2em;color:#74d7ff}.title{font-size:clamp(32px,6vw,64px);margin:8px 0 6px;letter-spacing:-.04em}.sub{color:#94a8b5;max-width:760px;margin:0 0 24px}
+    .search{display:flex;gap:10px;padding:10px;border:1px solid #263944;border-radius:18px;background:#091017;box-shadow:0 14px 50px #0008}.search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#fff;font-size:18px;padding:12px}.search button,.chip{border:1px solid #315263;background:#0d1d26;color:#dff7ff;border-radius:12px;padding:11px 15px;font-weight:700;cursor:pointer}.search button:hover,.chip:hover{background:#142c39}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 22px}.status{min-height:24px;color:#8fa6b3;font:700 12px ui-monospace,monospace;letter-spacing:.08em}
+    .layout{display:grid;grid-template-columns:1.45fr .9fr;gap:18px;margin-top:10px}.panel{border:1px solid #1d303a;border-radius:20px;background:#081017cc;overflow:hidden}.player{aspect-ratio:16/9;background:#000;display:grid;place-items:center}.player video{width:100%;height:100%;object-fit:contain;background:#000}.player .empty{text-align:center;color:#718592;padding:30px}.player .empty b{display:block;color:#dff7ff;margin-bottom:7px}.info{padding:13px 16px;border-top:1px solid #1d303a}.info strong{display:block}.info small{display:block;color:#78909d;margin-top:4px}.info a{color:#91dfff}
+    .results{display:grid;gap:9px;padding:12px;max-height:620px;overflow:auto}.card{display:grid;grid-template-columns:140px 1fr;gap:12px;text-align:left;width:100%;border:1px solid #1d303a;border-radius:14px;background:#0a141b;color:#eef4f8;padding:8px;cursor:pointer}.card:hover{border-color:#477489;background:#0e1c24}.thumb{width:140px;height:82px;border-radius:9px;background:#020507;color:#9bdfff}.meta{min-width:0}.meta b{display:block;font-size:14px;line-height:1.3;margin:2px 0 7px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.meta span{display:block;color:#7f98a5;font-size:11px;line-height:1.35}.empty-results{padding:30px 18px;color:#718592;text-align:center}.license{margin-top:16px;color:#607783;font-size:11px}.license a{color:#91dfff}
+    @media(max-width:850px){.layout{grid-template-columns:1fr}.results{max-height:none}.card{grid-template-columns:120px 1fr}.thumb{width:120px;height:72px}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">J.A.R.V.I.S. // VIDEO LAB</div>
+  <h1 class="title">Keyword → Video → Play.</h1>
+  <p class="sub">A deliberately separate video player. No YouTube dependency, no fake results, no legacy JARVIS media runtime. Search the Internet Archive for real video items, resolve a playable MP4/WebM, and play it here.</p>
+
+  <form class="search" id="searchForm">
+    <input id="query" autocomplete="off" placeholder="Search videos, e.g. Apollo 11, cats, space, music" aria-label="Video search">
+    <button id="searchButton" type="submit">SEARCH</button>
+  </form>
+  <div class="chips" aria-label="Example searches">
+    <button class="chip" data-query="Apollo 11" type="button">Apollo 11</button>
+    <button class="chip" data-query="cats" type="button">Cats</button>
+    <button class="chip" data-query="space" type="button">Space</button>
+    <button class="chip" data-query="music" type="button">Music</button>
+  </div>
+  <div id="status" class="status">READY · SEARCH THE INTERNET ARCHIVE VIDEO CATALOG</div>
+
+  <section class="layout">
+    <div class="panel">
+      <div class="player" id="player"><div class="empty"><b>JARVIS VIDEO PLAYER</b>Choose a real search result.</div></div>
+      <div class="info" id="nowPlaying"><strong>Nothing playing</strong><small>Results will appear on the right.</small></div>
+    </div>
+    <div class="panel">
+      <div id="results" class="results"><div class="empty-results">Search first. The demo starts with zero results.</div></div>
+    </div>
+  </section>
+
+  <div class="license">Source: <a href="https://archive.org/" target="_blank" rel="noopener noreferrer">Internet Archive</a>. Playback URLs are public archive files. Individual items retain their own rights and license information.</div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const API='https://archive.org/advancedsearch.php';
+  const META='https://archive.org/metadata/';
+  const TIMEOUT=12000;
+  const $=id=>document.getElementById(id);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const safeQuery=s=>String(s||'').replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+  const state={generation:0,items:[]};
+  async function fetchJson(url){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),TIMEOUT);try{const r=await fetch(url,{signal:controller.signal,cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(timer)}}
+  function setStatus(text){$('status').textContent=text}
+  function candidateVideoFiles(item){
+    const files=Array.isArray(item.files)?item.files:[];
+    return files.filter(f=>f&&typeof f.name==='string'&&!f.name.startsWith('_')&&!f.name.endsWith('.xml')&&!f.name.endsWith('.torrent'))
+      .filter(f=>{const format=String(f.format||'').toLowerCase(),name=f.name.toLowerCase();return format.includes('mpeg4')||format.includes('h.264')||format.includes('webm')||format.includes('matroska')||/\.(mp4|webm)$/i.test(name)})
+      .sort((a,b)=>{const score=f=>{const n=f.name.toLowerCase(),fmt=String(f.format||'').toLowerCase();return(n.endsWith('.mp4')?50:0)+(fmt.includes('mpeg4')?30:0)+(fmt.includes('h.264')?20:0)-(n.includes('512kb')?2:0)};return score(b)-score(a)})
+  }
+  async function resolveItem(doc){
+    const id=String(doc.identifier||'').trim();if(!id)return null;
+    const meta=await fetchJson(META+encodeURIComponent(id));const file=candidateVideoFiles(meta)[0];if(!file)return null;
+    return{id,title:String(doc.title||meta.metadata?.title||id),creator:String(doc.creator||meta.metadata?.creator||'Internet Archive'),date:String(doc.date||meta.metadata?.date||''),source:'Internet Archive',url:'https://archive.org/download/'+encodeURIComponent(id)+'/'+encodeURIComponent(file.name),filename:file.name,format:String(file.format||''),detailUrl:'https://archive.org/details/'+encodeURIComponent(id)}
+  }
+  async function search(query){
+    const q=safeQuery(query);if(!q){setStatus('READY · ENTER A KEYWORD');return}
+    const run=++state.generation;$('results').innerHTML='<div class="empty-results">SEARCHING THE LIVE VIDEO CATALOG…</div>';setStatus('SEARCHING · '+q.toUpperCase());
+    try{
+      const params=new URLSearchParams({q:'('+q+') AND mediatype:movies',fl:'identifier,title,creator,date,downloads',rows:'10',start:'0',output:'json'});
+      const data=await fetchJson(API+'?'+params);const docs=Array.isArray(data?.response?.docs)?data.response.docs:[];if(!docs.length)throw new Error('No video items matched that keyword');
+      const resolved=[];for(const doc of docs){if(run!==state.generation)return;try{const item=await resolveItem(doc);if(item)resolved.push(item);if(resolved.length>=8)break}catch{}}
+      if(run!==state.generation)return;if(!resolved.length)throw new Error('Results existed, but none exposed a browser-playable MP4/WebM file');
+      state.items=resolved;$('results').innerHTML=resolved.map((v,i)=>`<button type="button" class="card" data-index="${i}"><span class="thumb" style="display:grid;place-items:center">▶</span><span class="meta"><b>${esc(v.title)}</b><span>${esc(v.creator)}</span><span>${esc(v.date)} · ${esc(v.format)}</span></span></button>`).join('');setStatus('READY · '+resolved.length+' REAL VIDEO RESULTS')
+    }catch(e){if(run!==state.generation)return;$('results').innerHTML='<div class="empty-results"><b>VIDEO SEARCH FAILED</b><br><br>'+esc(e?.message||'Unknown error')+'</div>';setStatus('DEGRADED · NO FABRICATED RESULTS')}
+  }
+  function play(item){if(!item?.url)return;$('player').innerHTML='<video id="video" controls autoplay playsinline preload="metadata"></video>';const video=$('video');video.src=item.url;video.addEventListener('error',()=>setStatus('PLAYBACK ERROR · TRY ANOTHER RESULT'),{once:true});$('nowPlaying').innerHTML='<strong>'+esc(item.title)+'</strong><small>'+esc(item.creator)+' · '+esc(item.format)+' · <a href="'+esc(item.detailUrl)+'" target="_blank" rel="noopener noreferrer">VIEW SOURCE</a></small>';setStatus('PLAYING · '+item.source.toUpperCase());video.play().catch(()=>setStatus('READY · PRESS PLAY TO START'))}
+  $('searchForm').addEventListener('submit',e=>{e.preventDefault();void search($('query').value)});$('query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();void search($('query').value)}});document.querySelectorAll('[data-query]').forEach(b=>b.addEventListener('click',()=>{$('query').value=b.dataset.query;void search(b.dataset.query)}));$('results').addEventListener('click',e=>{const card=e.target.closest('.card');if(card){const item=state.items[Number(card.dataset.index)];if(item)play(item)}})
+})();
+</script>
+</body>
+</html>
