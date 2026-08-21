@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
 
@@ -31,25 +31,17 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
-    }
-
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
       return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', model: GEMINI_MODEL }, 200, origin);
     }
-
-    if (!INTELLIGENCE_PATHS.has(url.pathname)) {
-      return json({ error: 'Not found' }, 404, origin);
-    }
-
+    if (!INTELLIGENCE_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
 
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
-
     const query = String(body?.query || '').trim();
     if (!query) return json({ error: 'query is required' }, 400, origin);
     if (query.length > 4000) return json({ error: 'query is too long' }, 413, origin);
@@ -77,8 +69,7 @@ export default {
       if (!text) return json({ error: 'Gemini returned no text', code: 'EMPTY_RESPONSE' }, 502, origin);
       const grounding = data?.candidates?.[0]?.groundingMetadata;
       const sources = Array.isArray(grounding?.groundingChunks)
-        ? grounding.groundingChunks.map(chunk => chunk?.web).filter(source => source?.uri).slice(0, 6)
-          .map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
+        ? grounding.groundingChunks.map(chunk => chunk?.web).filter(source => source?.uri).slice(0, 6).map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
         : [];
       return json({ text, model: GEMINI_MODEL, provider: 'gemini', gateway: 'direct-google-ai-studio', grounded: sources.length > 0, sources }, 200, origin);
     } catch (error) {
