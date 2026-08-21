@@ -1,0 +1,71 @@
+name: Deploy JARVIS Media Gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/media/**'
+      - 'jarvis-live-media.js'
+      - '.github/workflows/deploy-media.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Cloudflare Media Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check media gateway configuration
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID YOUTUBE_API_KEY; do
+            if [ -z "${!name:-}" ]; then echo "Missing GitHub secret: $name"; exit 1; fi
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate media Worker
+        run: node --check workers/media/src/index.js
+      - name: Prepare Wrangler configuration
+        working-directory: workers/media
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path('wrangler.toml')
+          text = p.read_text().replace('__CLOUDFLARE_ACCOUNT_ID__', os.environ['CLOUDFLARE_ACCOUNT_ID'].strip(), 1)
+          p.write_text(text)
+          PY
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+      - name: Deploy Media Worker
+        working-directory: workers/media
+        run: wrangler deploy --name jarvis-media
+      - name: Configure YouTube Worker secret
+        working-directory: workers/media
+        run: printf '%s' "$YOUTUBE_API_KEY" | wrangler secret put YOUTUBE_API_KEY --name jarvis-media
+      - name: Verify media gateway
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-media.shivashisvicky112.workers.dev/api/search?q=cats'
+          status=$(curl --silent --show-error --max-time 20 -o /tmp/media.json -w '%{http_code}' -H 'Accept: application/json' "$endpoint")
+          cat /tmp/media.json
+          echo "HTTP_STATUS=$status"
+          test "$status" = 200
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/media.json'))
+          results=data.get('results') or []
+          assert len(results) >= 4, f'expected >=4 live results, got {len(results)}'
+          assert all(len(str(item.get('id',''))) == 11 for item in results[:4]), 'invalid YouTube video ID'
+          print(f"MEDIA_GATEWAY_SMOKE=PASS results={len(results)} provider={data.get('provider')}")
+          PY
