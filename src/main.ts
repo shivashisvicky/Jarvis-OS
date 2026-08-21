@@ -8,7 +8,7 @@ let active:AppId='home',theme:'dark'|'light'='dark',voiceCfg:VoiceConfig={voiceN
 let newsAbort:AbortController|null=null;let newsCache=new Map<string,string>();let newsBooted=false;
 const root=document.querySelector<HTMLDivElement>('#app');
 const clockFormatter=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-const esc=(s:string)=>String(s??'').replace(/[&<>\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\"':'&quot;',"'":'&#039;'}[c]!));
+const esc=(s:string)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]!));
 const loadFeature=(name:string)=>{const fn=(window as Window&{jarvisLoadFeature?: (feature:string)=>Promise<void>}).jarvisLoadFeature;return typeof fn==='function'?fn(name):Promise.resolve()};
 function pageHead(k:string,t:string,s:string){return `<div class="page-head"><div><p class="eyebrow">${k}</p><h1>${t}</h1><p class="sub">${s}</p></div></div>`}
 function newsDesk(){return `<section class="panel" id="newsDesk"><div class="panel-head"><span>INTELLIGENCE / LIVE NEWS</span><span class="live" id="newsStatus">READY</span></div><div class="search-row"><select id="newsGenre"><option value="WORLD">WORLD</option><option value="INDIA">INDIA</option><option value="AI">AI</option><option value="TECH">TECH</option></select><button class="primary" id="refreshNews">REFRESH</button></div><div id="newsCards"><div class="empty">Loading live intelligence…</div></div></section>`}
