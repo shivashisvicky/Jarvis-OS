@@ -1,5 +1,6 @@
 const ALLOWED_ORIGINS = new Set([
   'https://shivashisvicky.github.io',
+  'https://jarvis-intelligence.shivashisvicky112.workers.dev',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]);
@@ -35,6 +36,7 @@ function audio(bytes, origin) {
     headers: {
       'Content-Type': 'audio/wav',
       'Cache-Control': 'no-store',
+      'Accept-Ranges': 'bytes',
       ...corsHeaders(origin),
     },
   });
@@ -98,7 +100,7 @@ async function callGeminiTTS(text, rate, apiKey) {
   const pace = safeRate < 0.87 ? 'deliberate and slightly slow' : safeRate < 0.97 ? 'calm and measured' : safeRate < 1.08 ? 'natural conversational' : 'brisk but clear';
   const prompt = [
     'You are the permanent JARVIS voice for a personal intelligence system.',
-    'Use one consistent adult male-presenting voice with a polished, restrained British English / neutral RP-style accent.',
+    'Use one consistent adult male-presenting voice with a polished British English / neutral RP-style accent.',
     'Deep, composed, intelligent, cinematic but natural. Crisp articulation, controlled breath, no exaggerated acting.',
     `Delivery pace: ${pace}. Target speech-rate setting: ${safeRate.toFixed(2)}x. Keep the pace consistent from start to finish.`,
     'Do not add words, commentary, greetings, sound effects, or quotation marks. Speak only the transcript below.',
