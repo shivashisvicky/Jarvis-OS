@@ -16,6 +16,22 @@ const run = (command, args) => new Promise((resolve, reject) => {
   child.on('error', reject);
 });
 
+const LAZY_ASSETS = [
+  'jarvis-module-loader.js',
+  'jarvis-web-search.js',
+  'jarvis-web-polish.css',
+  'jarvis-live-media.js',
+  'jarvis-media-layout.css',
+  'jarvis-video-search-v3.css',
+  'jarvis-voice-settings.js',
+  'jarvis-speech-authority.js',
+  'jarvis-voice-authority.js',
+  'jarvis-mobile-unified.js',
+  'jarvis-engineering.js',
+  'jarvis-notes.js',
+  'jarvis-games-v2.js',
+];
+
 async function writeYouTubeConfig() {
   const key = process.env.YOUTUBE_API_KEY || '';
   const dist = new URL('../dist/', import.meta.url);
@@ -28,10 +44,10 @@ async function copyRootStaticAssets() {
   const refs = [...index.matchAll(/(?:src|href)=["']\.\/([^"']+)["']/g)]
     .map(match => match[1].split('?')[0].split('#')[0])
     .filter(path => path && !path.startsWith('src/') && path !== 'jarvis-youtube-config.js' && !path.includes('/'));
-  const unique = [...new Set(refs)];
+  const assets = [...new Set([...refs, ...LAZY_ASSETS])];
   const dist = new URL('../dist/', import.meta.url);
   await mkdir(dist, { recursive: true });
-  for (const asset of unique) {
+  for (const asset of assets) {
     try {
       await copyFile(new URL(asset, root), new URL(asset, dist));
       console.log(`JARVIS build: copied ${asset}`);
