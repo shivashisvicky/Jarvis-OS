@@ -1,0 +1,5 @@
+name = "jarvis-search"
+main = "src/index.js"
+compatibility_date = "2026-08-21"
+account_id = "__CLOUDFLARE_ACCOUNT_ID__"
+workers_dev = true
