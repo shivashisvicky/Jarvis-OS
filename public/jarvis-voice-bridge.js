@@ -23,7 +23,7 @@
 
   function cinematicize(u) {
     const v = pick();
-    u.rate = .86;
+    u.rate = .92;
     u.pitch = .43;
     u.volume = .98;
     if (v) { u.voice = v; u.lang = v.lang; }
