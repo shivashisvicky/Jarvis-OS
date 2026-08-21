@@ -1,16 +1,19 @@
 /* J.A.R.V.I.S. Voice Authority
- * One generated voice for every device/browser. Native OS voices are not
- * used for JARVIS output. Gemini TTS is streamed and Web Audio schedules the
- * PCM chunks so iPhone/Android do not wait for a complete audio file.
+ * Primary path: Gemini 3.1 Flash TTS streaming + Web Audio.
+ * Safety path: browser speech synthesis if the remote TTS service or Web Audio
+ * is unavailable. This guarantees audible output instead of silent failure.
  */
 (() => {
   'use strict';
   if (typeof window === 'undefined' || window.__JARVIS_VOICE_AUTHORITY__) return;
   window.__JARVIS_VOICE_AUTHORITY__ = true;
 
-  const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || '/api/openai-intelligence';
+  const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence';
   const base = endpoint.replace(/\/api\/(?:openai-intelligence|intelligence)\/?$/, '');
   const ttsEndpoint = `${base}/api/tts`;
+  const nativeSpeech = 'speechSynthesis' in window;
+  const nativeSpeak = nativeSpeech ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
+  const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
   let requestId = 0;
   let playing = false;
   let audioContext = null;
@@ -31,7 +34,10 @@
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
-      if (!audioContext || audioContext.state === 'closed') audioContext = new Ctx({ latencyHint: 'interactive' });
+      if (!audioContext || audioContext.state === 'closed') {
+        try { audioContext = new Ctx({ latencyHint: 'interactive' }); }
+        catch { audioContext = new Ctx(); }
+      }
       return audioContext;
     } catch { return null; }
   };
@@ -49,6 +55,26 @@
       source.onended = () => { try { source.disconnect(); } catch {} };
     } catch {}
     return ctx;
+  };
+
+  const nativeFallback = (text, options = {}) => {
+    if (!nativeSpeak) return false;
+    try {
+      nativeCancel?.();
+      const utterance = new SpeechSynthesisUtterance(String(text));
+      utterance.rate = rate();
+      utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
+      utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
+      utterance.lang = options.language || 'en-GB';
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => /en-GB/i.test(v.lang) && /Daniel|Arthur|George|Oliver|James|Thomas/i.test(v.name))
+        || voices.find(v => /en-GB/i.test(v.lang))
+        || voices.find(v => /en-IN/i.test(v.lang))
+        || voices[0];
+      if (voice) utterance.voice = voice;
+      nativeSpeak(utterance);
+      return true;
+    } catch { return false; }
   };
 
   const stop = () => {
@@ -195,7 +221,10 @@
       if (contentType.includes('text/event-stream')) await consumeSse(response, id);
       else await playWavFallback(await response.arrayBuffer());
     } catch (error) {
-      if (id === requestId) window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error) } }));
+      if (id === requestId) {
+        const fallbackWorked = nativeFallback(item.text, item.options);
+        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked } }));
+      }
     } finally {
       playing = false;
       if (id === requestId) playNext();
@@ -225,15 +254,14 @@
     if (!document.hidden) prime();
   });
 
-  if ('speechSynthesis' in window) {
-    const nativeCancel = window.speechSynthesis.cancel.bind(window.speechSynthesis);
+  if (nativeSpeech) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
-      if (text) speakGenerated(text, { language: utterance?.lang });
+      if (text) speakGenerated(text, { language: utterance?.lang, pitch: utterance?.pitch, volume: utterance?.volume });
     };
     window.speechSynthesis.cancel = () => {
       stop();
-      try { nativeCancel(); } catch {}
+      try { nativeCancel?.(); } catch {}
     };
   }
 
