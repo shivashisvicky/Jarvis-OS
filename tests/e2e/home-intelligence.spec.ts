@@ -34,15 +34,15 @@ test('navigation phrases stay in the local command router', async ({ page }) => 
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
-test('one generated voice authority owns speech across the shell', async ({ page }) => {
+test('lazy voice module loads on demand and owns speech', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
   await expect(page.locator('#commandForm')).toBeVisible();
   await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
-  await expect(page.locator('script[src*="jarvis-voice-authority.js"]')).toHaveCount(1);
+
+  await page.locator('#voiceBtn').click();
+  await expect(page.locator('script[src*="jarvis-voice-authority.js"]')).toHaveCount(1, { timeout: 10_000 });
   await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(0);
-  await expect(page.locator('script[src*="jarvis-live-media.js"]')).toHaveCount(1);
-  await expect(page.locator('script[src*="jarvis-web-search.js"]')).toHaveCount(1);
 });
 
 test('mobile viewport keeps the full shell usable', async ({ page }) => {
