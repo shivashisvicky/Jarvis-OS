@@ -1,7 +1,8 @@
 /* J.A.R.V.I.S. Voice Authority
- * Primary path: Gemini 3.1 Flash TTS streaming + Web Audio.
- * Safety path: browser speech synthesis if the remote TTS service or Web Audio
- * is unavailable. This guarantees audible output instead of silent failure.
+ * Primary path: Gemini 3.1 Flash TTS. Safari/iOS uses a complete WAV response
+ * instead of an SSE audio stream because mobile Safari is less reliable with
+ * long-lived streaming audio. Desktop keeps streaming for lower latency.
+ * Browser speech synthesis remains the final safety path.
  */
 (() => {
   'use strict';
@@ -10,11 +11,12 @@
 
   const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence';
   const base = endpoint.replace(/\/api\/(?:openai-intelligence|intelligence)\/?$/, '');
-  const ttsEndpoint = `${base}/api/tts`;
   const nativeSpeech = 'speechSynthesis' in window;
   const nativeSpeak = nativeSpeech ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
   const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
-  let requestId = 0;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const requestId = { value: 0 };
   let playing = false;
   let audioContext = null;
   const queue = [];
@@ -78,7 +80,7 @@
   };
 
   const stop = () => {
-    requestId += 1;
+    requestId.value += 1;
     queue.length = 0;
     for (const source of activeSources) {
       try { source.stop(); } catch {}
@@ -86,6 +88,26 @@
     }
     activeSources.clear();
     playing = false;
+  };
+
+  const playWavFallback = async arrayBuffer => {
+    const ctx = prime();
+    if (!ctx) throw new Error('Web Audio is unavailable on this device.');
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') await ctx.resume();
+    const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = 1;
+    const gain = ctx.createGain();
+    gain.gain.value = .96;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    activeSources.add(source);
+    await new Promise((resolve, reject) => {
+      source.onended = () => { activeSources.delete(source); resolve(); };
+      try { source.start(0); } catch (error) { reject(error); }
+    });
+    try { source.disconnect(); gain.disconnect(); } catch {}
   };
 
   const decodeBase64 = value => {
@@ -117,10 +139,7 @@
     source.connect(gain);
     gain.connect(ctx.destination);
     activeSources.add(source);
-    source.onended = () => {
-      activeSources.delete(source);
-      try { source.disconnect(); gain.disconnect(); } catch {}
-    };
+    source.onended = () => { activeSources.delete(source); try { source.disconnect(); gain.disconnect(); } catch {} };
     const now = ctx.currentTime;
     const lead = state.started ? 0.012 : 0.075;
     state.nextTime = Math.max(state.nextTime, now + lead);
@@ -128,26 +147,6 @@
     state.nextTime += buffer.duration;
     state.started = true;
     return true;
-  };
-
-  const playWavFallback = async arrayBuffer => {
-    const ctx = prime();
-    if (!ctx) throw new Error('Web Audio is unavailable on this device.');
-    if (ctx.state === 'suspended' || ctx.state === 'interrupted') await ctx.resume();
-    const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = 1;
-    const gain = ctx.createGain();
-    gain.gain.value = .96;
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    activeSources.add(source);
-    await new Promise((resolve, reject) => {
-      source.onended = () => { activeSources.delete(source); resolve(); };
-      try { source.start(0); } catch (error) { reject(error); }
-    });
-    try { source.disconnect(); gain.disconnect(); } catch {}
   };
 
   const consumeSse = async (response, id) => {
@@ -158,29 +157,20 @@
     let audioSeen = false;
     let carry = new Uint8Array(0);
     const state = { nextTime: 0, started: false };
-
     const processEvent = raw => {
-      const lines = raw.split(/\n/);
-      const dataLines = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trim());
+      const dataLines = raw.split(/\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim());
       if (!dataLines.length) return;
       const payload = dataLines.join('\n');
       if (payload === '[DONE]') return;
-      let event;
-      try { event = JSON.parse(payload); } catch { return; }
-      if (event?.event_type !== 'step.delta' || event?.delta?.type !== 'audio' || !event?.delta?.data) return;
-      if (id !== requestId) return;
+      let event; try { event = JSON.parse(payload); } catch { return; }
+      if (event?.event_type !== 'step.delta' || event?.delta?.type !== 'audio' || !event?.delta?.data || id !== requestId.value) return;
       const incoming = decodeBase64(event.delta.data);
       const combined = new Uint8Array(carry.byteLength + incoming.byteLength);
-      combined.set(carry, 0);
-      combined.set(incoming, carry.byteLength);
+      combined.set(carry, 0); combined.set(incoming, carry.byteLength);
       const usable = combined.byteLength - (combined.byteLength % 2);
-      const chunk = combined.slice(0, usable);
       carry = combined.slice(usable);
-      const sampleRate = Number(event.delta.sample_rate) || 24000;
-      const channels = Number(event.delta.channels) || 1;
-      if (chunk.byteLength && playPcmChunk(chunk, sampleRate, channels, state)) audioSeen = true;
+      if (playPcmChunk(combined.slice(0, usable), Number(event.delta.sample_rate) || 24000, Number(event.delta.channels) || 1, state)) audioSeen = true;
     };
-
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -191,7 +181,7 @@
         textBuffer = textBuffer.slice(boundary + 2);
         processEvent(event);
       }
-      if (id !== requestId) { try { await reader.cancel(); } catch {} return false; }
+      if (id !== requestId.value) { try { await reader.cancel(); } catch {} return false; }
     }
     textBuffer += decoder.decode();
     if (textBuffer.trim()) processEvent(textBuffer);
@@ -206,28 +196,31 @@
     const item = queue.shift();
     const id = item.id;
     try {
-      const response = await fetch(ttsEndpoint, {
+      prime();
+      const mobileWav = isIOS || isSafari;
+      const ttsUrl = `${ttsEndpoint}${mobileWav ? '?format=wav' : ''}`;
+      const response = await fetch(ttsUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, audio/wav' },
-        body: JSON.stringify({ text: item.text, rate: rate() }),
+        headers: { 'Content-Type': 'application/json', Accept: mobileWav ? 'audio/wav' : 'text/event-stream, audio/wav', ...(mobileWav ? { 'X-JARVIS-TTS-Mode': 'wav' } : {}) },
+        body: JSON.stringify({ text: item.text, rate: rate(), stream: !mobileWav }),
         cache: 'no-store',
       });
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
         throw new Error(`TTS HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ''}`);
       }
-      if (id !== requestId) return;
+      if (id !== requestId.value) return;
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('text/event-stream')) await consumeSse(response, id);
       else await playWavFallback(await response.arrayBuffer());
     } catch (error) {
-      if (id === requestId) {
+      if (id === requestId.value) {
         const fallbackWorked = nativeFallback(item.text, item.options);
-        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked } }));
+        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked, mobileWav: isIOS || isSafari } }));
       }
     } finally {
       playing = false;
-      if (id === requestId) playNext();
+      if (id === requestId.value) playNext();
     }
   };
 
@@ -236,7 +229,7 @@
     if (!clean) return false;
     prime();
     stop();
-    queue.push({ id: requestId, text: clean, options });
+    queue.push({ id: requestId.value, text: clean, options });
     void playNext();
     return true;
   };
@@ -250,19 +243,14 @@
   document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('touchstart', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) prime();
-  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) prime(); });
 
   if (nativeSpeech) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
       if (text) speakGenerated(text, { language: utterance?.lang, pitch: utterance?.pitch, volume: utterance?.volume });
     };
-    window.speechSynthesis.cancel = () => {
-      stop();
-      try { nativeCancel?.(); } catch {}
-    };
+    window.speechSynthesis.cancel = () => { stop(); try { nativeCancel?.(); } catch {} };
   }
 
   window.addEventListener('beforeunload', stop, { once: true });
