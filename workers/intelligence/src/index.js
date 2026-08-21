@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const GEMINI_MODEL = 'gemini-3.6-flash';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const INTELLIGENCE_PATHS = new Set(['/api/intelligence', '/api/openai-intelligence']);
 
@@ -26,6 +27,44 @@ function json(data, status, origin) {
   });
 }
 
+const SYSTEM = 'You are JARVIS, the intelligence layer of a personal operating system. Be concise, useful and truthful. Do not invent facts or sources. Prefer a direct answer followed by a short explanation or next action. Do not claim to have performed an action unless the application explicitly did it. For media requests, identify useful candidates or explain what to search; never fabricate video IDs.';
+
+async function callGemini(query, apiKey) {
+  const endpoint = `${GEMINI_API}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: 'user', parts: [{ text: query }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini request failed'), { status: response.status, provider: 'gemini' });
+  const text = String(data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '').trim();
+  if (!text) throw Object.assign(new Error('Gemini returned no text'), { status: 502, provider: 'gemini' });
+  const grounding = data?.candidates?.[0]?.groundingMetadata;
+  const sources = Array.isArray(grounding?.groundingChunks)
+    ? grounding.groundingChunks.map(chunk => chunk?.web).filter(source => source?.uri).slice(0, 6).map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
+    : [];
+  return { text, model: GEMINI_MODEL, provider: 'gemini', grounded: sources.length > 0, sources };
+}
+
+async function callGroq(query, apiKey) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: GROQ_MODEL, temperature: 0.2, max_tokens: 900, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: query }] }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Groq request failed'), { status: response.status, provider: 'groq' });
+  const text = String(data?.choices?.[0]?.message?.content || '').trim();
+  if (!text) throw Object.assign(new Error('Groq returned no text'), { status: 502, provider: 'groq' });
+  return { text, model: GROQ_MODEL, provider: 'groq', grounded: false, sources: [] };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -33,12 +72,11 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     if (request.method === 'GET' && url.pathname === '/') {
-      return json({ ok: true, service: 'JARVIS Intelligence Gateway', provider: 'gemini', model: GEMINI_MODEL }, 200, origin);
+      return json({ ok: true, service: 'JARVIS Intelligence Gateway', providers: { gemini: Boolean(env.GEMINI_API_KEY), groq: Boolean(env.GROQ_API_KEY) }, model: GEMINI_MODEL }, 200, origin);
     }
     if (!INTELLIGENCE_PATHS.has(url.pathname)) return json({ error: 'Not found' }, 404, origin);
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
-    if (!env.GEMINI_API_KEY) return json({ error: 'Gemini API key is not configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
 
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
@@ -46,34 +84,21 @@ export default {
     if (!query) return json({ error: 'query is required' }, 400, origin);
     if (query.length > 4000) return json({ error: 'query is too long' }, 413, origin);
 
-    const system = 'You are JARVIS, the intelligence layer of a personal operating system. Be concise, useful and truthful. Do not invent facts or sources. Use Google Search grounding when current information, recent events, recommendations or verification would improve the answer. Prefer a direct answer followed by a short explanation or next action. Do not claim to have performed an action unless the application explicitly did it. For media requests, identify useful candidates or explain what to search; never fabricate video IDs.';
-    const endpoint = `${GEMINI_API}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
-
-    try {
-      const upstream = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: system }] },
-          contents: [{ role: 'user', parts: [{ text: query }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
-        }),
-      });
-      const data = await upstream.json();
-      if (!upstream.ok) {
-        const message = data?.error?.message || 'Gemini request failed';
-        return json({ error: message, code: upstream.status === 429 ? 'GEMINI_RATE_LIMITED' : 'GEMINI_REQUEST_FAILED' }, upstream.status, origin);
+    const errors = [];
+    if (env.GEMINI_API_KEY) {
+      try { return json(await callGemini(query, env.GEMINI_API_KEY), 200, origin); }
+      catch (error) {
+        errors.push({ provider: 'gemini', status: error?.status || 502, error: error?.message || 'request failed' });
+        if (error?.status && ![401, 403, 429].includes(error.status)) return json({ error: error.message, code: 'GEMINI_REQUEST_FAILED' }, error.status, origin);
       }
-      const text = String(data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '').trim();
-      if (!text) return json({ error: 'Gemini returned no text', code: 'EMPTY_RESPONSE' }, 502, origin);
-      const grounding = data?.candidates?.[0]?.groundingMetadata;
-      const sources = Array.isArray(grounding?.groundingChunks)
-        ? grounding.groundingChunks.map(chunk => chunk?.web).filter(source => source?.uri).slice(0, 6).map(source => ({ title: String(source.title || source.uri), uri: String(source.uri) }))
-        : [];
-      return json({ text, model: GEMINI_MODEL, provider: 'gemini', gateway: 'direct-google-ai-studio', grounded: sources.length > 0, sources }, 200, origin);
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed', code: 'GATEWAY_FAILED' }, 502, origin);
     }
+
+    if (env.GROQ_API_KEY) {
+      try { return json({ ...(await callGroq(query, env.GROQ_API_KEY)), fallback: true, fallbackFrom: 'gemini' }, 200, origin); }
+      catch (error) { errors.push({ provider: 'groq', status: error?.status || 502, error: error?.message || 'request failed' }); }
+    }
+
+    if (!env.GEMINI_API_KEY && !env.GROQ_API_KEY) return json({ error: 'No intelligence provider is configured', code: 'INTELLIGENCE_UNAVAILABLE' }, 503, origin);
+    return json({ error: 'All configured intelligence providers are unavailable', code: 'INTELLIGENCE_RATE_LIMITED', providers: errors }, 429, origin);
   },
 };
