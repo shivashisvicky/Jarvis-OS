@@ -119,3 +119,5 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
             -d '{"ref":"main"}'
           echo 'CI_DISPATCHED=1'
+
+# trigger: 2026-08-22 fallback verification retry
