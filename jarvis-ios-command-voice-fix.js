@@ -39,7 +39,6 @@ const start=e=>{
 };
 const blockClick=e=>{if(owned&&e.target instanceof Element&&e.target.closest('#voiceBtn')){e.preventDefault();e.stopImmediatePropagation()}};
 document.addEventListener('pointerdown',start,true);
-document.addEventListener('touchstart',start,true);
 document.addEventListener('click',blockClick,true);
 window.addEventListener('pagehide',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
