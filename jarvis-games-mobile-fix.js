@@ -5,7 +5,7 @@
   const isTouch = matchMedia('(pointer: coarse)').matches || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const dispatchKey = key => window.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true }));
   const style = document.createElement('style');
-  style.textContent = `.jarvis-game-pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,42px);gap:6px;justify-content:center;margin:10px auto 0}.jarvis-game-pad button{width:48px;height:42px;padding:0;font-size:18px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.jarvis-game-pad .wide{grid-column:1 / -1;width:100%;font-size:11px;letter-spacing:.08em}.jarvis-tetris-paused{opacity:.78}`;
+  style.textContent = `.jarvis-game-pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:42px 42px auto;grid-template-areas:". up ." "left down right" "wide wide wide";gap:6px;justify-content:center;margin:10px auto 0}.jarvis-game-pad button{width:48px;height:42px;padding:0;font-size:18px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.jarvis-game-pad button:nth-child(1){grid-area:left}.jarvis-game-pad button:nth-child(2){grid-area:up}.jarvis-game-pad button:nth-child(3){grid-area:right}.jarvis-game-pad button:nth-child(4){grid-area:down}.jarvis-game-pad .wide{grid-area:wide;width:100%;font-size:11px;letter-spacing:.08em}.jarvis-tetris-paused{opacity:.78}@media(max-width:600px){.jarvis-game-pad{grid-template-columns:repeat(3,52px);gap:7px}.jarvis-game-pad button{width:52px;height:44px}}`;
   document.head.appendChild(style);
   let tetrisPrimed = false, tetrisStarted = false;
   const add2048Pad = () => {
