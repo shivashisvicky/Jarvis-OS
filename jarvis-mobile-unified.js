@@ -22,11 +22,22 @@
         .brand small{font-size:5px}
         .brand-orb{width:30px;height:30px}
         .os-main{display:block;min-height:0;height:calc(100dvh - 82px)}
-        .rail{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:120;height:66px;padding:7px;display:flex;flex-direction:row;gap:4px;overflow-x:auto;overflow-y:hidden;border:1px solid var(--line-strong);border-radius:15px;background:rgba(2,7,10,.94);box-shadow:0 12px 40px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+        .rail{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:120;height:66px;padding:7px;display:flex;flex-direction:row;gap:4px;overflow-x:hidden;overflow-y:hidden;border:1px solid var(--line-strong);border-radius:15px;background:rgba(2,7,10,.94);box-shadow:0 12px 40px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
         .rail::-webkit-scrollbar{display:none}
-        .nav{flex:0 0 64px;width:64px;min-height:50px;height:50px;padding:5px 2px;display:grid;justify-items:center;align-content:center;gap:3px;border-radius:10px}
+        .nav{flex:1 1 0;width:auto;min-width:0;min-height:50px;height:50px;padding:5px 2px;display:grid;justify-items:center;align-content:center;gap:3px;border-radius:10px}
         .nav b{font-size:17px;line-height:1}
         .nav span{font-size:6px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px}
+        .nav.mobile-overflow-hidden{display:none}
+        .jarvis-mobile-more{flex:1 1 0;min-width:0;min-height:50px;height:50px;padding:5px 2px;border:1px solid var(--line);background:rgba(5,16,22,.75);color:var(--muted);border-radius:10px;display:grid;justify-items:center;align-content:center;gap:3px;cursor:pointer}
+        .jarvis-mobile-more b{font-size:17px;line-height:1}
+        .jarvis-mobile-more span{font-size:6px;line-height:1;white-space:nowrap}
+        .jarvis-mobile-more.active{color:var(--cyan2);border-color:var(--cyan)}
+        .jarvis-mobile-drawer{position:fixed;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:130;padding:10px;display:none;grid-template-columns:repeat(3,1fr);gap:7px;border:1px solid var(--line-strong);border-radius:14px;background:rgba(2,8,12,.97);box-shadow:0 18px 50px rgba(0,0,0,.62);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+        .jarvis-mobile-drawer.open{display:grid}
+        .jarvis-mobile-drawer button{min-height:58px;border:1px solid var(--line);background:rgba(7,18,24,.9);color:var(--muted);border-radius:10px;display:grid;justify-items:center;align-content:center;gap:4px}
+        .jarvis-mobile-drawer button b{font-size:18px}
+        .jarvis-mobile-drawer button span{font-size:7px;letter-spacing:.05em;white-space:nowrap}
+        .jarvis-mobile-drawer button.selected{color:var(--cyan2);border-color:var(--cyan)}
         .workspace{height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px 12px calc(96px + env(safe-area-inset-bottom));overscroll-behavior-y:contain}
         .page-head{margin-bottom:18px;display:block}
         .page-head h1{font-size:clamp(38px,11vw,52px);line-height:.95}
@@ -66,6 +77,7 @@
         .module-grid,.telemetry-grid{grid-template-columns:1fr}
         .command-surface .execute{display:block}
         .page-head h1{font-size:40px}
+        .jarvis-mobile-drawer{grid-template-columns:repeat(2,1fr)}
       }
       .jarvis-mobile-voice-status{margin:6px 4px 0;min-height:16px;color:var(--faint);font-size:8px;letter-spacing:.08em}
       .voice.listening{color:var(--cyan2)!important;border-color:var(--cyan)!important;box-shadow:0 0 25px rgba(101,220,255,.2)!important}
@@ -99,9 +111,63 @@
     });
   };
 
+  const ensureMoreDrawer = () => {
+    if (!mobile()) return;
+    const rail = document.querySelector('.rail');
+    if (!rail) return;
+    const navs = [...rail.querySelectorAll('.nav[data-app]')];
+    if (!navs.length) return;
+    navs.forEach((nav, index) => nav.classList.toggle('mobile-overflow-hidden', index >= 6));
+
+    let more = rail.querySelector('.jarvis-mobile-more');
+    if (!more) {
+      more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'jarvis-mobile-more';
+      more.innerHTML = '<b>⋯</b><span>MORE</span>';
+      rail.appendChild(more);
+      more.addEventListener('click', () => {
+        const drawer = document.querySelector('.jarvis-mobile-drawer');
+        if (!drawer) return;
+        drawer.classList.toggle('open');
+        more.classList.toggle('active', drawer.classList.contains('open'));
+      });
+    }
+
+    let drawer = document.querySelector('.jarvis-mobile-drawer');
+    if (!drawer) {
+      drawer = document.createElement('div');
+      drawer.className = 'jarvis-mobile-drawer';
+      document.body.appendChild(drawer);
+    }
+    const visibleOverflow = navs.slice(6);
+    drawer.innerHTML = visibleOverflow.map(nav => {
+      const id = nav.dataset.app || '';
+      const icon = nav.querySelector('b')?.textContent || '•';
+      const label = nav.querySelector('span')?.textContent || id;
+      return `<button type="button" data-mobile-target="${id}"><b>${icon}</b><span>${label}</span></button>`;
+    }).join('');
+    drawer.querySelectorAll('button[data-mobile-target]').forEach(button => {
+      button.addEventListener('click', () => {
+        const id = button.getAttribute('data-mobile-target');
+        const target = rail.querySelector(`.nav[data-app="${CSS.escape(id || '')}"]`);
+        target?.click();
+        drawer.classList.remove('open');
+        more?.classList.remove('active');
+      });
+    });
+  };
+
   const boot = () => {
     style();
-    if (mobile()) voiceStatus();
+    if (mobile()) {
+      voiceStatus();
+      ensureMoreDrawer();
+    } else {
+      document.querySelector('.jarvis-mobile-drawer')?.remove();
+      document.querySelector('.jarvis-mobile-more')?.remove();
+      document.querySelectorAll('.nav.mobile-overflow-hidden').forEach(el => el.classList.remove('mobile-overflow-hidden'));
+    }
     markMobileVoice();
   };
 
