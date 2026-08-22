@@ -56,5 +56,7 @@ async function aiIntel(){
     box.querySelector('[data-jhi-search]')?.addEventListener('click',()=>document.querySelector<HTMLElement>('.nav[data-app="web"]')?.click(),{once:true});
   }finally{window.clearTimeout(timer);if(activeController===controller)activeController=null}
 }
-window.addEventListener('jarvis:home-brief',dailyBrief);
-window.addEventListener('jarvis:home-ai',()=>void aiIntel());
+if(typeof window!=='undefined'){
+  window.addEventListener('jarvis:home-brief',dailyBrief);
+  window.addEventListener('jarvis:home-ai',()=>void aiIntel());
+}
