@@ -3,6 +3,10 @@
   if (window.__JARVIS_MODULE_LOADER__) return;
   window.__JARVIS_MODULE_LOADER__ = true;
 
+  // Drop the old session context once. It contained stale location/color
+  // discussion and could contaminate a fresh command with an unrelated answer.
+  try { sessionStorage.removeItem('jarvis-session-context-v2'); } catch {}
+
   const features = {
     web: { scripts: ['jarvis-web-search.js'], css: ['jarvis-web-polish.css'] },
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
@@ -15,7 +19,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260823-voice-restore2-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260823-voice-clean-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
@@ -47,9 +51,7 @@
 
   window.jarvisLoadFeature = loadFeature;
 
-  // Voice is preloaded so the first iOS microphone gesture and the first typed
-  // command share the same response authority. The cache-buster is intentionally
-  // rotated with each voice fix so Safari cannot retain an older authority.
+  // Voice is preloaded before the first iOS microphone gesture.
   window.setTimeout(() => {
     void loadFeature('voice').catch(error => console.warn('[JARVIS voice preload]', error));
   }, 0);
