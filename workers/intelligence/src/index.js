@@ -79,7 +79,7 @@ const SYSTEM = 'You are JARVIS, the intelligence layer of a personal operating s
 
 async function callGemini(query, apiKey) {
   const endpoint = `${GEMINI_API}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -87,7 +87,7 @@ async function callGemini(query, apiKey) {
       contents: [{ role: 'user', parts: [{ text: query }] }],
       generationConfig: { temperature: 0.2, maxOutputTokens: 700 },
     }),
-  });
+  }, 12000, 'gemini');
   const data = await response.json();
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini request failed'), { status: response.status, provider: 'gemini' });
   const text = String(data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('') || '').trim();
