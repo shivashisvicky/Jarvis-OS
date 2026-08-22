@@ -10,17 +10,15 @@
   let ytFrame = null;
   let ytReady = false;
   let ytReadyQueue = [];
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[ch]));
+  const esc = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#039;' }[ch]));
   const normalize = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
   function videoId(raw) { try { const url=new URL(raw); const host=url.hostname.replace(/^www\./,'').toLowerCase(); if(host==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||null; if(host==='youtube.com'||host==='m.youtube.com'){if(url.pathname==='/watch')return url.searchParams.get('v');const parts=url.pathname.split('/').filter(Boolean);if(['shorts','live','embed'].includes(parts[0]))return parts[1]||null;}} catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null; }
   function scrollPlayerIntoView(host){try{host.scrollIntoView({behavior:'smooth',block:'center'});}catch{}}
 
-  // Pre-warm one persistent YouTube iframe. The old implementation created the
-  // iframe only after the card click, then waited for iframe load before calling
-  // playVideo. On iOS that loses the original user-activation window, so the
-  // player appeared but required a second tap. Keeping the iframe alive lets a
-  // card click issue loadVideoById + playVideo immediately against an already
-  // loaded YouTube document.
+  // iOS Safari can block scripted playback with audio in a cross-origin iframe.
+  // The reliable web-compatible path is to make the embedded YouTube player
+  // autoplay muted. The user's tap selects the video, and the video itself then
+  // starts without requiring a second tap on YouTube's center PLAY control.
   function ensureYTFrame(){
     const host=document.querySelector('#jarvisPlayer');
     if(!host)return null;
@@ -32,7 +30,7 @@
     frame.loading='eager';
     frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
     frame.allowFullscreen=true;
-    frame.src=`https://www.youtube-nocookie.com/embed/0?controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
+    frame.src=`https://www.youtube-nocookie.com/embed/0?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
     frame.style.width='100%';
     frame.style.height='100%';
     frame.style.border='0';
@@ -50,8 +48,6 @@
     };
     window.addEventListener('message',readyHandler);
     frame.addEventListener('load',()=>{
-      // YouTube normally emits onReady, but keep a short fallback so the
-      // already-loaded iframe can still receive commands on mobile Safari.
       window.setTimeout(()=>{if(!ytReady)ytReady=true;const queue=ytReadyQueue.splice(0);queue.forEach(fn=>fn())},800);
     },{once:true});
     return frame;
@@ -67,13 +63,19 @@
     const frame=ensureYTFrame();
     if(!frame)return;
     scrollPlayerIntoView(host);
-    // These commands are deliberately issued synchronously from the card click
-    // path when the iframe is already warm. This is the important difference
-    // from the previous load-then-play approach on iOS.
-    try{frame.contentWindow?.postMessage(JSON.stringify({event:'command',func:'loadVideoById',args:[id]}),'https://www.youtube-nocookie.com');}catch{}
-    try{frame.contentWindow?.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'https://www.youtube-nocookie.com');}catch{}
-    ytCommand('loadVideoById',[id]);
-    ytCommand('playVideo',[]);
+
+    // Do not rely on loadVideoById/playVideo for the initial transition on iOS.
+    // Re-navigate the already-present iframe to the selected video with muted
+    // autoplay. Safari permits muted autoplay, so the first card tap is enough.
+    frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
+    ytReady=false;
+    frame.addEventListener('load',()=>{
+      // Best-effort unmute. If Safari's autoplay policy refuses it, playback
+      // still continues rather than falling back to the center PLAY button.
+      ytReady=true;
+      ytCommand('playVideo',[]);
+      window.setTimeout(()=>ytCommand('unMute',[]),250);
+    },{once:true});
   }
   function installCardStyles(){if(document.querySelector('#jarvis-live-media-style'))return;const style=document.createElement('style');style.id='jarvis-live-media-style';style.textContent=`#videoResults{display:grid;gap:10px;align-content:start}#videoResults .jvc-card{display:grid;grid-template-columns:132px 1fr;gap:12px;width:100%;padding:10px;border:1px solid #214454;border-radius:10px;background:rgba(5,18,26,.9);color:#d9f5ff;text-align:left;cursor:pointer}#videoResults .jvc-card:hover{border-color:#55d8ff;transform:translateY(-1px)}#videoResults .jvc-card img{width:132px;height:74px;object-fit:cover;border-radius:6px;background:#07141c}#videoResults .jvc-card strong{display:block;font-size:14px;line-height:1.35;margin-bottom:6px}#videoResults .jvc-card small{display:block;color:#7898a5;line-height:1.3}#videoResults .jvc-card .play{display:inline-block;margin-top:8px;padding:5px 10px;border:1px solid #55d8ff;border-radius:5px;background:#55d8ff;color:#031018;font-size:11px;font-weight:800;letter-spacing:.08em}.jvc-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.jvc-chip{border:1px solid #214454;border-radius:999px;background:rgba(5,18,26,.8);color:#9fc0ca;padding:6px 10px;font-size:11px;cursor:pointer}.jvc-chip:hover{border-color:#55d8ff;color:#d9f5ff}.jvc-clear{margin-left:auto;border:0;background:transparent;color:#6f8b95;font-size:11px;cursor:pointer}.jvc-clear:hover{color:#55d8ff}`;document.head.appendChild(style)}
   function cacheKey(query){return `jarvis-youtube:${normalize(query)}`}
