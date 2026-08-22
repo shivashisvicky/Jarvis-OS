@@ -402,7 +402,7 @@ export default {
       try { return json(await callGemini(query, env.GEMINI_API_KEY), 200, origin); }
       catch (error) {
         errors.push({ provider: 'gemini', status: error?.status || 502, error: error?.message || 'request failed' });
-        if (error?.status && ![401, 403, 429].includes(error.status)) return json({ error: error.message, code: 'GEMINI_REQUEST_FAILED' }, error.status, origin);
+        // Continue to the configured Groq fallback for every Gemini failure, including timeouts and upstream 5xx responses.
       }
     }
 
