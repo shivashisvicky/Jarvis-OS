@@ -11,6 +11,7 @@ const aliases=[
 const tokens=s=>String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
 const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|navigate to|directions? to|go to)\s+/i,'').trim();
 const alias=s=>{const t=tokens(s);return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
+let pendingDestination='';
 const show=(p,frame)=>{const d=.018,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${String(p.name).replace(/"/g,'&quot;')}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
 const canonical=async q=>{
  const a=alias(q);if(a)return [a];
@@ -22,17 +23,21 @@ const canonical=async q=>{
 };
 const search=async q=>{
  const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');
- if(!(input instanceof HTMLInputElement)||!results||!frame)return;
- const query=clean(q||input.value);if(!query)return;input.value=query;results.innerHTML='<div class="empty">SEARCHING KEYWORD-MATCHED LOCATIONS…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';
+ if(!(input instanceof HTMLInputElement)||!results||!frame)return false;
+ const query=clean(q||input.value);if(!query)return false;input.value=query;results.innerHTML='<div class="empty">SEARCHING KEYWORD-MATCHED LOCATIONS…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';
  const places=await canonical(query);
- if(!places.length){results.innerHTML=`<div class="empty">No location matched all keywords in “${query}”.</div>`;frame.innerHTML='';return;}
+ if(!places.length){results.innerHTML=`<div class="empty">No location matched all keywords in “${query}”.</div>`;frame.innerHTML='';return true;}
  results.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${places.length} LOCATION${places.length===1?'':'S'} FOUND · KEYWORD MATCH</div>`+places.map((p,i)=>`<button type="button" class="place-result" data-final-map="${i}"><strong>${i+1}. ${p.name}</strong><small>${p.display_name||p.detail||''}</small></button>`).join('');
  results.querySelectorAll('[data-final-map]').forEach(b=>b.addEventListener('click',()=>show(places[Number(b.dataset.finalMap)],frame)));
- show(places[0],frame);
+ show(places[0],frame);return true;
 };
+const consumePending=()=>{if(!pendingDestination)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pendingDestination;pendingDestination='';void search(q)};
 const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();void search(document.querySelector('#mapQuery')?.value||'')};
-const voiceGuard=e=>{const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const raw=String(e.detail?.text||'').trim();if(!raw)return;const q=clean(raw);if(!q||/^(what|who|why|how|when|tell me|sing|play|calculate|weather|time|date|joke|settings|notes?)\b/i.test(q))return;e.preventDefault();e.stopImmediatePropagation();void search(q)};
+const voiceGuard=e=>{const input=document.querySelector('#mapQuery');const raw=String(e.detail?.text||'').trim();if(!raw)return;const q=clean(raw);if(!q||/^(what|who|why|how|when|tell me|sing|play|calculate|weather|time|date|joke|settings|notes?)\b/i.test(q))return;if(!(input instanceof HTMLInputElement)){pendingDestination=q;return}e.preventDefault();e.stopImmediatePropagation();void search(q)};
+const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pendingDestination=q;consumePending()};
 document.addEventListener('click',clickGuard,true);
 window.addEventListener('jarvis:voice-command',voiceGuard,true);
-new MutationObserver(()=>{}).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener('jarvis:maps',mapsCommand,true);
+new MutationObserver(()=>consumePending()).observe(document.documentElement,{childList:true,subtree:true});
+consumePending();
 })();
