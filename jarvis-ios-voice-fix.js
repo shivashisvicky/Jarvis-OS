@@ -52,9 +52,10 @@
     try {
       ensureStop();
       nativeCancel();
+      primeAudio();
       try { synth.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.rate = Math.min(1.2, Math.max(.8, Number(options.rate) || .92));
+      utterance.rate = Math.min(1.2, Math.max(.8, Number(options.rate) || 0.92));
       utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
       utterance.lang = options.language || 'en-GB';
@@ -89,11 +90,10 @@
 
   const install = () => {
     ensureStop();
-    if (typeof window.jarvisVoiceAuthoritySpeak === 'function') {
-      installed = true;
-      return;
-    }
-    if (installed) return;
+    // This is the single response authority on iOS. Do not leave an older
+    // dynamically loaded voice implementation in charge, because that is what
+    // caused written and spoken commands to diverge.
+    window.jarvisVoiceAuthoritySpeak = speakNative;
     window.jarvisCinematicSpeak = speakNative;
     window.jarvisSpeak = speakNative;
     installed = true;
@@ -109,12 +109,10 @@
   };
 
   ensureStop();
+  install();
   document.addEventListener('pointerdown', warm, true);
   document.addEventListener('touchstart', warm, true);
-  const timer = window.setInterval(() => {
-    install();
-    if (installed && typeof window.jarvisVoiceAuthoritySpeak === 'function') window.clearInterval(timer);
-  }, 50);
+  const timer = window.setInterval(() => install(), 250);
   window.setTimeout(() => window.clearInterval(timer), 15000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { primeAudio(); install(); } });
 })();
