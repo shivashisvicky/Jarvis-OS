@@ -60,8 +60,9 @@
       unlock.volume = 0;
       unlock.rate = 1;
       unlock.lang = 'en-GB';
+      nativeCancel();
       nativeSpeak(unlock);
-      window.setTimeout(() => { try { nativeCancel(); } catch {} }, 60);
+      window.setTimeout(() => { try { nativeCancel(); synth.resume(); } catch {} }, 60);
     } catch {}
   };
 
@@ -71,7 +72,13 @@
 
   synth.speak = utterance => {
     try {
+      synth.resume();
       if (utterance && typeof utterance === 'object' && 'rate' in utterance) utterance.rate = getRate();
+      if (utterance && typeof utterance === 'object') {
+        utterance.onstart = () => setSpeaking(true);
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
+      }
     } catch {}
     return nativeSpeak(utterance);
   };
@@ -80,7 +87,9 @@
     if (!text) return false;
     try {
       ensureStopButton();
+      prime();
       nativeCancel();
+      synth.resume();
       const voices = synth.getVoices();
       const utterance = new SpeechSynthesisUtterance(String(text));
       utterance.rate = getRate();
@@ -94,7 +103,7 @@
       utterance.onstart = () => setSpeaking(true);
       utterance.onend = () => setSpeaking(false);
       utterance.onerror = () => setSpeaking(false);
-      synth.speak(utterance);
+      nativeSpeak(utterance);
       return true;
     } catch {
       setSpeaking(false);
@@ -102,9 +111,7 @@
     }
   };
 
-  synth.addEventListener?.('voiceschanged', () => {
-    // iOS/Safari can populate the voice list asynchronously. Future utterances use the now-ready list.
-  });
+  synth.addEventListener?.('voiceschanged', () => {});
 
   const warmOnGesture = event => {
     const target = event.target;
@@ -112,6 +119,7 @@
     if (!target.closest('#commandInput, #commandForm, #voiceBtn, #testVoice')) return;
     prime();
     ensureStopButton();
+    try { synth.resume(); } catch {}
     document.removeEventListener('pointerdown', warmOnGesture, true);
     document.removeEventListener('touchstart', warmOnGesture, true);
   };
