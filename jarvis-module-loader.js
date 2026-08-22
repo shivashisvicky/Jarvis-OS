@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-r3-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase3-r4-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
@@ -64,6 +64,8 @@
   window.jarvisFeatureLoaded = name => loaded.has(name);
 
   let warmed = false;
+  let audioContext = null;
+
   const primeNativeSpeech = () => {
     if (!('speechSynthesis' in window)) return;
     try {
@@ -77,13 +79,29 @@
     } catch {}
   };
 
+  const primeWebAudio = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioContext || audioContext.state === 'closed') audioContext = new Ctx({ latencyHint: 'interactive' });
+      if (audioContext.state === 'suspended' || audioContext.state === 'interrupted') void audioContext.resume();
+      const buffer = audioContext.createBuffer(1, 1, audioContext.sampleRate);
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+      source.onended = () => { try { source.disconnect(); } catch {} };
+    } catch {}
+  };
+
   const warmVoice = event => {
     if (warmed) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (!target.closest('#commandInput, #commandForm .execute, #voiceBtn, #testVoice')) return;
+    if (!target.closest('#commandInput, #commandForm .execute, #voiceBtn, #testVoice, #jhcActions [data-jhc], #jhcActions [data-jhc-app]')) return;
     warmed = true;
     primeNativeSpeech();
+    primeWebAudio();
     void loadFeature('voice').catch(() => {});
     document.removeEventListener('pointerdown', warmVoice, true);
     document.removeEventListener('touchstart', warmVoice, true);
