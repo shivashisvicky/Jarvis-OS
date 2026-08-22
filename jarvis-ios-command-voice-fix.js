@@ -37,7 +37,7 @@ const start=e=>{
  r.onend=()=>{if(recognition===r){recognition=null;owned=false;setState(false)}};
  try{r.start()}catch{stop()}
 };
-const blockClick=e=>{if(owned&&e.target instanceof Element&&e.target.closest('#voiceBtn')){e.preventDefault();e.stopImmediatePropagation()}};
+const blockClick=e=>{if(e.target instanceof Element&&e.target.closest('#voiceBtn')){e.preventDefault();e.stopImmediatePropagation()}};
 document.addEventListener('pointerdown',start,true);
 document.addEventListener('click',blockClick,true);
 window.addEventListener('pagehide',stop);
