@@ -38,14 +38,16 @@ const bindVoice=()=>{
  window.__JARVIS_MAP_VOICE_BOUND__=true;
  window.addEventListener('jarvis:voice-command',e=>{
    const input=document.querySelector('#mapQuery');
-   if(!(input instanceof HTMLInputElement) || typeof window.jarvisMapSearch!=='function') return;
+   const button=document.querySelector('#mapSearch');
+   if(!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) return;
    const raw=String(e.detail?.text||'').trim();
    if(!raw) return;
    const q=raw.replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|navigate to|directions? to)\s+/i,'').trim();
    if(!q || /^(what|who|why|how|when|tell me|sing|play|open youtube|calculate|weather|time|date|joke|settings|notes?)\b/i.test(q)) return;
    e.preventDefault();
    input.value=q;
-   void window.jarvisMapSearch();
+   input.dispatchEvent(new Event('input',{bubbles:true}));
+   button.click();
  },true);
 };
 bind();bindVoice();new MutationObserver(()=>{bind();bindVoice()}).observe(document.documentElement,{childList:true,subtree:true});
