@@ -4,7 +4,7 @@
   window.__JARVIS_YOUTUBE_GESTURE_FIX__ = true;
 
   const ORIGIN = 'https://shivashisvicky.github.io';
-  const embedUrl = id => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
+  const embedUrl = id => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=0&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
 
   document.addEventListener('click', event => {
     const card = event.target?.closest?.('[data-jvc-id]');
