@@ -3,13 +3,34 @@
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const MAX_RESULTS = 12;
   const HISTORY_KEY = 'jarvis-media-history-v1';
+  const PLAYER_ORIGIN = 'https://shivashisvicky.github.io';
   let pendingVoiceQuery = '';
   let activeSearch = null;
   let activeController = null;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[ch]));
   const normalize = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
   function videoId(raw) { try { const url=new URL(raw); const host=url.hostname.replace(/^www\./,'').toLowerCase(); if(host==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||null; if(host==='youtube.com'||host==='m.youtube.com'){if(url.pathname==='/watch')return url.searchParams.get('v');const parts=url.pathname.split('/').filter(Boolean);if(['shorts','live','embed'].includes(parts[0]))return parts[1]||null;}} catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null; }
-  function player(id){const host=document.querySelector('#jarvisPlayer');if(!host)return;host.dataset.videoId=id;const frame=document.createElement('iframe');frame.title='JARVIS YouTube player';frame.referrerPolicy='strict-origin-when-cross-origin';frame.loading='lazy';frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.allowFullscreen=true;frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0`;host.replaceChildren(frame);}
+  function scrollPlayerIntoView(host){try{host.scrollIntoView({behavior:'smooth',block:'center'});}catch{}}
+  function player(id){
+    const host=document.querySelector('#jarvisPlayer');
+    if(!host)return;
+    host.dataset.videoId=id;
+    const frame=document.createElement('iframe');
+    frame.title='JARVIS YouTube player';
+    frame.referrerPolicy='strict-origin-when-cross-origin';
+    frame.loading='eager';
+    frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen=true;
+    frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
+    host.replaceChildren(frame);
+    scrollPlayerIntoView(host);
+    // Ask the YouTube IFrame player to start as soon as it is ready. This works
+    // on browsers that permit scripted playback. iOS Safari may still block it
+    // because the YouTube document is cross-origin, in which case its own PLAY
+    // control remains the required user gesture.
+    const requestPlay=()=>{try{frame.contentWindow?.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}), 'https://www.youtube-nocookie.com');}catch{}};
+    frame.addEventListener('load',()=>{requestPlay();window.setTimeout(requestPlay,250);window.setTimeout(requestPlay,900);},{once:true});
+  }
   function installCardStyles(){if(document.querySelector('#jarvis-live-media-style'))return;const style=document.createElement('style');style.id='jarvis-live-media-style';style.textContent=`#videoResults{display:grid;gap:10px;align-content:start}#videoResults .jvc-card{display:grid;grid-template-columns:132px 1fr;gap:12px;width:100%;padding:10px;border:1px solid #214454;border-radius:10px;background:rgba(5,18,26,.9);color:#d9f5ff;text-align:left;cursor:pointer}#videoResults .jvc-card:hover{border-color:#55d8ff;transform:translateY(-1px)}#videoResults .jvc-card img{width:132px;height:74px;object-fit:cover;border-radius:6px;background:#07141c}#videoResults .jvc-card strong{display:block;font-size:14px;line-height:1.35;margin-bottom:6px}#videoResults .jvc-card small{display:block;color:#7898a5;line-height:1.3}#videoResults .jvc-card .play{display:inline-block;margin-top:8px;padding:5px 10px;border:1px solid #55d8ff;border-radius:5px;background:#55d8ff;color:#031018;font-size:11px;font-weight:800;letter-spacing:.08em}.jvc-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.jvc-chip{border:1px solid #214454;border-radius:999px;background:rgba(5,18,26,.8);color:#9fc0ca;padding:6px 10px;font-size:11px;cursor:pointer}.jvc-chip:hover{border-color:#55d8ff;color:#d9f5ff}.jvc-clear{margin-left:auto;border:0;background:transparent;color:#6f8b95;font-size:11px;cursor:pointer}.jvc-clear:hover{color:#55d8ff}`;document.head.appendChild(style)}
   function cacheKey(query){return `jarvis-youtube:${normalize(query)}`}
   function readCache(query){try{const raw=sessionStorage.getItem(cacheKey(query));if(!raw)return null;const entry=JSON.parse(raw);if(!entry?.timestamp||Date.now()-entry.timestamp>CACHE_TTL_MS||!Array.isArray(entry.results))return null;return entry.results}catch{return null}}
