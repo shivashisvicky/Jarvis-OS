@@ -15,97 +15,35 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-r7-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase3-r8-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
+    const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
     if (existing) return resolve();
     const script = document.createElement('script');
-    script.src = assetUrl(src);
-    script.dataset.jarvisModule = src;
-    script.async = false;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    script.src = src; script.defer = true; script.dataset.jarvisFeatureSrc = src;
+    script.onload = () => resolve(); script.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(script);
   });
 
   const loadCss = href => new Promise((resolve, reject) => {
-    const existing = document.querySelector(`link[data-jarvis-module-css="${CSS.escape(href)}"]`);
+    const existing = document.querySelector(`link[data-jarvis-feature-href="${href}"]`);
     if (existing) return resolve();
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = assetUrl(href);
-    link.dataset.jarvisModuleCss = href;
-    link.onload = () => resolve();
-    link.onerror = () => reject(new Error(`Failed to load ${href}`));
-    document.head.appendChild(link);
+    const link = document.createElement('link'); link.rel='stylesheet'; link.href=href; link.dataset.jarvisFeatureHref=href;
+    link.onload=()=>resolve(); link.onerror=()=>reject(new Error(`Failed to load ${href}`)); document.head.appendChild(link);
   });
 
-  async function loadFeature(name) {
+  const loadFeature = async name => {
+    if (!features[name]) return;
     if (loaded.has(name)) return loaded.get(name);
     if (pending.has(name)) return pending.get(name);
-    const feature = features[name];
-    if (!feature) return;
-    const promise = (async () => {
-      for (const css of feature.css || []) await loadCss(css);
-      for (const script of feature.scripts || []) await loadScript(script);
-    })();
-    pending.set(name, promise);
-    try {
-      await promise;
-      loaded.set(name, true);
-      return true;
-    } finally {
-      pending.delete(name);
-    }
-  }
+    const task = Promise.all([
+      ...features[name].scripts.map(script => loadScript(assetUrl(script))),
+      ...features[name].css.map(css => loadCss(assetUrl(css))),
+    ]).then(() => { loaded.set(name, true); pending.delete(name); }).catch(error => { pending.delete(name); throw error; });
+    pending.set(name, task);
+    return task;
+  };
 
   window.jarvisLoadFeature = loadFeature;
-  window.jarvisFeatureLoaded = name => loaded.has(name);
-
-  let warmed = false;
-  let audioContext = null;
-
-  const primeNativeSpeech = () => {
-    if (!('speechSynthesis' in window)) return;
-    try {
-      const unlock = new SpeechSynthesisUtterance('');
-      unlock.volume = 0;
-      unlock.rate = 1;
-      unlock.lang = 'en-GB';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(unlock);
-      window.setTimeout(() => { try { window.speechSynthesis.cancel(); window.speechSynthesis.resume(); } catch {} }, 60);
-    } catch {}
-  };
-
-  const primeWebAudio = () => {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      if (!audioContext || audioContext.state === 'closed') audioContext = new Ctx({ latencyHint: 'interactive' });
-      if (audioContext.state === 'suspended' || audioContext.state === 'interrupted') void audioContext.resume();
-      const buffer = audioContext.createBuffer(1, 1, audioContext.sampleRate);
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioContext.destination);
-      source.start(0);
-      source.onended = () => { try { source.disconnect(); } catch {} };
-    } catch {}
-  };
-
-  const warmVoice = event => {
-    if (warmed) return;
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (!target.closest('#commandInput, #commandForm .execute, #voiceBtn, #testVoice, #jhcActions [data-jhc], #jhcActions [data-jhc-app]')) return;
-    warmed = true;
-    primeNativeSpeech();
-    primeWebAudio();
-    void loadFeature('voice').catch(() => {});
-    document.removeEventListener('pointerdown', warmVoice, true);
-    document.removeEventListener('touchstart', warmVoice, true);
-  };
-  document.addEventListener('pointerdown', warmVoice, true);
-  document.addEventListener('touchstart', warmVoice, true);
 })();
