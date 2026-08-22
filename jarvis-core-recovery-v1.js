@@ -30,22 +30,12 @@
   const ensureEngineeringNavigation = () => {
     const rail = document.querySelector('.rail');
     if (!rail) return;
-    const wanted = [
-      ['api','⇄','API Lab'],
-      ['remote','↔','SFTP']
-    ];
-    wanted.forEach(([id, icon, label]) => {
+    [['api','⇄','API Lab'],['remote','↔','SFTP']].forEach(([id, icon, label]) => {
       if (rail.querySelector(`.nav[data-app="${id}"]`)) return;
       const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'nav';
-      b.dataset.app = id;
+      b.type = 'button'; b.className = 'nav'; b.dataset.app = id;
       b.innerHTML = `<b>${icon}</b><span>${label}</span>`;
       rail.appendChild(b);
-      b.addEventListener('click', () => {
-        document.querySelectorAll('.nav[data-app]').forEach(n => n.classList.toggle('selected', n === b));
-        window.dispatchEvent(new CustomEvent('jarvis:engineering-navigation', { detail: { app: id } }));
-      });
     });
   };
 
@@ -59,14 +49,11 @@
       b.className = 'module-card'; b.type = 'button'; b.dataset.app = id;
       b.innerHTML = `<span class="module-icon">${icon}</span><div><small>${group}</small><strong>${name}</strong><p>Open ${desc}</p></div><b>›</b>`;
       grid.appendChild(b);
-      b.addEventListener('click', () => {
-        const nav = document.querySelector(`.nav[data-app="${id}"]`);
-        if (nav) nav.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      });
     });
   };
 
   const ensureMobileMore = () => {
+    document.querySelector('.jarvis-mobile-more')?.remove();
     if (!isMobile()) {
       document.querySelector('#jarvis-recovery-more')?.remove();
       document.querySelector('.jarvis-recovery-more-toggle')?.remove();
@@ -81,124 +68,68 @@
     navs.forEach((nav, i) => nav.classList.toggle('jarvis-recovery-hidden', i >= keep));
     let toggle = rail.querySelector('.jarvis-recovery-more-toggle');
     if (!toggle) {
-      toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'jarvis-recovery-more-toggle';
-      toggle.innerHTML = '<b>⋯</b><span>MORE</span>';
-      rail.appendChild(toggle);
+      toggle = document.createElement('button'); toggle.type='button'; toggle.className='jarvis-recovery-more-toggle';
+      toggle.innerHTML='<b>⋯</b><span>MORE</span>'; rail.appendChild(toggle);
     }
     let drawer = document.querySelector('#jarvis-recovery-more');
     if (!drawer) {
-      drawer = document.createElement('div');
-      drawer.id = 'jarvis-recovery-more';
-      drawer.className = 'jarvis-recovery-more';
-      document.body.appendChild(drawer);
+      drawer = document.createElement('div'); drawer.id='jarvis-recovery-more'; drawer.className='jarvis-recovery-more'; document.body.appendChild(drawer);
     }
-    drawer.innerHTML = navs.slice(keep).map(nav => {
-      const id = nav.dataset.app || '';
-      const icon = nav.querySelector('b')?.textContent || '•';
-      const label = nav.querySelector('span')?.textContent || id;
-      return `<button type="button" data-recovery-target="${id}"><b>${icon}</b><span>${label}</span></button>`;
-    }).join('');
+    drawer.innerHTML = navs.slice(keep).map(nav => `<button type="button" data-recovery-target="${nav.dataset.app||''}"><b>${nav.querySelector('b')?.textContent||'•'}</b><span>${nav.querySelector('span')?.textContent||nav.dataset.app||''}</span></button>`).join('');
     drawer.querySelectorAll('[data-recovery-target]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-recovery-target');
-      const nav = rail.querySelector(`.nav[data-app="${CSS.escape(id || '')}"]`);
+      const id=btn.getAttribute('data-recovery-target');
+      const nav=rail.querySelector(`.nav[data-app="${CSS.escape(id||'')}"]`);
       nav?.click(); drawer.classList.remove('open');
     }));
-    toggle.onclick = () => drawer.classList.toggle('open');
+    toggle.onclick=()=>drawer.classList.toggle('open');
   };
 
   const setupCalculator = () => {
-    const oldDisplay = document.querySelector('#calcDisplay');
-    const oldKeys = document.querySelector('.calc .keys');
-    if (!oldDisplay || !oldKeys || oldKeys.dataset.recoveryBound) return;
-    oldKeys.dataset.recoveryBound = '1';
-    let expression = '';
-    const display = oldDisplay;
-    const refresh = value => { display.value = value || '0'; };
-    const calculate = () => {
-      if (!expression) return;
-      if (!/^[0-9+\-*/().\s]+$/.test(expression)) { refresh('ERROR'); return; }
-      try {
-        const result = Function(`"use strict"; return (${expression})`)();
-        if (!Number.isFinite(result)) throw new Error('non-finite');
-        expression = String(Number(result.toPrecision(12)));
-        refresh(expression);
-      } catch { expression = ''; refresh('ERROR'); }
+    const display = document.querySelector('#calcDisplay');
+    const keys = document.querySelector('.calc .keys');
+    if (!display || !keys || keys.dataset.recoveryBound) return;
+    keys.dataset.recoveryBound='1';
+    let expression='';
+    const refresh=v=>{display.value=v||'0';};
+    const calculate=()=>{
+      if(!expression)return;
+      if(!/^[0-9+\-*/().\s]+$/.test(expression)){refresh('ERROR');return;}
+      try{
+        const result=Function(`"use strict";return (${expression})`)();
+        if(!Number.isFinite(result))throw new Error('non-finite');
+        expression=String(Number(result.toPrecision(12))); refresh(expression);
+      }catch{expression='';refresh('ERROR');}
     };
-    oldKeys.querySelectorAll('button[data-key]').forEach(button => {
-      button.addEventListener('click', () => {
-        const key = button.getAttribute('data-key') || '';
-        if (key === '=') return calculate();
-        if (display.value === 'ERROR') expression = '';
-        expression += key;
-        refresh(expression);
-      });
-    });
-    display.addEventListener('input', () => { expression = display.value.replace(/[^0-9+\-*/().\s]/g, ''); });
-    display.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+    keys.querySelectorAll('button[data-key]').forEach(button=>button.addEventListener('click',()=>{
+      const key=button.getAttribute('data-key')||'';
+      if(key==='=')return calculate();
+      if(display.value==='ERROR')expression=''; expression+=key; refresh(expression);
+    }));
+    display.addEventListener('input',()=>{expression=display.value.replace(/[^0-9+\-*/().\s]/g,'');});
+    display.addEventListener('keydown',e=>{if(e.key==='Enter')calculate();});
   };
 
   const setupMaps = () => {
-    const input = document.querySelector('#mapQuery');
-    const button = document.querySelector('#mapSearch');
-    const results = document.querySelector('#mapResults');
-    const frame = document.querySelector('#mapFrame');
-    if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement) || !results || !frame || button.dataset.recoveryBound) return;
-    const replacement = button.cloneNode(true);
-    button.replaceWith(replacement);
-    const searchButton = replacement;
-    searchButton.dataset.recoveryBound = '1';
-    const status = document.createElement('div');
-    status.className = 'jarvis-recovery-map-status';
-    results.prepend(status);
-    const showMap = (lat, lon) => {
-      const d = 0.018;
-      const bbox = `${lon-d},${lat-d},${lon+d},${lat+d}`;
-      frame.innerHTML = `<iframe title="OpenStreetMap result" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}"></iframe>`;
+    const input=document.querySelector('#mapQuery'), button=document.querySelector('#mapSearch'), results=document.querySelector('#mapResults'), frame=document.querySelector('#mapFrame');
+    if(!(input instanceof HTMLInputElement)||!(button instanceof HTMLButtonElement)||!results||!frame||button.dataset.recoveryBound)return;
+    const replacement=button.cloneNode(true); button.replaceWith(replacement); const searchButton=replacement; searchButton.dataset.recoveryBound='1';
+    const status=document.createElement('div'); status.className='jarvis-recovery-map-status'; results.prepend(status);
+    const showMap=(lat,lon)=>{const d=.018,bbox=`${lon-d},${lat-d},${lon+d},${lat+d}`;frame.innerHTML=`<iframe title="OpenStreetMap result" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}"></iframe>`;};
+    const search=async()=>{
+      const q=input.value.trim(); if(!q){status.textContent='ENTER A PLACE TO SEARCH';return;}
+      status.textContent='SEARCHING GLOBAL MAPS…'; results.querySelectorAll('.jarvis-recovery-map-result').forEach(x=>x.remove());
+      try{
+        const u=new URL('https://nominatim.openstreetmap.org/search'); u.searchParams.set('format','jsonv2');u.searchParams.set('q',q);u.searchParams.set('limit','8');u.searchParams.set('addressdetails','1');u.searchParams.set('countrycodes','in');
+        const r=await fetch(u.toString(),{headers:{Accept:'application/json'},cache:'no-store'}); if(!r.ok)throw new Error(`HTTP ${r.status}`);
+        const data=await r.json(); if(!Array.isArray(data)||!data.length){status.textContent='NO MATCHES FOUND';return;}
+        status.textContent=`${data.length} LOCATION${data.length===1?'':'S'} FOUND`;
+        data.forEach((place,index)=>{const b=document.createElement('button');b.type='button';b.className='jarvis-recovery-map-result';b.innerHTML=`<b>${index+1}. ${String(place.name||place.display_name?.split(',')[0]||'Location')}</b><small>${String(place.display_name||'')}</small>`;b.addEventListener('click',()=>showMap(Number(place.lat),Number(place.lon)));results.appendChild(b);if(index===0)showMap(Number(place.lat),Number(place.lon));});
+      }catch{status.textContent='MAP SEARCH FAILED';frame.innerHTML='<div class="empty">Map search could not reach the geocoding service. Please try again.</div>';}
     };
-    const search = async () => {
-      const q = input.value.trim();
-      if (!q) { status.textContent = 'ENTER A PLACE TO SEARCH'; return; }
-      status.textContent = 'SEARCHING GLOBAL MAPS…';
-      results.querySelectorAll('.jarvis-recovery-map-result').forEach(x => x.remove());
-      try {
-        const u = new URL('https://nominatim.openstreetmap.org/search');
-        u.searchParams.set('format','jsonv2'); u.searchParams.set('q',q); u.searchParams.set('limit','8'); u.searchParams.set('addressdetails','1'); u.searchParams.set('countrycodes','in');
-        const r = await fetch(u.toString(), { headers: { Accept:'application/json' }, cache:'no-store' });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        if (!Array.isArray(data) || !data.length) { status.textContent='NO MATCHES FOUND'; return; }
-        status.textContent = `${data.length} LOCATION${data.length===1?'':'S'} FOUND`;
-        data.forEach((place, index) => {
-          const b = document.createElement('button'); b.type='button'; b.className='jarvis-recovery-map-result';
-          b.innerHTML = `<b>${index+1}. ${String(place.name || place.display_name?.split(',')[0] || 'Location')}</b><small>${String(place.display_name || '')}</small>`;
-          b.addEventListener('click', () => showMap(Number(place.lat), Number(place.lon)));
-          results.appendChild(b);
-          if (index === 0) showMap(Number(place.lat), Number(place.lon));
-        });
-      } catch (e) {
-        status.textContent='MAP SEARCH FAILED';
-        frame.innerHTML='<div class="empty">Map search could not reach the geocoding service. Please try again.</div>';
-      }
-    };
-    searchButton.addEventListener('click', search);
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+    searchButton.addEventListener('click',search); input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search();}});
   };
 
-  const boot = () => {
-    injectCss();
-    ensureEngineeringNavigation();
-    ensureHomeEngineeringCards();
-    ensureMobileMore();
-    setupCalculator();
-    setupMaps();
-  };
-
-  const observer = new MutationObserver(() => boot());
-  observer.observe(document.documentElement, { childList:true, subtree:true });
-  window.addEventListener('resize', boot, { passive:true });
-  window.setTimeout(boot, 0);
-  window.setTimeout(boot, 500);
-  window.setTimeout(boot, 1500);
+  const boot=()=>{injectCss();ensureEngineeringNavigation();ensureHomeEngineeringCards();ensureMobileMore();setupCalculator();setupMaps();};
+  new MutationObserver(()=>boot()).observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener('resize',boot,{passive:true}); window.setTimeout(boot,0);window.setTimeout(boot,500);window.setTimeout(boot,1500);
 })();
