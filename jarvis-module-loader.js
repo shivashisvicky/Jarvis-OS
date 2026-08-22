@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260821-phase1-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase2-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
@@ -66,12 +66,26 @@
   window.jarvisFeatureLoaded = name => loaded.has(name);
 
   let warmed = false;
+  const primeNativeSpeech = () => {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      const unlock = new SpeechSynthesisUtterance('');
+      unlock.volume = 0;
+      unlock.rate = 1;
+      unlock.lang = 'en-GB';
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(unlock);
+      window.setTimeout(() => { try { window.speechSynthesis.cancel(); } catch {} }, 60);
+    } catch {}
+  };
+
   const warmVoice = event => {
     if (warmed) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (!target.closest('#commandInput, #commandForm .execute, #voiceBtn, #testVoice')) return;
     warmed = true;
+    primeNativeSpeech();
     void loadFeature('voice').catch(() => {});
     document.removeEventListener('pointerdown', warmVoice, true);
     document.removeEventListener('touchstart', warmVoice, true);
