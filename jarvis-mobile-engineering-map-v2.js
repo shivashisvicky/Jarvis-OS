@@ -58,27 +58,10 @@
     if (more.dataset.bound !== '1') { more.onclick=()=>drawer.classList.toggle('open'); more.dataset.bound='1'; }
   };
 
-  const normalizeQueries = raw => {
-    const q=raw.trim(); if(!q) return [];
-    const out=[q];
-    if (/ggp\s*colony/i.test(q)) out.push('G.G.P. Colony, Rasulgarh, Bhubaneswar, Odisha, India','GGP Colony, Rasulgarh, Bhubaneswar, Odisha, India');
-    if (!/bhubaneswar|odisha|india/i.test(q)) out.push(`${q}, Bhubaneswar, Odisha, India`);
-    return [...new Set(out)];
-  };
-
-  const setupMaps = () => {
-    const input=document.querySelector('#mapQuery'), button=document.querySelector('#mapSearch'), results=document.querySelector('#mapResults'), frame=document.querySelector('#mapFrame');
-    if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement) || !results || !frame || button.dataset.mobileMapV2) return;
-    const replacement=button.cloneNode(true); button.replaceWith(replacement); const searchButton=replacement;
-    searchButton.dataset.mobileMapV2='1';
-    let status=results.querySelector('.jarvis-v2-map-status');
-    if(!status){status=document.createElement('div');status.className='jarvis-v2-map-status';status.style.cssText='margin:7px 2px;color:var(--muted,#78939c);font-size:11px';results.prepend(status);}
-    const showMap=(lat,lon)=>{const d=.018,bbox=`${lon-d},${lat-d},${lon+d},${lat+d}`;frame.innerHTML=`<iframe title="OpenStreetMap result" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}"></iframe>`;};
-    const nominatim=async q=>{const u=new URL('https://nominatim.openstreetmap.org/search');u.searchParams.set('format','jsonv2');u.searchParams.set('q',q);u.searchParams.set('limit','8');u.searchParams.set('addressdetails','1');u.searchParams.set('accept-language','en');const r=await fetch(u,{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`Nominatim ${r.status}`);return await r.json();};
-    const photon=async q=>{const u=new URL('https://photon.komoot.io/api/');u.searchParams.set('q',q);u.searchParams.set('limit','8');const r=await fetch(u,{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`Photon ${r.status}`);const d=await r.json();return (d.features||[]).map(f=>({name:f?.properties?.name||f?.properties?.city||'Location',display_name:[f?.properties?.name,f?.properties?.street,f?.properties?.district,f?.properties?.city,f?.properties?.state,f?.properties?.country].filter(Boolean).join(', '),lat:f?.geometry?.coordinates?.[1],lon:f?.geometry?.coordinates?.[0]}));};
-    const search=async()=>{const qs=normalizeQueries(input.value);if(!qs.length){status.textContent='ENTER A PLACE TO SEARCH';return;}status.textContent='SEARCHING GLOBAL MAPS…';results.querySelectorAll('.jarvis-v2-map-result').forEach(x=>x.remove());frame.innerHTML='<div class="empty">Searching map services…</div>';let data=[];for(const q of qs){try{data=await nominatim(q);if(Array.isArray(data)&&data.length)break;}catch{}}if(!data.length){for(const q of qs){try{data=await photon(q);if(Array.isArray(data)&&data.length)break;}catch{}}}data=(Array.isArray(data)?data:[]).filter(p=>Number.isFinite(Number(p?.lat))&&Number.isFinite(Number(p?.lon)));if(!data.length){status.textContent='NO MATCHES FOUND';frame.innerHTML='<div class="empty">No map match found. Try a fuller place name or PIN code.</div>';return;}status.textContent=`${data.length} LOCATION${data.length===1?'':'S'} FOUND`;data.forEach((p,i)=>{const b=document.createElement('button');b.type='button';b.className='jarvis-v2-map-result';b.style.cssText='display:block;width:100%;box-sizing:border-box;text-align:left;padding:11px 13px;margin:6px 0;border:1px solid var(--line,#17303a);border-radius:10px;background:rgba(5,16,22,.78);color:var(--text,#dffaff);font:inherit;cursor:pointer';b.innerHTML=`<b>${i+1}. ${String(p.name||p.display_name?.split(',')[0]||'Location')}</b><small style="display:block;margin-top:4px;color:var(--muted,#78939c);font-size:10px;line-height:1.35">${String(p.display_name||'')}</small>`;b.onclick=()=>showMap(Number(p.lat),Number(p.lon));results.appendChild(b);if(i===0)showMap(Number(p.lat),Number(p.lon));});};
-    searchButton.addEventListener('click',search);input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search();}});
-  };
+  // Maps is intentionally owned by jarvis-map-final-authority.js.
+  // The previous mobile map implementation registered a second geocoder/search
+  // handler and could overwrite canonical local results after voice/manual search.
+  const setupMaps = () => {};
 
   const arbitration=()=>{css();const rail=document.querySelector('.rail');if(!rail)return;const navs=[...rail.querySelectorAll('.nav[data-app]')];navs.forEach(n=>{if(preferred.includes(n.dataset.app||'')){n.classList.remove('jarvis-final-hidden','jarvis-recovery-hidden','mobile-overflow-hidden');}else if(mobile()){n.classList.add('jarvis-v2-engineering-hidden');}});setupMore();setupMaps();};
   new MutationObserver(()=>requestAnimationFrame(arbitration)).observe(document.documentElement,{childList:true,subtree:true});
