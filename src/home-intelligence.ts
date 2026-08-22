@@ -1,0 +1,60 @@
+const NEWS_ENDPOINT='https://jarvis-intelligence.shivashisvicky112.workers.dev/api/search';
+const esc=(s:string)=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]!));
+let activeController:AbortController|null=null;
+
+function ensureStyle(){
+  if(document.getElementById('home-intelligence-style'))return;
+  const style=document.createElement('style');
+  style.id='home-intelligence-style';
+  style.textContent=`
+    .jhi-panel{margin:0 0 14px;padding:13px 14px;border:1px solid rgba(77,210,255,.22);border-radius:14px;background:rgba(3,15,22,.94)}
+    .jhi-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+    .jhi-head strong{font-size:10px;letter-spacing:.16em;color:#63dcff}.jhi-head span{font-size:9px;color:#607f8a}
+    .jhi-summary{font-size:12px;line-height:1.5;color:#a8c7d0;margin-bottom:8px}
+    .jhi-story{display:flex;gap:9px;padding:9px 0;border-top:1px solid rgba(72,142,166,.14);text-decoration:none}
+    .jhi-rank{min-width:20px;color:#4ed8ff;font-size:10px;font-weight:800}.jhi-title{color:#dff8ff;font-size:12px;line-height:1.35;font-weight:700}.jhi-source{display:block;color:#607f8a;font-size:9px;margin-top:3px}
+    .jhi-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.jhi-action{border:1px solid rgba(74,179,211,.25);border-radius:999px;background:rgba(5,21,29,.9);color:#8fc0cd;padding:7px 10px;font-size:9px;font-weight:800;letter-spacing:.08em;cursor:pointer}
+  `;
+  document.head.appendChild(style);
+}
+function host(){return document.getElementById('jarvisReply')?.parentElement||null}
+function panel(title:string,meta:string){
+  ensureStyle();const parent=host();if(!parent)return null;
+  let box=document.getElementById('jhiPanel');
+  if(!box){box=document.createElement('section');box.id='jhiPanel';box.className='jhi-panel';parent.insertAdjacentElement('afterend',box)}
+  box.innerHTML=`<div class="jhi-head"><strong>${esc(title)}</strong><span>${esc(meta)}</span></div>`;box.style.display='block';return box;
+}
+function newsCardsFromDom(){return [...document.querySelectorAll<HTMLElement>('#newsCards .news-dense-item')].map(card=>({title:card.querySelector('.news-title')?.textContent?.trim()||'',source:card.querySelector('.news-source')?.textContent?.trim()||'LIVE NEWS',link:card.getAttribute('href')||'#'})).filter(x=>x.title)}
+function renderStories(box:HTMLElement,items:Array<{title:string;source:string;link:string}>,summary:string){
+  box.innerHTML+=`<div class="jhi-summary">${esc(summary)}</div>`+items.slice(0,5).map((x,i)=>`<a class="jhi-story" href="${esc(x.link)}" target="_blank" rel="noreferrer"><span class="jhi-rank">${String(i+1).padStart(2,'0')}</span><span><span class="jhi-title">${esc(x.title)}</span><span class="jhi-source">${esc(x.source)}</span></span></a>`).join('')+`<div class="jhi-actions"><button type="button" class="jhi-action" data-jhi-open-news>OPEN FULL NEWS</button></div>`;
+  box.querySelector('[data-jhi-open-news]')?.addEventListener('click',()=>document.getElementById('newsDesk')?.scrollIntoView({behavior:'smooth',block:'start'}),{once:true});
+}
+function dailyBrief(){
+  const box=panel("TODAY'S INTELLIGENCE BRIEF",new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));if(!box)return;
+  const items=newsCardsFromDom();
+  if(items.length){renderStories(box,items,'The latest live headlines currently loaded in JARVIS, ranked for a quick scan.');return}
+  box.innerHTML+=`<div class="jhi-summary">Gathering the latest headlines…</div>`;
+  document.getElementById('refreshNews')?.click();
+  window.setTimeout(()=>{const latest=newsCardsFromDom();if(latest.length)renderStories(box,latest,'The latest live headlines currently loaded in JARVIS, ranked for a quick scan.');else box.innerHTML+=`<div class="jhi-summary">News is still loading. Open the News desk to continue.</div>`},1200);
+}
+async function aiIntel(){
+  const box=panel('AI INTELLIGENCE','LIVE SCAN');if(!box)return;
+  activeController?.abort();const controller=new AbortController();activeController=controller;
+  box.innerHTML+=`<div class="jhi-summary">Scanning current AI developments…</div>`;
+  const timer=window.setTimeout(()=>controller.abort(),6500);
+  try{
+    const url=new URL(NEWS_ENDPOINT);url.searchParams.set('q','(artificial intelligence OR generative AI OR AI models) when:1d -sports -celebrity');
+    const response=await fetch(url.toString(),{cache:'no-store',headers:{Accept:'application/json'},signal:controller.signal});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const items=(Array.isArray(data.results)?data.results:[]).slice(0,5).map((x:any)=>({title:String(x.title||'').trim(),source:String(x.source||'LIVE AI').trim(),link:String(x.link||'#')})).filter((x:any)=>x.title);
+    if(!items.length)throw new Error('No current AI stories');
+    box.innerHTML=`<div class="jhi-head"><strong>AI INTELLIGENCE</strong><span>${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · LIVE</span></div>`;
+    renderStories(box,items,'The latest AI stories from the live intelligence gateway.');
+  }catch(error){
+    box.innerHTML=`<div class="jhi-head"><strong>AI INTELLIGENCE</strong><span>DEGRADED</span></div><div class="jhi-summary">The live AI scan could not complete quickly. The full Search Hub is still available.</div><div class="jhi-actions"><button type="button" class="jhi-action" data-jhi-search>OPEN SEARCH HUB</button></div>`;
+    box.querySelector('[data-jhi-search]')?.addEventListener('click',()=>document.querySelector<HTMLElement>('.nav[data-app="web"]')?.click(),{once:true});
+  }finally{window.clearTimeout(timer);if(activeController===controller)activeController=null}
+}
+window.addEventListener('jarvis:home-brief',dailyBrief);
+window.addEventListener('jarvis:home-ai',()=>void aiIntel());
