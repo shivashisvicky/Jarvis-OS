@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-r8-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260823-voice-preload-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
@@ -46,4 +46,11 @@
   };
 
   window.jarvisLoadFeature = loadFeature;
+
+  // Voice must be ready before the first iOS microphone gesture. Previously the
+  // first typed command happened to load this feature, which is why voice began
+  // working only after a written command was submitted.
+  window.setTimeout(() => {
+    void loadFeature('voice').catch(error => console.warn('[JARVIS voice preload]', error));
+  }, 0);
 })();
