@@ -11,6 +11,7 @@
 
   const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence';
   const base = endpoint.replace(/\/api\/(?:openai-intelligence|intelligence)\/?$/, '');
+  const ttsEndpoint = `${base}/api/tts`;
   const nativeSpeech = 'speechSynthesis' in window;
   const nativeSpeak = nativeSpeech ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
   const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
