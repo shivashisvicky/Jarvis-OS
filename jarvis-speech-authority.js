@@ -52,17 +52,25 @@
     document.body.appendChild(button);
   };
 
+  // iOS Safari can reject speech created after a microphone-recognition
+  // callback unless speechSynthesis was explicitly activated by the original
+  // tap. Use a tiny, silent utterance rather than an empty utterance. Empty
+  // utterances are ignored by some iOS WebKit versions and do not unlock TTS.
   const prime = () => {
     if (warmed) return;
     warmed = true;
     try {
-      const unlock = new SpeechSynthesisUtterance('');
+      nativeCancel();
+      synth.resume();
+      const unlock = new SpeechSynthesisUtterance('.');
       unlock.volume = 0;
       unlock.rate = 1;
+      unlock.pitch = 1;
       unlock.lang = 'en-GB';
-      nativeCancel();
+      unlock.onend = () => { try { nativeCancel(); synth.resume(); } catch {} };
+      unlock.onerror = () => { try { nativeCancel(); synth.resume(); } catch {} };
       nativeSpeak(unlock);
-      window.setTimeout(() => { try { nativeCancel(); synth.resume(); } catch {} }, 60);
+      window.setTimeout(() => { try { nativeCancel(); synth.resume(); } catch {} }, 120);
     } catch {}
   };
 
