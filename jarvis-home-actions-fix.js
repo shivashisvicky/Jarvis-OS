@@ -26,13 +26,12 @@
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    // TODAY'S BRIEF is a Home intelligence action, not a normal command.
-    // The previous generic command bridge intercepted it first and sent
-    // "Give me today's top news" through the classifier, which produced the
-    // old "Opening the live news desk" response. Route it directly to the
-    // briefing engine instead.
     if ((target.textContent || '').includes("TODAY'S BRIEF")) {
-      window.dispatchEvent(new CustomEvent('jarvis:open-daily-brief'));
+      if (typeof window.JARVIS_OPEN_DAILY_BRIEF === 'function') {
+        window.JARVIS_OPEN_DAILY_BRIEF();
+      } else {
+        window.dispatchEvent(new CustomEvent('jarvis:open-daily-brief'));
+      }
       return;
     }
 
