@@ -51,7 +51,7 @@
     const box = document.createElement('section'); box.id='jhuDailyBrief'; box.className='jhu-brief';
     box.innerHTML = `<div class="jhu-brief-head"><strong>TODAY'S INTELLIGENCE BRIEF</strong><span>${esc(new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</span></div><div class="jhu-brief-list">${items.map((x,i)=>`<div class="jhu-brief-item"><span class="jhu-brief-num">${String(i+1).padStart(2,'0')}</span><span><a href="${esc(x.link)}" target="_blank" rel="noreferrer">${esc(x.title)}</a><small>${esc(x.source)}</small></span></div>`).join('')}</div><div class="jhu-brief-foot"><button type="button" id="jhuOpenNews">OPEN FULL NEWS DESK →</button></div>`;
     quick.insertAdjacentElement('afterend', box);
-    box.querySelector('#jhuOpenNews')?.addEventListener('click', () => document.querySelector('.nav[data-app="home"]')?.scrollIntoView({block:'start'}));
+    box.querySelector('#jhuOpenNews')?.addEventListener('click', () => document.querySelector('#newsDesk')?.scrollIntoView({behavior:'smooth',block:'start'}));
   }
 
   async function openBrief() {
@@ -71,6 +71,10 @@
       box.querySelector('#jhuOpenNews')?.addEventListener('click', () => document.querySelector('#newsDesk')?.scrollIntoView({behavior:'smooth',block:'start'}));
     } finally { running=false; }
   }
+
+  // The Home action bridge owns the capture phase on mobile, so expose one
+  // explicit event instead of competing with it for the same click.
+  window.addEventListener('jarvis:open-daily-brief', () => { void openBrief(); });
 
   function bind() {
     const quick = document.querySelector('#jhuQuick'); if (!quick || quick.dataset.briefBound) return;
