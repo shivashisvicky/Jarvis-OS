@@ -46,8 +46,7 @@
   function render(items) {
     styles();
     const old = document.querySelector('#jhuDailyBrief'); old?.remove();
-    const quick = document.querySelector('#jhuQuick');
-    if (!quick) return;
+    const quick = document.querySelector('#jhuQuick'); if (!quick) return;
     const box = document.createElement('section'); box.id='jhuDailyBrief'; box.className='jhu-brief';
     box.innerHTML = `<div class="jhu-brief-head"><strong>TODAY'S INTELLIGENCE BRIEF</strong><span>${esc(new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</span></div><div class="jhu-brief-list">${items.map((x,i)=>`<div class="jhu-brief-item"><span class="jhu-brief-num">${String(i+1).padStart(2,'0')}</span><span><a href="${esc(x.link)}" target="_blank" rel="noreferrer">${esc(x.title)}</a><small>${esc(x.source)}</small></span></div>`).join('')}</div><div class="jhu-brief-foot"><button type="button" id="jhuOpenNews">OPEN FULL NEWS DESK →</button></div>`;
     quick.insertAdjacentElement('afterend', box);
@@ -72,18 +71,18 @@
     } finally { running=false; }
   }
 
-  // The Home action bridge owns the capture phase on mobile, so expose one
-  // explicit event instead of competing with it for the same click.
-  window.addEventListener('jarvis:open-daily-brief', () => { void openBrief(); });
+  // Public bridge for the mobile Home action handler. This avoids depending
+  // on capture/bubble listener ordering when iOS delivers a touch as click.
+  window.JARVIS_OPEN_DAILY_BRIEF = openBrief;
+  window.addEventListener('jarvis:open-daily-brief', () => openBrief());
 
   function bind() {
     const quick = document.querySelector('#jhuQuick'); if (!quick || quick.dataset.briefBound) return;
     quick.dataset.briefBound='1';
     const button = [...quick.querySelectorAll('button')].find(b => b.textContent?.includes("TODAY'S BRIEF"));
     if (!button) return;
-    button.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); void openBrief(); }, true);
+    button.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); openBrief(); }, true);
   }
-  const watch = () => bind();
   bind();
-  new MutationObserver(watch).observe(document.documentElement, {childList:true,subtree:true});
+  new MutationObserver(bind).observe(document.documentElement, {childList:true,subtree:true});
 })();
