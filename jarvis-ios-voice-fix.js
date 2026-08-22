@@ -10,6 +10,22 @@
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
   let installed = false;
+  let audioContext = null;
+
+  const primeAudio = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioContext || audioContext.state === 'closed') audioContext = new Ctx({ latencyHint: 'interactive' });
+      if (audioContext.state === 'suspended' || audioContext.state === 'interrupted') void audioContext.resume();
+      const buffer = audioContext.createBuffer(1, 1, audioContext.sampleRate);
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+      source.onended = () => { try { source.disconnect(); } catch {} };
+    } catch {}
+  };
 
   const ensureStop = () => {
     if (document.querySelector('#jarvisIOSStopVoice')) return;
@@ -20,7 +36,7 @@
     b.hidden = true;
     b.setAttribute('aria-label', 'Stop JARVIS voice response');
     b.style.cssText = 'position:fixed;right:18px;bottom:86px;z-index:10001;min-height:42px;padding:10px 16px;border:1px solid rgba(91,214,244,.72);border-radius:10px;background:rgba(4,16,22,.97);color:#bfefff;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;box-shadow:0 0 24px rgba(71,201,236,.18);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)';
-    b.addEventListener('click', () => { nativeCancel(); try { synth.resume(); } catch {} b.hidden = true; });
+    b.addEventListener('click', () => { nativeCancel(); try { synth.resume(); } catch {} try { audioContext?.suspend(); } catch {} b.hidden = true; });
     document.body.appendChild(b);
   };
 
@@ -60,8 +76,6 @@
     }
   };
 
-  // Install immediately so the core JARVIS speak() call is stable on iOS even
-  // when the dynamically loaded voice module has not finished loading yet.
   const originalSpeak = synth.speak.bind(synth);
   synth.speak = utterance => {
     try { synth.resume(); } catch {}
@@ -75,19 +89,32 @@
 
   const install = () => {
     ensureStop();
-    if (installed || typeof window.jarvisVoiceAuthoritySpeak !== 'function') return;
-    const iosSpeak = (text, options = {}) => speakNative(text, options);
-    window.jarvisVoiceAuthoritySpeak = iosSpeak;
-    window.jarvisCinematicSpeak = iosSpeak;
-    window.jarvisSpeak = iosSpeak;
+    if (typeof window.jarvisVoiceAuthoritySpeak === 'function') {
+      installed = true;
+      return;
+    }
+    if (installed) return;
+    window.jarvisCinematicSpeak = speakNative;
+    window.jarvisSpeak = speakNative;
     installed = true;
   };
 
+  const warm = event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest('#commandInput, #commandForm, #voiceBtn, #testVoice, #jhcActions, [data-jhc]')) return;
+    primeAudio();
+    try { synth.resume(); } catch {}
+    install();
+  };
+
   ensureStop();
+  document.addEventListener('pointerdown', warm, true);
+  document.addEventListener('touchstart', warm, true);
   const timer = window.setInterval(() => {
     install();
-    if (installed) window.clearInterval(timer);
+    if (installed && typeof window.jarvisVoiceAuthoritySpeak === 'function') window.clearInterval(timer);
   }, 50);
   window.setTimeout(() => window.clearInterval(timer), 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) install(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { primeAudio(); install(); } });
 })();
