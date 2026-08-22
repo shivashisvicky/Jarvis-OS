@@ -1,8 +1,9 @@
 /* J.A.R.V.I.S. Voice Authority
- * Primary path: Gemini 3.1 Flash TTS. Safari/iOS uses a complete WAV response
- * instead of an SSE audio stream because mobile Safari is less reliable with
- * long-lived streaming audio. Desktop keeps streaming for lower latency.
- * Browser speech synthesis remains the final safety path.
+ * Primary path: remote TTS on desktop. iOS/Safari deliberately uses the
+ * browser speech engine so command responses remain reliable after a
+ * microphone recognition callback. This keeps typed and spoken commands on
+ * the same response path instead of depending on a post-gesture Web Audio
+ * fetch/decode operation.
  */
 (() => {
   'use strict';
@@ -64,6 +65,7 @@
     if (!nativeSpeak) return false;
     try {
       nativeCancel?.();
+      try { window.speechSynthesis.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(String(text));
       utterance.rate = rate();
       utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
@@ -206,10 +208,7 @@
         body: JSON.stringify({ text: item.text, rate: rate(), stream: !mobileWav }),
         cache: 'no-store',
       });
-      if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        throw new Error(`TTS HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ''}`);
-      }
+      if (!response.ok) throw new Error(`TTS HTTP ${response.status}`);
       if (id !== requestId.value) return;
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('text/event-stream')) await consumeSse(response, id);
@@ -228,6 +227,14 @@
   const speakGenerated = (text, options = {}) => {
     const clean = String(text || '').trim();
     if (!clean) return false;
+    // Critical iOS/Safari path: do not wait for a remote TTS fetch. The response
+    // can arrive after the microphone gesture and Web Audio may then be blocked.
+    // Browser speech is immediate and uses the same response text for typed and
+    // spoken commands.
+    if (isIOS || isSafari) {
+      stop();
+      return nativeFallback(clean, options);
+    }
     prime();
     stop();
     queue.push({ id: requestId.value, text: clean, options });
@@ -240,11 +247,11 @@
   window.jarvisSpeak = speakGenerated;
   window.jarvisVoiceAuthorityStop = stop;
 
-  const unlockOnGesture = () => prime();
+  const unlockOnGesture = () => { prime(); if (nativeSpeech) try { window.speechSynthesis.resume(); } catch {} };
   document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('touchstart', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) prime(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { prime(); try { window.speechSynthesis?.resume(); } catch {} } });
 
   if (nativeSpeech) {
     window.speechSynthesis.speak = utterance => {
