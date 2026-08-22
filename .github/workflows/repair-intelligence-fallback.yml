@@ -1,0 +1,121 @@
+name: Repair JARVIS Intelligence Fallback
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-intelligence-fallback.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+jobs:
+  repair:
+    name: Restore Gemini to Groq fallback
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch fallback control flow
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('workers/intelligence/src/index.js')
+          text = p.read_text()
+          old = "if (error?.status && ![401, 403, 429].includes(error.status)) return json({ error: error.message, code: 'GEMINI_REQUEST_FAILED' }, error.status, origin);"
+          new = "// Continue to the configured Groq fallback for every Gemini failure, including timeouts and upstream 5xx responses."
+          if old in text:
+              text = text.replace(old, new, 1)
+              p.write_text(text)
+              print('GEMINI_FALLBACK_CONTROL_FLOW_PATCHED=1')
+          elif new in text:
+              print('GEMINI_FALLBACK_CONTROL_FLOW_ALREADY_PATCHED=1')
+          else:
+              raise SystemExit('Expected Gemini early-return guard was not found')
+          PY
+          node --check workers/intelligence/src/index.js
+
+      - name: Commit source fix
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workers/intelligence/src/index.js
+          if git diff --cached --quiet; then
+            echo 'SOURCE_CHANGE=NONE'
+          else
+            git commit -m 'fix: fall back to Groq when Gemini fails'
+            git push origin HEAD:main
+          fi
+
+      - name: Prepare Wrangler
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path('wrangler.toml')
+          p.write_text(p.read_text().replace('__CLOUDFLARE_ACCOUNT_ID__', os.environ['CLOUDFLARE_ACCOUNT_ID'].strip(), 1))
+          PY
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Deploy Worker and preserve optional Groq secret
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          wrangler deploy --name jarvis-intelligence
+          printf '%s' "$GEMINI_API_KEY" | wrangler secret put GEMINI_API_KEY --name jarvis-intelligence
+          if [ -n "${GROQ_API_KEY:-}" ]; then
+            printf '%s' "$GROQ_API_KEY" | wrangler secret put GROQ_API_KEY --name jarvis-intelligence
+            echo 'GROQ_SECRET_REFRESHED=1'
+          else
+            echo 'GROQ_SECRET_REFRESHED=0_existing_worker_secret_preserved_if_present'
+          fi
+
+      - name: Verify live intelligence with fallback-safe smoke
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev/api/intelligence'
+          headers=$(mktemp)
+          body=$(mktemp)
+          status=$(curl --silent --show-error --max-time 25 -D "$headers" -o "$body" -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -X POST "$endpoint" --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          cat "$headers"
+          cat "$body"
+          echo "HTTP_STATUS=$status"
+          STATUS="$status" BODY="$body" python - <<'PY'
+          import json, os
+          status=os.environ['STATUS']
+          data=json.load(open(os.environ['BODY']))
+          if status != '200':
+              raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')} providers={data.get('providers')}")
+          assert str(data.get('text') or '').strip()
+          assert data.get('provider') in {'gemini','groq'}
+          print(f"INTELLIGENCE_POST_PASS provider={data.get('provider')} model={data.get('model')} fallback={data.get('fallback',False)}")
+          PY
+
+      - name: Dispatch full CI
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error -X POST \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo 'CI_DISPATCHED=1'
