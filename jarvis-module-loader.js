@@ -5,7 +5,7 @@
 
   const features = {
     web: { scripts: ['jarvis-web-search.js'], css: ['jarvis-web-polish.css'] },
-    media: { scripts: ['jarvis-live-media.js', 'jarvis-youtube-gesture-fix.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
+    media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
     voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'] },
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
     engineering: { scripts: ['jarvis-engineering.js'] },
@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-r6-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase3-r7-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
