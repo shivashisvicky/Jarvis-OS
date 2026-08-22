@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 const root = new URL('../', import.meta.url);
 const file = new URL('../src/jarvis.ts', import.meta.url);
 const source = await readFile(file, 'utf8');
-const legacySpeechTypes = /\ndeclare global\{interface SpeechRecognitionResultList\{\[index:number\]:SpeechRecognitionResult\}interface SpeechRecognitionEvent extends Event\{resultIndex:number;results:SpeechRecognitionResultList\}interface SpeechRecognition\{lang:string;interimResults:boolean;continuous:boolean;maxAlternatives:number;onstart:\(\(\)=>void\)\|null;onend:\(\(\)=>void\)\|null;onerror:\(\(\)=>void\)\|null;onresult:\(\(event:SpeechRecognitionEvent\)=>void\)\|null;start\(\):void;stop\(\):void\}\}\n/;
+const legacySpeechTypes = /\ndeclare global\{interface SpeechRecognitionResultList\{\[index:number\]:SpeechRecognitionResult\}interface SpeechRecognitionEvent extends Event\{resultIndex:number;results:SpeechRecognitionResultList\}interface SpeechRecognition\{lang:string;interimResults:boolean;continuous:boolean;maxAlternatives:number;onstart:\(\(\)=>void\)\|null;onend:\(\(\)=>void\)\|null;onerror:\(\(\)=>void\)\|null;onresult:\(\(event:SpeechRecognitionEvent\)=>void\|null;start\(\):void;stop\(\):void\}\}\n/;
 const patched = source.replace(legacySpeechTypes, '\n');
 
 if (patched === source) console.warn('JARVIS build: legacy speech DOM declarations were not present; continuing.');
@@ -30,6 +30,7 @@ const LAZY_ASSETS = [
   'jarvis-engineering.js',
   'jarvis-notes.js',
   'jarvis-games-v2.js',
+  'jarvis-home-upgrade.js',
 ];
 
 async function writeYouTubeConfig() {
