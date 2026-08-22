@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+const YOUTUBE_REFERRER = 'https://shivashisvicky.github.io/';
 
 function cors(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
@@ -37,7 +38,13 @@ async function searchYouTube(query, key) {
   url.searchParams.set('maxResults', '12');
   url.searchParams.set('q', query);
   url.searchParams.set('key', key);
-  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
+    headers: {
+      Accept: 'application/json',
+      Referer: YOUTUBE_REFERRER,
+    },
+  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || `YouTube API HTTP ${response.status}`), { status: response.status, code: data?.error?.errors?.[0]?.reason || 'YOUTUBE_API_FAILED' });
   const seen = new Set();
