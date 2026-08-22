@@ -7,10 +7,19 @@
   let lastAt = 0;
   let observer = null;
   let timer = 0;
-  let speaking = false;
   let voiceLoad = null;
 
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const nativeSpeechBusy = () => {
+    try {
+      return 'speechSynthesis' in window && (
+        window.speechSynthesis.speaking ||
+        window.speechSynthesis.pending
+      );
+    } catch {
+      return false;
+    }
+  };
 
   const ensureVoice = async () => {
     if (typeof window.jarvisVoiceAuthoritySpeak === 'function' || typeof window.jarvisSpeak === 'function') return true;
@@ -30,10 +39,8 @@
     if (typeof fn !== 'function') return false;
     try {
       const result = fn(text);
-      speaking = result !== false;
       return result !== false;
     } catch {
-      speaking = false;
       return false;
     }
   };
@@ -56,8 +63,12 @@
     if (!text) return;
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
+      // The normal command pipeline explicitly speaks its response. If the
+      // browser is already speaking/has speech queued, the observer must not
+      // announce the same reply a second time.
+      if (nativeSpeechBusy()) return;
       if (text !== lastText || Date.now() - lastAt >= 2500) announce(text);
-    }, 140);
+    }, 180);
   };
 
   const boot = () => {
