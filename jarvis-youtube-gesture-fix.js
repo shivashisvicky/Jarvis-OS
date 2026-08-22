@@ -4,7 +4,10 @@
   window.__JARVIS_YOUTUBE_GESTURE_FIX__ = true;
 
   const ORIGIN = 'https://shivashisvicky.github.io';
-  const embedUrl = id => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
+  // A result-card tap is a real user gesture. Keep autoplay, but do NOT force
+  // the YouTube iframe into mute=1. That was making manually selected videos
+  // start silently on iOS even though the user had explicitly tapped PLAY.
+  const embedUrl = id => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=0&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
 
   document.addEventListener('click', event => {
     const card = event.target?.closest?.('[data-jvc-id]');
@@ -35,8 +38,7 @@
 
     // No smooth scroll, no timeout, no IntersectionObserver, no playVideo().
     // Put the player on screen synchronously, then navigate the iframe in the
-    // same trusted click dispatch. Muted autoplay is permitted by Safari while
-    // preserving the original user gesture for the iframe navigation.
+    // same trusted click dispatch so iOS can honor the user's media gesture.
     try { host.scrollIntoView({ behavior: 'auto', block: 'center' }); } catch {}
     void host.offsetHeight;
     frame.src = embedUrl(id);
