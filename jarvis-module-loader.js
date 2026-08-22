@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase3-r2-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
