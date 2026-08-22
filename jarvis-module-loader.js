@@ -3,8 +3,6 @@
   if (window.__JARVIS_MODULE_LOADER__) return;
   window.__JARVIS_MODULE_LOADER__ = true;
 
-  // Drop the old session context once. It contained stale location/color
-  // discussion and could contaminate a fresh command with an unrelated answer.
   try { sessionStorage.removeItem('jarvis-session-context-v2'); } catch {}
 
   const features = {
@@ -19,22 +17,30 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260823-voice-clean-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260823-voice-lazy-v4-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
     if (existing) return resolve();
     const script = document.createElement('script');
-    script.src = src; script.defer = true; script.dataset.jarvisFeatureSrc = src;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    script.src = src;
+    script.defer = true;
+    script.dataset.jarvisFeatureSrc = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(script);
   });
 
   const loadCss = href => new Promise((resolve, reject) => {
     const existing = document.querySelector(`link[data-jarvis-feature-href="${href}"]`);
     if (existing) return resolve();
-    const link = document.createElement('link'); link.rel='stylesheet'; link.href=href; link.dataset.jarvisFeatureHref=href;
-    link.onload=()=>resolve(); link.onerror=()=>reject(new Error(`Failed to load ${href}`)); document.head.appendChild(link);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset.jarvisFeatureHref = href;
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error(`Failed to load ${href}`));
+    document.head.appendChild(link);
   });
 
   const loadFeature = async name => {
@@ -44,15 +50,16 @@
     const task = Promise.all([
       ...features[name].scripts.map(script => loadScript(assetUrl(script))),
       ...features[name].css.map(css => loadCss(assetUrl(css))),
-    ]).then(() => { loaded.set(name, true); pending.delete(name); }).catch(error => { pending.delete(name); throw error; });
+    ]).then(() => {
+      loaded.set(name, true);
+      pending.delete(name);
+    }).catch(error => {
+      pending.delete(name);
+      throw error;
+    });
     pending.set(name, task);
     return task;
   };
 
   window.jarvisLoadFeature = loadFeature;
-
-  // Voice is preloaded before the first iOS microphone gesture.
-  window.setTimeout(() => {
-    void loadFeature('voice').catch(error => console.warn('[JARVIS voice preload]', error));
-  }, 0);
 })();
