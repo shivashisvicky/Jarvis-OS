@@ -33,5 +33,20 @@ const bind=()=>{
  input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();void search()}});
  window.jarvisMapSearch=search;
 };
-bind();new MutationObserver(()=>bind()).observe(document.documentElement,{childList:true,subtree:true});
+const bindVoice=()=>{
+ if(window.__JARVIS_MAP_VOICE_BOUND__) return;
+ window.__JARVIS_MAP_VOICE_BOUND__=true;
+ window.addEventListener('jarvis:voice-command',e=>{
+   const input=document.querySelector('#mapQuery');
+   if(!(input instanceof HTMLInputElement) || typeof window.jarvisMapSearch!=='function') return;
+   const raw=String(e.detail?.text||'').trim();
+   if(!raw) return;
+   const q=raw.replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|navigate to|directions? to)\s+/i,'').trim();
+   if(!q || /^(what|who|why|how|when|tell me|sing|play|open youtube|calculate|weather|time|date|joke|settings|notes?)\b/i.test(q)) return;
+   e.preventDefault();
+   input.value=q;
+   void window.jarvisMapSearch();
+ },true);
+};
+bind();bindVoice();new MutationObserver(()=>{bind();bindVoice()}).observe(document.documentElement,{childList:true,subtree:true});
 })();
