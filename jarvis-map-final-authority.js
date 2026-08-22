@@ -36,17 +36,19 @@ const consumePending=()=>{if(!pendingDestination)return;const input=document.que
 const mapsIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
 const voiceGuard=e=>{
  const raw=String(e.detail?.text||'').trim();if(!raw||!mapsIntent(raw))return;
+ const input=document.querySelector('#mapQuery');
+ if(!(input instanceof HTMLInputElement))return;
  const q=clean(raw);if(!q)return;
  e.preventDefault();e.stopImmediatePropagation();
  pendingDestination=q;
  speak(`Taking you to ${q}.`);
- const input=document.querySelector('#mapQuery');
- if(input instanceof HTMLInputElement)void search(q);
- else window.dispatchEvent(new CustomEvent('jarvis:maps',{detail:{place:q,query:raw}}));
+ void search(q);
 };
 const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pendingDestination=q;consumePending()};
 const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();void search(document.querySelector('#mapQuery')?.value||'')};
+const inputGuard=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||t.id!=='mapQuery')return;const q=t.value.trim();if(!alias(clean(q)))return;e.stopImmediatePropagation();void search(q)};
 document.addEventListener('click',clickGuard,true);
+document.addEventListener('input',inputGuard,true);
 window.addEventListener('jarvis:voice-command',voiceGuard,true);
 window.addEventListener('jarvis:maps',mapsCommand,true);
 new MutationObserver(()=>consumePending()).observe(document.documentElement,{childList:true,subtree:true});
