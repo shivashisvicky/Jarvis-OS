@@ -6,16 +6,16 @@
   const features = {
     web: { scripts: ['jarvis-web-search.js'], css: ['jarvis-web-polish.css'] },
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
-    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'] },
-    mobile: { scripts: ['jarvis-mobile-unified.js'] },
-    engineering: { scripts: ['jarvis-engineering.js'] },
-    notes: { scripts: ['jarvis-notes.js'] },
-    games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'] },
+    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'], css: [] },
+    mobile: { scripts: ['jarvis-mobile-unified.js'], css: [] },
+    engineering: { scripts: ['jarvis-engineering.js'], css: [] },
+    notes: { scripts: ['jarvis-notes.js'], css: [] },
+    games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'], css: [] },
   };
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260823-voice-preload-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260823-voice-restore2-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
@@ -47,9 +47,9 @@
 
   window.jarvisLoadFeature = loadFeature;
 
-  // Voice must be ready before the first iOS microphone gesture. Previously the
-  // first typed command happened to load this feature, which is why voice began
-  // working only after a written command was submitted.
+  // Voice is preloaded so the first iOS microphone gesture and the first typed
+  // command share the same response authority. The cache-buster is intentionally
+  // rotated with each voice fix so Safari cannot retain an older authority.
   window.setTimeout(() => {
     void loadFeature('voice').catch(error => console.warn('[JARVIS voice preload]', error));
   }, 0);
