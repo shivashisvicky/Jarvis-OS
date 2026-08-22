@@ -7,25 +7,33 @@
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const embedUrl = (id, muted) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=${muted ? 1 : 0}&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
 
-  // iOS/WebKit does not propagate the parent-page gesture into a
-  // cross-origin YouTube iframe. The JARVIS card must therefore perform a
-  // top-level YouTube navigation synchronously inside the trusted tap.
-  const watchUrl = id => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+  function ensureHint(host) {
+    let hint = host.querySelector('[data-jh-youtube-sound]');
+    if (!hint) {
+      hint = document.createElement('button');
+      hint.type = 'button';
+      hint.setAttribute('data-jh-youtube-sound', '');
+      hint.textContent = '🔊 TAP THE PLAYER FOR SOUND';
+      Object.assign(hint.style, {
+        position: 'absolute', left: '50%', bottom: '14px', transform: 'translateX(-50%)',
+        zIndex: '20', border: '1px solid rgba(99,220,255,.55)', borderRadius: '999px',
+        padding: '9px 13px', background: 'rgba(2,10,15,.92)', color: '#dff8ff',
+        font: '700 10px/1 system-ui,sans-serif', letterSpacing: '.05em',
+        boxShadow: '0 4px 20px rgba(0,0,0,.35)', cursor: 'pointer',
+        touchAction: 'manipulation'
+      });
+      hint.addEventListener('click', () => hint.remove(), { once: true });
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      host.appendChild(hint);
+    }
+    return hint;
+  }
 
   document.addEventListener('click', event => {
     const card = event.target?.closest?.('[data-jvc-id]');
     if (!card) return;
-    const id = card.getAttribute('data-jvc-id');
-    if (!id) return;
-
-    if (isIOS) {
-      // Do not scroll, await, timeout, postMessage, or call playVideo first.
-      // Any of those can move playback outside iOS's transient user gesture.
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      window.location.assign(watchUrl(id));
-      return;
-    }
+    const id = String(card.getAttribute('data-jvc-id') || '').trim();
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return;
 
     const host = document.querySelector('#jarvisPlayer');
     if (!host) return;
@@ -47,7 +55,18 @@
 
     try { host.scrollIntoView({ behavior: 'auto', block: 'center' }); } catch {}
     void host.offsetHeight;
-    frame.src = embedUrl(id, false);
+    frame.src = embedUrl(id, isIOS);
     host.dataset.videoId = id;
+
+    if (isIOS) {
+      // iOS/WebKit does not transfer a parent-page user gesture into a
+      // cross-origin YouTube iframe. Keep the player inside JARVIS and use
+      // muted autoplay as the reliable first state. The actual YouTube
+      // player remains visible so the user's tap on its controls can start
+      // audible playback without leaving the app.
+      window.setTimeout(() => {
+        if (document.body.contains(host) && host.dataset.videoId === id) ensureHint(host);
+      }, 500);
+    }
   }, true);
 })();
