@@ -1,0 +1,129 @@
+name: Repair Intelligence Gateway Timeout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-intelligence-timeout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+jobs:
+  repair-deploy-verify:
+    name: Patch, deploy and verify Intelligence
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Gemini upstream timeout
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('workers/intelligence/src/index.js')
+          text = p.read_text()
+          old = """  const response = await fetch(endpoint, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({"""
+          new = """  const response = await fetchWithTimeout(endpoint, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({"""
+          if old not in text:
+              if 'fetchWithTimeout(endpoint' in text:
+                  print('GEMINI_TIMEOUT_PATCH_ALREADY_PRESENT=1')
+              else:
+                  raise SystemExit('Expected callGemini fetch block was not found')
+          else:
+              text = text.replace(old, new, 1)
+              marker = "  });\n  const data = await response.json();\n  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini request failed'), { status: response.status, provider: 'gemini' });"
+              replacement = "  }, 12000, 'gemini');\n  const data = await response.json();\n  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Gemini request failed'), { status: response.status, provider: 'gemini' });"
+              if marker not in text:
+                  raise SystemExit('Expected callGemini response block was not found')
+              text = text.replace(marker, replacement, 1)
+              p.write_text(text)
+              print('GEMINI_TIMEOUT_PATCH_APPLIED=1 timeout_ms=12000')
+          PY
+
+      - name: Validate patched Worker
+        run: node --check workers/intelligence/src/index.js
+
+      - name: Commit source fix
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workers/intelligence/src/index.js
+          if git diff --cached --quiet; then
+            echo 'INTELLIGENCE_SOURCE_CHANGE=NONE'
+          else
+            git commit -m 'fix: timeout Gemini intelligence upstream requests'
+            git push origin HEAD:main
+          fi
+
+      - name: Prepare Wrangler configuration
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path('wrangler.toml')
+          text = p.read_text()
+          text = text.replace('__CLOUDFLARE_ACCOUNT_ID__', os.environ['CLOUDFLARE_ACCOUNT_ID'].strip(), 1)
+          p.write_text(text)
+          PY
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Deploy patched Intelligence Worker
+        working-directory: workers/intelligence
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$GEMINI_API_KEY"
+          wrangler deploy --name jarvis-intelligence
+          printf '%s' "$GEMINI_API_KEY" | wrangler secret put GEMINI_API_KEY --name jarvis-intelligence
+
+      - name: Verify live Intelligence POST
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-intelligence.shivashisvicky112.workers.dev/api/intelligence'
+          headers=$(mktemp)
+          body=$(mktemp)
+          status=$(curl --silent --show-error --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -X POST "$endpoint" --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          cat "$headers"
+          cat "$body"
+          echo "HTTP_STATUS=$status"
+          RESPONSE_FILE="$body" STATUS="$status" python - <<'PY'
+          import json, os
+          status = os.environ['STATUS']
+          data = json.load(open(os.environ['RESPONSE_FILE']))
+          if status != '200':
+              raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')} providers={data.get('providers')}")
+          text = str(data.get('text') or '').strip()
+          assert text, 'intelligence response has no text'
+          assert data.get('provider') in {'gemini', 'groq'}, f"unexpected provider: {data.get('provider')}"
+          print(f"INTELLIGENCE_POST_PASS provider={data.get('provider')} model={data.get('model')}")
+          PY
+
+      - name: Dispatch full CI against patched main
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo 'CI_DISPATCHED=1'
