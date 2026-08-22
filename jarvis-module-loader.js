@@ -10,12 +10,12 @@
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
     engineering: { scripts: ['jarvis-engineering.js'] },
     notes: { scripts: ['jarvis-notes.js'] },
-    games: { scripts: ['jarvis-games-v2.js'] },
+    games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'] },
   };
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260822-phase3-r4-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260822-phase3-r5-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-module="${CSS.escape(src)}"]`);
