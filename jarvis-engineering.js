@@ -23,9 +23,10 @@
       </div>
       <label>Headers<textarea id="apiHeaders" placeholder='{"Content-Type":"application/json","Authorization":"Bearer …"}'></textarea></label>
       <label>Request body<textarea id="apiBody" placeholder='{"hello":"world"}'></textarea></label>
-      <div class="eng-actions"><button class="primary" id="apiSend">SEND REQUEST</button><button class="secondary" id="apiClear">CLEAR</button></div>
+      <div class="eng-actions"><button class="primary" id="apiSend">SEND REQUEST</button><button class="secondary" id="apiTestConnector">TEST CONNECTOR</button><button class="secondary" id="apiClear">CLEAR</button></div>
       <div class="eng-status" id="apiStatus">READY</div>
       <pre class="eng-output" id="apiOutput">Response will appear here.</pre>
+      <p class="sftp-note">TEST CONNECTOR performs a lightweight GET against the URL above and reports reachability, HTTP status and latency. Browser CORS rules still apply.</p>
     </section>`;
 
   const sftp = () => `
@@ -61,9 +62,28 @@
     } catch(e) { status.textContent='REQUEST FAILED'; output.textContent=String(e?.message||e)+'\n\nIf this is a CORS error, the target API must permit browser requests or be routed through an approved server-side gateway.'; }
   }
 
+  async function testConnector() {
+    const url=document.querySelector('#apiUrl')?.value.trim();
+    const status=document.querySelector('#apiStatus'); const output=document.querySelector('#apiOutput');
+    if(!url){status.textContent='ENTER A URL';return;}
+    status.textContent='TESTING CONNECTOR…'; output.textContent=''; const started=performance.now();
+    try{
+      const r=await fetch(url,{method:'GET',headers:{Accept:'application/json,text/plain,*/*'},cache:'no-store',mode:'cors'});
+      const elapsed=Math.round(performance.now()-started);
+      const contentType=r.headers.get('content-type')||'unknown';
+      status.textContent=`CONNECTOR ${r.ok?'ONLINE':'REACHABLE'} · HTTP ${r.status} · ${elapsed} ms`;
+      output.textContent=`URL: ${url}\nHTTP: ${r.status} ${r.statusText}\nLatency: ${elapsed} ms\nContent-Type: ${contentType}\nCORS: browser request succeeded`;
+    }catch(e){
+      const elapsed=Math.round(performance.now()-started);
+      status.textContent='CONNECTOR TEST FAILED';
+      output.textContent=`URL: ${url}\nElapsed: ${elapsed} ms\nError: ${String(e?.message||e)}\n\nIf the endpoint is reachable but does not permit browser CORS, use a server-side gateway or configure Access-Control-Allow-Origin on the target.`;
+    }
+  }
+
   function setupApi() {
     const host=document.querySelector('#apiUrl'); if(!host || host.dataset.bound) return; host.dataset.bound='1';
     document.querySelector('#apiSend')?.addEventListener('click',sendApi);
+    document.querySelector('#apiTestConnector')?.addEventListener('click',testConnector);
     document.querySelector('#apiClear')?.addEventListener('click',()=>{['apiUrl','apiHeaders','apiBody'].forEach(id=>{const e=document.querySelector('#'+id);if(e)e.value=''});document.querySelector('#apiStatus').textContent='READY';document.querySelector('#apiOutput').textContent='Response will appear here.'});
   }
   function setupSftp(){
