@@ -9,18 +9,18 @@ const aliases=[
  {keys:['jharapada'],name:'Jharapada',detail:'Bhubaneswar, Odisha',lat:20.2910,lon:85.8680}
 ];
 const tokens=s=>String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
-const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|navigate to|directions? to|go to)\s+/i,'').trim();
+const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').trim();
 const alias=s=>{const t=tokens(s);return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
-const speak=text=>window.dispatchEvent(new CustomEvent('jarvis:intelligence-speak',{detail:{text}}));
+const speak=text=>{try{const fn=window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak;if(typeof fn==='function')fn(text);else window.dispatchEvent(new CustomEvent('jarvis:intelligence-speak',{detail:{text}}))}catch{}};
 let pendingDestination='';
 const show=(p,frame)=>{const d=.018,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${String(p.name).replace(/"/g,'&quot;')}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
 const canonical=async q=>{
- const a=alias(q);if(a)return [a];
+ const a=alias(q);if(a)return[a];
  const query=/bhubaneswar|odisha|india/i.test(q)?q:`${q}, Bhubaneswar, Odisha, India`;
  let data=[];
  try{const u=new URL('https://nominatim.openstreetmap.org/search');u.searchParams.set('format','jsonv2');u.searchParams.set('q',query);u.searchParams.set('limit','10');u.searchParams.set('addressdetails','1');u.searchParams.set('countrycodes','in');u.searchParams.set('accept-language','en');const r=await fetch(u,{cache:'no-store',headers:{Accept:'application/json'}});if(r.ok)data=await r.json()}catch{}
  const ts=tokens(q);const mapped=(Array.isArray(data)?data:[]).map(x=>({name:String(x.name||x.display_name||'Location').split(',')[0],display_name:String(x.display_name||''),lat:+x.lat,lon:+x.lon})).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
- return mapped.map(p=>{const text=(p.name+' '+p.display_name).toLowerCase();const hits=ts.filter(t=>text.includes(t)).length;return {...p,score:(text.includes(q.toLowerCase())?100:0)+hits*20}}).filter(p=>p.score>=ts.length*20).sort((a,b)=>b.score-a.score).map(({score,...p})=>p).slice(0,8);
+ return mapped.map(p=>{const text=(p.name+' '+p.display_name).toLowerCase();const hits=ts.filter(t=>text.includes(t)).length;return{...p,score:(text.includes(q.toLowerCase())?100:0)+hits*20}}).filter(p=>p.score>=ts.length*20).sort((a,b)=>b.score-a.score).map(({score,...p})=>p).slice(0,8);
 };
 const search=async q=>{
  const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');
@@ -33,19 +33,19 @@ const search=async q=>{
  show(places[0],frame);return true;
 };
 const consumePending=()=>{if(!pendingDestination)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pendingDestination;pendingDestination='';void search(q)};
-const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();void search(document.querySelector('#mapQuery')?.value||'')};
+const mapsIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
 const voiceGuard=e=>{
- const input=document.querySelector('#mapQuery');
- const raw=String(e.detail?.text||'').trim();
- if(!raw)return;
- const q=clean(raw);
- if(!q||/^(what|who|why|how|when|tell me|sing|play|calculate|weather|time|date|joke|settings|notes?)\b/i.test(q))return;
- if(!(input instanceof HTMLInputElement)){pendingDestination=q;return;}
+ const raw=String(e.detail?.text||'').trim();if(!raw||!mapsIntent(raw))return;
+ const q=clean(raw);if(!q)return;
  e.preventDefault();e.stopImmediatePropagation();
+ pendingDestination=q;
  speak(`Taking you to ${q}.`);
- void search(q);
+ const input=document.querySelector('#mapQuery');
+ if(input instanceof HTMLInputElement)void search(q);
+ else window.dispatchEvent(new CustomEvent('jarvis:maps',{detail:{place:q,query:raw}}));
 };
 const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pendingDestination=q;consumePending()};
+const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();void search(document.querySelector('#mapQuery')?.value||'')};
 document.addEventListener('click',clickGuard,true);
 window.addEventListener('jarvis:voice-command',voiceGuard,true);
 window.addEventListener('jarvis:maps',mapsCommand,true);
