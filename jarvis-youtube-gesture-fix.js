@@ -6,23 +6,13 @@
   const ORIGIN = 'https://shivashisvicky.github.io';
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const embedUrl = id => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=0&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
-  const watchUrl = id => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}&autoplay=1`;
+  const embedUrl = (id, muted = false) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=${muted ? 1 : 0}&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(ORIGIN)}`;
 
   document.addEventListener('click', event => {
     const card = event.target?.closest?.('[data-jvc-id]');
     if (!card) return;
     const id = String(card.getAttribute('data-jvc-id') || '').trim();
     if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return;
-
-    if (isIOS) {
-      // iOS WebKit does not reliably transfer user activation into a cross-origin
-      // YouTube iframe. Use the user's PLAY tap as a real top-level navigation.
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      window.location.href = watchUrl(id);
-      return;
-    }
 
     const host = document.querySelector('#jarvisPlayer');
     if (!host) return;
@@ -45,7 +35,11 @@
 
     try { host.scrollIntoView({ behavior: 'auto', block: 'center' }); } catch {}
     void host.offsetHeight;
-    frame.src = embedUrl(id);
+
+    // iOS/WebKit reliably permits muted autoplay in an inline, playsinline iframe.
+    // Keep playback inside JARVIS. The user can unmute using YouTube's own control.
+    frame.src = embedUrl(id, isIOS);
     host.dataset.videoId = id;
+    host.dataset.jarvisMutedAutoplay = isIOS ? 'true' : 'false';
   }, true);
 })();
