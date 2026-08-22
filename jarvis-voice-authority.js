@@ -1,9 +1,7 @@
 /* J.A.R.V.I.S. Voice Authority
- * Primary path: remote TTS on desktop. iOS/Safari deliberately uses the
- * browser speech engine so command responses remain reliable after a
- * microphone recognition callback. This keeps typed and spoken commands on
- * the same response path instead of depending on a post-gesture Web Audio
- * fetch/decode operation.
+ * Desktop: remote TTS. iOS/Safari: native browser speech, deliberately kept
+ * synchronous with the command response path so Safari cannot lose audio after
+ * microphone recognition or an asynchronous TTS fetch.
  */
 (() => {
   'use strict';
@@ -18,6 +16,7 @@
   const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const useNative = isIOS || isSafari;
   const requestId = { value: 0 };
   let playing = false;
   let audioContext = null;
@@ -27,11 +26,11 @@
   const rate = () => {
     try {
       const getter = window.jarvisGetSpeechRate || window.jarvisGetEffectiveSpeechRate;
-      if (typeof getter === 'function') return Math.min(1.2, Math.max(.8, Number(getter()) || .92));
+      if (typeof getter === 'function') return Math.min(1.15, Math.max(.85, Number(getter()) || .95));
       const stored = localStorage.getItem('jarvisSpeechRate');
-      if (stored !== null) return Math.min(1.2, Math.max(.8, Number(stored) || .92));
+      if (stored !== null) return Math.min(1.15, Math.max(.85, Number(stored) || .95));
     } catch {}
-    return .92;
+    return .95;
   };
 
   const getAudioContext = () => {
@@ -67,16 +66,20 @@
       nativeCancel?.();
       try { window.speechSynthesis.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(String(text));
-      utterance.rate = rate();
-      utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
+      // iOS is noticeably more reliable with its default voice and a normal
+      // pitch. Do not depend on getVoices(), which can be empty on first load.
+      utterance.rate = useNative ? Math.min(1.05, Math.max(.85, rate())) : rate();
+      utterance.pitch = useNative ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
       utterance.lang = options.language || 'en-GB';
-      const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find(v => /en-GB/i.test(v.lang) && /Daniel|Arthur|George|Oliver|James|Thomas/i.test(v.name))
-        || voices.find(v => /en-GB/i.test(v.lang))
-        || voices.find(v => /en-IN/i.test(v.lang))
-        || voices[0];
-      if (voice) utterance.voice = voice;
+      if (!useNative) {
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(v => /en-GB/i.test(v.lang) && /Daniel|Arthur|George|Oliver|James|Thomas/i.test(v.name))
+          || voices.find(v => /en-GB/i.test(v.lang))
+          || voices.find(v => /en-IN/i.test(v.lang))
+          || voices[0];
+        if (voice) utterance.voice = voice;
+      }
       nativeSpeak(utterance);
       return true;
     } catch { return false; }
@@ -100,7 +103,6 @@
     const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -136,7 +138,6 @@
     }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -144,7 +145,7 @@
     activeSources.add(source);
     source.onended = () => { activeSources.delete(source); try { source.disconnect(); gain.disconnect(); } catch {} };
     const now = ctx.currentTime;
-    const lead = state.started ? 0.012 : 0.075;
+    const lead = state.started ? .012 : .075;
     state.nextTime = Math.max(state.nextTime, now + lead);
     source.start(state.nextTime);
     state.nextTime += buffer.duration;
@@ -227,11 +228,7 @@
   const speakGenerated = (text, options = {}) => {
     const clean = String(text || '').trim();
     if (!clean) return false;
-    // Critical iOS/Safari path: do not wait for a remote TTS fetch. The response
-    // can arrive after the microphone gesture and Web Audio may then be blocked.
-    // Browser speech is immediate and uses the same response text for typed and
-    // spoken commands.
-    if (isIOS || isSafari) {
+    if (useNative) {
       stop();
       return nativeFallback(clean, options);
     }
@@ -247,13 +244,19 @@
   window.jarvisSpeak = speakGenerated;
   window.jarvisVoiceAuthorityStop = stop;
 
-  const unlockOnGesture = () => { prime(); if (nativeSpeech) try { window.speechSynthesis.resume(); } catch {} };
+  const unlockOnGesture = () => {
+    if (nativeSpeech) try { window.speechSynthesis.resume(); } catch {}
+    if (!useNative) prime();
+  };
   document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('touchstart', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { prime(); try { window.speechSynthesis?.resume(); } catch {} } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { window.speechSynthesis?.resume(); } catch {} } });
 
-  if (nativeSpeech) {
+  // Do not wrap speechSynthesis on iOS/Safari. The native engine is the final
+  // authority there, and wrapping it can create a silent speaking state without
+  // actual audio on mobile Safari.
+  if (nativeSpeech && !useNative) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
       if (text) speakGenerated(text, { language: utterance?.lang, pitch: utterance?.pitch, volume: utterance?.volume });
