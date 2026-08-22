@@ -1,15 +1,15 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_HOME_ACTIONS_FIX__) return;
-  window.__JARVIS_HOME_ACTIONS_FIX__ = true;
+  if (window.__JARVIS_HOME_ACTIONS_FIX_V5__) return;
+  window.__JARVIS_HOME_ACTIONS_FIX_V5__ = true;
 
   const runCommand = text => {
     const input = document.querySelector('#commandInput');
-    const submit = document.querySelector('#commandForm button[type="submit"]');
-    if (!input || !submit) return false;
+    const form = document.querySelector('#commandForm');
+    if (!input || !form) return false;
     input.value = text;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    submit.click();
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', {bubbles:true,cancelable:true}));
     return true;
   };
 
@@ -25,25 +25,30 @@
   function renderBriefFromNews() {
     const quick = document.querySelector('#jhuQuick');
     if (!quick) return false;
-    let desk = document.querySelector('#newsDesk');
-    const anchors = [...(desk || document).querySelectorAll('a[href]')]
-      .map(a => ({ title: (a.textContent || '').replace(/\s+/g, ' ').trim(), link: a.href }))
-      .filter(x => x.title && x.title.length > 25 && /^https?:/i.test(x.link))
-      .filter((x, i, arr) => arr.findIndex(y => y.title.toLowerCase() === x.title.toLowerCase()) === i)
-      .slice(0, 5);
-    if (!anchors.length) return false;
+    const cards = [...document.querySelectorAll('#newsCards .news-dense-item')];
+    if (!cards.length) return false;
     document.querySelector('#jhuDirectBrief')?.remove();
     const box = document.createElement('section');
     box.id = 'jhuDirectBrief';
-    box.className = 'jhu-brief';
-    box.innerHTML = `<div class="jhu-brief-head"><strong>TODAY'S INTELLIGENCE BRIEF</strong><span>${esc(new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</span></div><div class="jhu-brief-list">${anchors.map((x,i) => `<div class="jhu-brief-item"><span class="jhu-brief-num">${String(i+1).padStart(2,'0')}</span><span><a href="${esc(x.link)}" target="_blank" rel="noreferrer">${esc(x.title)}</a><small>LIVE NEWS</small></span></div>`).join('')}</div><div class="jhu-brief-foot"><button type="button" id="jhuDirectOpenNews">OPEN FULL NEWS DESK →</button></div>`;
+    box.className = 'jhu-brief visible';
+    const items = cards.slice(0, 5).map((card, i) => {
+      const link = card.getAttribute('href') || '#';
+      const title = card.querySelector('.news-title')?.textContent?.trim() || 'Untitled story';
+      const source = card.querySelector('.news-source')?.textContent?.trim() || 'LIVE NEWS';
+      return `<div class="jhu-brief-item"><span class="jhu-brief-num">${String(i + 1).padStart(2,'0')}</span><span><a href="${esc(link)}" target="_blank" rel="noreferrer">${esc(title)}</a><small>${esc(source)}</small></span></div>`;
+    }).join('');
+    box.innerHTML = `<div class="jhu-brief-head"><strong>TODAY'S INTELLIGENCE BRIEF</strong><span>${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · LIVE</span></div><div class="jhu-brief-list">${items}</div><div class="jhu-brief-foot"><button type="button" id="jhuDirectOpenNews">OPEN FULL NEWS DESK →</button></div>`;
     quick.insertAdjacentElement('afterend', box);
     box.querySelector('#jhuDirectOpenNews')?.addEventListener('click', () => document.querySelector('#newsDesk')?.scrollIntoView({behavior:'smooth',block:'start'}));
     box.scrollIntoView({behavior:'smooth',block:'nearest'});
     return true;
   }
 
+  let lastBriefAt = 0;
   const openBrief = () => {
+    const now = Date.now();
+    if (now - lastBriefAt < 500) return;
+    lastBriefAt = now;
     if (renderBriefFromNews()) return;
     if (typeof window.JARVIS_OPEN_DAILY_BRIEF === 'function') {
       window.JARVIS_OPEN_DAILY_BRIEF();
@@ -52,25 +57,27 @@
     window.dispatchEvent(new CustomEvent('jarvis:open-daily-brief'));
   };
 
-  const handle = event => {
-    const target = event.target instanceof Element ? event.target.closest('#jhuQuick button') : null;
-    if (!target) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if ((target.textContent || '').includes("TODAY'S BRIEF")) {
-      openBrief();
-      return;
-    }
-    const command = target.getAttribute('data-cmd');
-    const app = target.getAttribute('data-app');
-    if (command) runCommand(command);
-    else if (app) openApp(app);
-  };
+  function bindButton(button) {
+    if (!(button instanceof HTMLButtonElement) || button.dataset.touchBound === 'v5') return;
+    button.dataset.touchBound = 'v5';
+    const activate = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === 'click') event.stopImmediatePropagation();
+      if ((button.textContent || '').includes("TODAY'S BRIEF")) openBrief();
+      else {
+        const command = button.getAttribute('data-cmd');
+        const app = button.getAttribute('data-app');
+        if (command) runCommand(command);
+        else if (app) openApp(app);
+      }
+    };
+    button.addEventListener('pointerdown', activate, {capture:true});
+    button.addEventListener('touchstart', activate, {capture:true, passive:false});
+    button.addEventListener('click', activate, {capture:true});
+  }
 
-  document.addEventListener('click', handle, true);
-  document.addEventListener('pointerup', handle, true);
-
-  const style = document.createElement('style');
-  style.textContent = '#jhuQuick{position:relative;z-index:20;pointer-events:auto}#jhuQuick button{position:relative;z-index:21;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:rgba(88,217,255,.18)}.jhu-brief{margin:0 0 14px;padding:15px;border:1px solid rgba(77,210,255,.28);border-radius:15px;background:rgba(3,16,23,.94);box-shadow:0 0 28px rgba(0,180,255,.07)}.jhu-brief-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}.jhu-brief-head strong{font-size:10px;letter-spacing:.18em;color:#63dcff}.jhu-brief-head span{font-size:9px;color:#557783}.jhu-brief-list{display:grid;gap:7px}.jhu-brief-item{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:8px 0;border-top:1px solid rgba(72,142,166,.14)}.jhu-brief-item:first-child{border-top:0}.jhu-brief-num{color:#54d9ff;font-size:10px;font-weight:800}.jhu-brief-item a{color:#d9f7ff;text-decoration:none;font-size:12px;font-weight:700;line-height:1.35}.jhu-brief-item small{display:block;color:#607f8a;font-size:9px;margin-top:3px}.jhu-brief-foot{display:flex;justify-content:flex-end;margin-top:10px}.jhu-brief-foot button{border:1px solid rgba(74,179,211,.3);border-radius:999px;background:rgba(5,21,29,.9);color:#9bc5d1;padding:7px 10px;font:700 9px/1 inherit;letter-spacing:.08em}';
-  document.head.appendChild(style);
+  const bind = () => document.querySelectorAll('#jhuQuick button').forEach(bindButton);
+  bind();
+  new MutationObserver(bind).observe(document.documentElement, {childList:true,subtree:true});
 })();
