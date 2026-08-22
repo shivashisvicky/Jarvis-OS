@@ -10,15 +10,14 @@
   let ytFrame = null;
   let ytReady = false;
   let ytReadyQueue = [];
+  let pendingVideoId = null;
+  let playerObserver = null;
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#039;' }[ch]));
   const normalize = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
   function videoId(raw) { try { const url=new URL(raw); const host=url.hostname.replace(/^www\./,'').toLowerCase(); if(host==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||null; if(host==='youtube.com'||host==='m.youtube.com'){if(url.pathname==='/watch')return url.searchParams.get('v');const parts=url.pathname.split('/').filter(Boolean);if(['shorts','live','embed'].includes(parts[0]))return parts[1]||null;}} catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null; }
   function scrollPlayerIntoView(host){try{host.scrollIntoView({behavior:'smooth',block:'center'});}catch{}}
+  function ytUrl(id){return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`}
 
-  // iOS Safari can block scripted playback with audio in a cross-origin iframe.
-  // The reliable web-compatible path is to make the embedded YouTube player
-  // autoplay muted. The user's tap selects the video, and the video itself then
-  // starts without requiring a second tap on YouTube's center PLAY control.
   function ensureYTFrame(){
     const host=document.querySelector('#jarvisPlayer');
     if(!host)return null;
@@ -30,7 +29,7 @@
     frame.loading='eager';
     frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
     frame.allowFullscreen=true;
-    frame.src=`https://www.youtube-nocookie.com/embed/0?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
+    frame.src='https://www.youtube-nocookie.com/embed/0?controls=1&playsinline=1&rel=0&enablejsapi=1&origin='+encodeURIComponent(PLAYER_ORIGIN);
     frame.style.width='100%';
     frame.style.height='100%';
     frame.style.border='0';
@@ -56,26 +55,45 @@
     const send=()=>{try{ytFrame?.contentWindow?.postMessage(JSON.stringify({event:'command',func,args}), 'https://www.youtube-nocookie.com');}catch{}};
     if(ytReady)send();else ytReadyQueue.push(send);
   }
+  function startVisibleAutoplay(id,host,frame){
+    if(!id || !host || !frame || !frame.isConnected)return;
+    if(playerObserver){try{playerObserver.disconnect()}catch{}playerObserver=null;}
+    const begin=()=>{
+      if(pendingVideoId!==id || !frame.isConnected)return;
+      pendingVideoId=null;
+      frame.src=ytUrl(id);
+      ytReady=false;
+      frame.addEventListener('load',()=>{
+        ytReady=true;
+        ytCommand('playVideo',[]);
+      },{once:true});
+    };
+    const rect=host.getBoundingClientRect();
+    const visibleHeight=Math.max(0,Math.min(rect.bottom,window.innerHeight)-Math.max(rect.top,0));
+    const visibleRatio=rect.height>0?visibleHeight/rect.height:0;
+    if(visibleRatio>=0.5){begin();return;}
+    playerObserver=new IntersectionObserver(entries=>{
+      const entry=entries[0];
+      if(entry?.isIntersecting && entry.intersectionRatio>=0.5){
+        try{playerObserver.disconnect()}catch{}
+        playerObserver=null;
+        begin();
+      }
+    },{threshold:[0.5]});
+    playerObserver.observe(host);
+  }
   function player(id){
     const host=document.querySelector('#jarvisPlayer');
     if(!host)return;
     host.dataset.videoId=id;
     const frame=ensureYTFrame();
     if(!frame)return;
+    pendingVideoId=id;
     scrollPlayerIntoView(host);
-
-    // Do not rely on loadVideoById/playVideo for the initial transition on iOS.
-    // Re-navigate the already-present iframe to the selected video with muted
-    // autoplay. Safari permits muted autoplay, so the first card tap is enough.
-    frame.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`;
-    ytReady=false;
-    frame.addEventListener('load',()=>{
-      // Best-effort unmute. If Safari's autoplay policy refuses it, playback
-      // still continues rather than falling back to the center PLAY button.
-      ytReady=true;
-      ytCommand('playVideo',[]);
-      window.setTimeout(()=>ytCommand('unMute',[]),250);
-    },{once:true});
+    // YouTube requires autoplaying embeds to be visible before autoplay starts.
+    // Wait until at least half the player is visible, then navigate to the
+    // selected video with muted autoplay. This avoids the iOS center PLAY state.
+    startVisibleAutoplay(id,host,frame);
   }
   function installCardStyles(){if(document.querySelector('#jarvis-live-media-style'))return;const style=document.createElement('style');style.id='jarvis-live-media-style';style.textContent=`#videoResults{display:grid;gap:10px;align-content:start}#videoResults .jvc-card{display:grid;grid-template-columns:132px 1fr;gap:12px;width:100%;padding:10px;border:1px solid #214454;border-radius:10px;background:rgba(5,18,26,.9);color:#d9f5ff;text-align:left;cursor:pointer}#videoResults .jvc-card:hover{border-color:#55d8ff;transform:translateY(-1px)}#videoResults .jvc-card img{width:132px;height:74px;object-fit:cover;border-radius:6px;background:#07141c}#videoResults .jvc-card strong{display:block;font-size:14px;line-height:1.35;margin-bottom:6px}#videoResults .jvc-card small{display:block;color:#7898a5;line-height:1.3}#videoResults .jvc-card .play{display:inline-block;margin-top:8px;padding:5px 10px;border:1px solid #55d8ff;border-radius:5px;background:#55d8ff;color:#031018;font-size:11px;font-weight:800;letter-spacing:.08em}.jvc-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.jvc-chip{border:1px solid #214454;border-radius:999px;background:rgba(5,18,26,.8);color:#9fc0ca;padding:6px 10px;font-size:11px;cursor:pointer}.jvc-chip:hover{border-color:#55d8ff;color:#d9f5ff}.jvc-clear{margin-left:auto;border:0;background:transparent;color:#6f8b95;font-size:11px;cursor:pointer}.jvc-clear:hover{color:#55d8ff}`;document.head.appendChild(style)}
   function cacheKey(query){return `jarvis-youtube:${normalize(query)}`}
