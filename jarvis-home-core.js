@@ -80,7 +80,7 @@
       const kind = button.getAttribute('data-jhc');
       const app = button.getAttribute('data-jhc-app');
       if (kind === 'brief') { event.preventDefault(); event.stopPropagation(); brief(); return; }
-      if (kind === 'ai') { event.preventDefault(); event.stopPropagation(); run('Search the web for the latest AI news'); return; }
+      if (kind === 'ai') { event.preventDefault(); event.stopPropagation(); run('AI intelligence brief'); return; }
       if (kind === 'cap') { event.preventDefault(); event.stopPropagation(); run('What can you do?'); return; }
       if (app) { event.preventDefault(); event.stopPropagation(); root.querySelector(`.nav[data-app="${app}"]`)?.click(); }
     });
