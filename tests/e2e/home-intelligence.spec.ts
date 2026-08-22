@@ -34,6 +34,17 @@ test('navigation phrases stay in the local command router', async ({ page }) => 
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
+test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ page }) => {
+  await openHome(page);
+  await page.locator('.nav[data-app="maps"]').click();
+  const input = page.locator('#mapQuery');
+  await input.fill('Jagannath Nagar');
+  await page.locator('#mapSearch').click();
+  await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
+  await expect(page.locator('#mapResults')).not.toContainText(/Gunupur|Rayagada/i);
+  await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
+});
+
 test('lazy voice module loads on demand and owns speech', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
