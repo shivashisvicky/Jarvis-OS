@@ -1,10 +1,36 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_WEB_SEARCH__) return;
-  window.__JARVIS_WEB_SEARCH__ = true;
+  if (window.__JARVIS_WEB_SEARCH_V2__) return;
+  window.__JARVIS_WEB_SEARCH_V2__ = true;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
+  const stopWords = new Set(['who','what','when','where','which','is','are','was','were','the','a','an','of','in','on','for','to','and','or','does','do','did','can','could','would','should','how']);
+
+  function normalizeSearchQuery(raw){
+    let q = String(raw || '').replace(/\s+/g, ' ').trim();
+    q = q.replace(/\b1st\b/gi,'first').replace(/\b2nd\b/gi,'second').replace(/\b3rd\b/gi,'third').replace(/\b4th\b/gi,'fourth').replace(/\b5th\b/gi,'fifth');
+    q = q.replace(/\bUS\b/gi,'United States');
+    q = q.replace(/\bUSA\b/gi,'United States');
+    return q;
+  }
+
+  function needsRewrite(q){
+    return /\b(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth)\b/i.test(q) && /\bpresident\b/i.test(q) && /\b(?:US|USA|United States)\b/i.test(q);
+  }
+
+  function relevanceScore(query, items){
+    const terms = normalizeSearchQuery(query).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(t=>t.length>2&&!stopWords.has(t));
+    if(!terms.length || !items.length)return 0;
+    let hits=0, total=0;
+    for(const item of items.slice(0,8)){
+      const hay=`${item?.title||''} ${item?.snippet||''}`.toLowerCase();
+      const matched=terms.filter(t=>hay.includes(t)).length;
+      hits += matched >= Math.min(2,terms.length) ? 1 : 0;
+      total += matched;
+    }
+    return hits/items.slice(0,8).length + Math.min(1,total/(items.slice(0,8).length*terms.length));
+  }
 
   async function search(provider, query) {
     const controller = new AbortController();
@@ -28,14 +54,29 @@
     window.open(provider === 'brave' ? `https://search.brave.com/search?q=${encodeURIComponent(query)}` : `https://www.bing.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
   }
 
-  function render(items, provider, query, results) {
+  function render(items, provider, query, results, rewritten=false) {
     const label = String(provider || 'web').toUpperCase();
     if (!items.length) {
       results.innerHTML = `<div class="empty">No web results found. <button class="secondary" id="webExternal">OPEN ${esc(label)} ↗</button></div>`;
       results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
       return;
     }
-    results.innerHTML = items.slice(0, 8).map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
+    const badge = rewritten ? '<span style="display:block;margin-bottom:8px;color:#79d9ef;font-size:10px;letter-spacing:.12em">QUERY REFINED FOR RELEVANCE</span>' : '';
+    results.innerHTML = badge + items.slice(0, 8).map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
+  }
+
+  async function runSearch(provider, rawQuery){
+    const firstQuery=normalizeSearchQuery(rawQuery);
+    const first=await search(provider, firstQuery);
+    const firstScore=relevanceScore(firstQuery,first.results);
+    if(needsRewrite(firstQuery) && firstScore<0.85){
+      const secondQuery='Who was the ' + firstQuery.replace(/\b(?:who\s+is\s+)?/i,'').replace(/\bUnited States\b/i,'United States').trim();
+      const refined=await search(provider,secondQuery);
+      if(refined.results.length && relevanceScore(secondQuery,refined.results)>=firstScore){
+        return {...refined, query:secondQuery, rewritten:true};
+      }
+    }
+    return {...first, query:firstQuery, rewritten:false};
   }
 
   document.addEventListener('click', event => {
@@ -47,22 +88,22 @@
     const providerEl = document.querySelector('#webProvider');
     const status = document.querySelector('#jwsStatus');
     const results = document.querySelector('#jwsResults');
-    const query = input?.value?.trim() || '';
+    const rawQuery = input?.value?.trim() || '';
     const provider = providerEl?.value === 'brave' ? 'brave' : 'bing';
     if (!status || !results) return;
-    if (!query) { status.textContent = 'READY'; results.innerHTML = '<div class="empty">Enter a search query.</div>'; return; }
+    if (!rawQuery) { status.textContent = 'READY'; results.innerHTML = '<div class="empty">Enter a search query.</div>'; return; }
     status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
     results.innerHTML = '<div class="empty">Searching…</div>';
-    search(provider, query)
+    runSearch(provider, rawQuery)
       .then(payload => {
         const actualProvider = payload.provider || provider;
         status.textContent = `${payload.results.length} RESULTS · ${actualProvider.toUpperCase()}`;
-        render(payload.results, actualProvider, query, results);
+        render(payload.results, actualProvider, payload.query, results, payload.rewritten);
       })
       .catch(() => {
         status.textContent = 'DEGRADED';
         results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
-        results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
+        results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, rawQuery), { once: true });
       });
   }, true);
 
