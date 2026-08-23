@@ -14,11 +14,9 @@ test('home command surface supports local time and core identity queries', async
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible();
   await expect(page.locator('#voiceBtn')).toBeVisible();
-
   await input.fill('what time is it');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('#jarvisReply')).toContainText(/local time/i);
-
   await input.fill('what is my name');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('#jarvisReply')).toContainText(/Shivashis/i);
@@ -56,7 +54,7 @@ test('Maps has one POI runtime and restaurant keyword search returns a POI list'
   await expect(input).toHaveAttribute('spellcheck', 'false');
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
 });
 
@@ -67,7 +65,7 @@ test('restaurant keyword search tolerates common speech-recognition typo without
   await input.fill('resturants in Jagannath Nagar');
   await expect(input).toHaveValue('resturants in Jagannath Nagar');
   await page.locator('#mapSearch').click();
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
 });
 
@@ -78,7 +76,7 @@ test('restaurants-to-place phrasing stays inside Maps and becomes an in-place PO
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await expect(page.locator('#mapQuery')).toHaveValue(/restaurants in Jagannath Nagar/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
@@ -90,7 +88,6 @@ test('command routing does not leave a stale hardcoded map result over a later m
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await expect(page.locator('#mapQuery')).toHaveValue(/Jagannath Nagar/i);
   await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
-
   const mapInput = page.locator('#mapQuery');
   await mapInput.fill('Khandagiri');
   await page.locator('#mapSearch').click();
@@ -105,7 +102,6 @@ test('lazy voice module loads on demand and owns speech', async ({ page }) => {
   await expect(page.locator('#voiceBtn')).toBeVisible();
   await expect(page.locator('#commandForm')).toBeVisible();
   await expect(page.locator('.brand')).toContainText('J.A.R.V.I.S');
-
   await page.locator('#voiceBtn').click();
   await expect(page.locator('script[src*="jarvis-voice-authority.js"]')).toHaveCount(1, { timeout: 10_000 });
   await expect(page.locator('script[src*="jarvis-voice-bridge.js"]')).toHaveCount(0);
