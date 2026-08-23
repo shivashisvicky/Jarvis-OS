@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_MAP_FINAL_AUTHORITY_V6__)return;
-window.__JARVIS_MAP_FINAL_AUTHORITY_V6__=true;
+if(window.__JARVIS_MAP_FINAL_AUTHORITY_V7__)return;
+window.__JARVIS_MAP_FINAL_AUTHORITY_V7__=true;
 
 const aliases=[
  {keys:['jagannath','nagar'],name:'Jagannath Nagar',display_name:'Jharapada, Bhubaneswar, Odisha 751010',detail:'Jharapada, Bhubaneswar, Odisha 751010',lat:20.2923,lon:85.8638},
@@ -15,7 +15,7 @@ const tokens=s=>String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\
 const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').replace(/\s+/g,' ').trim();
 const alias=s=>{const t=tokens(clean(s));return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
 const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
-const cacheKey=q=>`jarvis-map-v6:${clean(q).toLowerCase()}`;
+const cacheKey=q=>`jarvis-map-v7:${clean(q).toLowerCase()}`;
 const readCache=q=>{try{const v=JSON.parse(localStorage.getItem(cacheKey(q))||'null');return v&&Array.isArray(v.data)&&Date.now()-v.ts<15*60*1000?v.data:null}catch{return null}};
 const writeCache=(q,data)=>{try{localStorage.setItem(cacheKey(q),JSON.stringify({ts:Date.now(),data}))}catch{}};
 const show=(p,frame)=>{const d=.016,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${esc(p.name)}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
@@ -42,8 +42,9 @@ const consume=()=>{if(busy||!pending)return;const input=document.querySelector('
 const routeWhenReady=q=>{pending=clean(q);if(readyTimer)window.clearInterval(readyTimer);let tries=0;readyTimer=window.setInterval(()=>{const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){window.clearInterval(readyTimer);readyTimer=0;input.value=pending;consume();}else if(++tries>=60){window.clearInterval(readyTimer);readyTimer=0;pending=''}},50)};
 const mapIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
 const voiceGuard=e=>{const raw=String(e.detail?.text||'').trim();if(!raw||!mapIntent(raw))return;const q=clean(raw);if(!q)return;e.preventDefault();e.stopImmediatePropagation();routeWhenReady(q)};
-const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;routeWhenReady(q)};
+const mapIntentEvent=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;e.preventDefault();e.stopImmediatePropagation();routeWhenReady(q)};
+const legacyMapsGuard=e=>{e.preventDefault();e.stopImmediatePropagation()};
 const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement)routeWhenReady(input.value)};
 const inputGuard=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||t.id!=='mapQuery')return;const q=clean(t.value),a=alias(q);if(!a)return;e.preventDefault();e.stopImmediatePropagation();const results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(results&&frame)renderResults([a],results,frame,q)};
-window.addEventListener('click',clickGuard,true);window.addEventListener('input',inputGuard,true);window.addEventListener('jarvis:voice-command',voiceGuard,true);window.addEventListener('jarvis:maps',mapsCommand,true);new MutationObserver(()=>consume()).observe(document.documentElement,{childList:true,subtree:true});consume();
+window.addEventListener('click',clickGuard,true);window.addEventListener('input',inputGuard,true);window.addEventListener('jarvis:voice-command',voiceGuard,true);window.addEventListener('jarvis:map-intent',mapIntentEvent,true);window.addEventListener('jarvis:maps',legacyMapsGuard,true);new MutationObserver(()=>consume()).observe(document.documentElement,{childList:true,subtree:true});consume();
 })();
