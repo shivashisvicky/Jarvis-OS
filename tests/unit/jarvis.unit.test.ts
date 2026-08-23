@@ -31,10 +31,22 @@ describe('JARVIS command core', () => {
     expect(jarvis.classifyCommand('make a note to pay 10 rs to Deepak')).toBe('notes');
   });
 
+  test('classifies local POI requests as Maps commands', () => {
+    expect(jarvis.classifyCommand('show me restaurants in Saheed Nagar')).toBe('maps');
+    expect(jarvis.classifyCommand('find hospitals near Jagannath Nagar')).toBe('maps');
+    expect(jarvis.classifyCommand('show me cafes around Rasulgarh')).toBe('maps');
+  });
+
   test('returns module actions without redirecting the application', () => {
     expect(jarvis.runCommand('open maps', telemetry)).toMatchObject({ intent: 'maps', value: 'maps' });
     expect(jarvis.runCommand('open API Lab', telemetry)).toMatchObject({ intent: 'api', value: 'api' });
     expect(jarvis.runCommand('play a video', telemetry)).toMatchObject({ intent: 'media', value: 'media' });
+  });
+
+  test('returns Maps for local POI requests', () => {
+    const result = jarvis.runCommand('show me restaurants in Saheed Nagar', telemetry);
+    expect(result).toMatchObject({ intent: 'maps', value: 'maps' });
+    expect(result.reply).toContain('Opening Maps');
   });
 
   test('creates an actionable note from natural language', () => {
