@@ -12,5 +12,5 @@ window.addEventListener('beforeunload',stop,true);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()},true);
 let watchdog=0;
 const arm=()=>{if(watchdog)clearTimeout(watchdog);watchdog=window.setTimeout(stop,12000)};
-document.addEventListener('click',e=>{const t=e.target instanceof Element?t=e.target.closest('#voiceBtn'):null;if(t)arm()},true);
+document.addEventListener('click',e=>{const target=e.target;const t=target instanceof Element?target.closest('#voiceBtn'):null;if(t)arm()},true);
 })();
