@@ -45,6 +45,27 @@ test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ 
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
 });
 
+test('restaurant keyword search returns a POI list instead of a destination-only result', async ({ page }) => {
+  await openHome(page);
+  await page.locator('.nav[data-app="maps"]').click();
+  const input = page.locator('#mapQuery');
+  await input.fill('restaurants in Jagannath Nagar');
+  await page.locator('#mapSearch').click();
+  await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v21]').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
+});
+
+test('restaurant keyword search tolerates speech-recognition typo', async ({ page }) => {
+  await openHome(page);
+  await page.locator('.nav[data-app="maps"]').click();
+  const input = page.locator('#mapQuery');
+  await input.fill('resturants in Jagannath Nagar');
+  await page.locator('#mapSearch').click();
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v21]').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
+});
+
 test('command routing does not leave a stale hardcoded map result over a later manual search', async ({ page }) => {
   await openHome(page);
   const command = page.locator('#commandInput');
