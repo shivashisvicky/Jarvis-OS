@@ -10,6 +10,8 @@
   let ytFrame = null;
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#039;' }[ch]));
   const normalize = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   function videoId(raw) { try { const url=new URL(raw); const host=url.hostname.replace(/^www\./,'').toLowerCase(); if(host==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||null; if(host==='youtube.com'||host==='m.youtube.com'){if(url.pathname==='/watch')return url.searchParams.get('v');const parts=url.pathname.split('/').filter(Boolean);if(['shorts','live','embed'].includes(parts[0]))return parts[1]||null;}} catch {} return /^[A-Za-z0-9_-]{11}$/.test(String(raw).trim())?String(raw).trim():null; }
   function ytUrl(id, muted=false){return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=${muted?'1':'0'}&controls=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(PLAYER_ORIGIN)}`}
   function player(id, muted=false){
@@ -43,9 +45,12 @@
     const items=await search(query);
     const first=Array.isArray(items)?items[0]:null;
     if(!first?.id)return false;
-    player(first.id, true);
+    // iOS/Safari keeps the safe muted path. Android, Windows and other
+    // non-Safari browsers attempt the normal audible autoplay path instead.
+    const muted = isIOS || isSafari;
+    player(first.id, muted);
     const state=document.querySelector('#mediaState');
-    if(state)state.textContent='PLAYING FIRST RESULT · MUTED';
+    if(state)state.textContent = muted ? 'PLAYING FIRST RESULT · MUTED' : 'PLAYING FIRST RESULT';
     return true;
   }
   function install(){if(window.__JARVIS_LIVE_MEDIA__)return;window.__JARVIS_LIVE_MEDIA__=true;window.jarvisAutoPlayFirstYouTubeResult=autoPlayFirst;renderHistory();window.addEventListener('jarvis:media',event=>{const query=String(event.detail?.query??'').trim();pendingVoiceQuery=query;const input=document.querySelector('#videoQuery');if(input&&query){input.value=query;void search(query)}});document.addEventListener('click',event=>{const button=event.target?.closest?.('#videoSearch');if(!button)return;const input=document.querySelector('#videoQuery'),query=input?.value?.trim()||'';if(!query||isDirectUrl(query))return;event.preventDefault();event.stopImmediatePropagation();void search(query)},true);document.addEventListener('keydown',event=>{if(event.key!=='Enter'||!event.target?.matches?.('#videoQuery'))return;const query=event.target.value.trim();if(!query||isDirectUrl(query))return;event.preventDefault();void search(query)},true);document.addEventListener('click',event=>{const card=event.target?.closest?.('[data-jvc-id]');if(card)player(card.getAttribute('data-jvc-id'))});const runPending=()=>{if(!pendingVoiceQuery)return;const input=document.querySelector('#videoQuery');if(input){input.value=pendingVoiceQuery;const q=pendingVoiceQuery;pendingVoiceQuery='';void search(q)}};runPending();new MutationObserver(runPending).observe(document.documentElement,{childList:true,subtree:true})}
