@@ -6,6 +6,7 @@
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
   const isYouTubeCommand = value => {
     const q = clean(value);
+    if (/https?:\/\/\S+/i.test(q)) return false;
     return /\b(?:youtube|yt)\b/i.test(q) && /\b(?:search|find|look\s+up|play|watch|show|open|video|videos|news|music|song)\b/i.test(q);
   };
   const queryFromCommand = value => {
