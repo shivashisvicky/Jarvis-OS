@@ -9,6 +9,12 @@ async function openHome(page) {
   await page.locator('.nav[data-app="home"]').click();
 }
 
+async function waitForMapResults(page) {
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#mapFrame')).toBeVisible();
+  await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
+}
+
 test('home command surface supports local time and core identity queries', async ({ page }) => {
   await openHome(page);
   const input = page.locator('#commandInput');
@@ -28,11 +34,11 @@ test('navigation phrases stay in the local command router', async ({ page }) => 
   await input.fill('take me to bhubaneswar');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
-  await expect(page.locator('#mapQuery')).toHaveValue(/bhubaneswar/i);
+  await expect(page.locator('#mapQuery')).toHaveValue(/bhubaneswar/i, { timeout: 15_000 });
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
-test('Jagannath Nagar resolves to the Bhubaneswar canonical location and map opens after selection', async ({ page }) => {
+test('Jagannath Nagar resolves to the Bhubaneswar canonical location and opens its map immediately', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
   const input = page.locator('#mapQuery');
@@ -40,7 +46,8 @@ test('Jagannath Nagar resolves to the Bhubaneswar canonical location and map ope
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Gunupur|Rayagada/i);
-  await expect(page.locator('#mapFrame')).toBeHidden();
+  await expect(page.locator('#mapFrame')).toBeVisible();
+  await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
   await page.locator('#mapResults .place-result').first().click();
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
 });
@@ -57,10 +64,9 @@ test('Maps has one POI runtime and restaurant keyword search returns only restau
   await expect(input).toHaveAttribute('spellcheck', 'false');
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await waitForMapResults(page);
   await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
-  await expect(page.locator('#mapFrame')).toBeHidden();
 });
 
 test('restaurant keyword search tolerates common speech-recognition typo without changing the typed field', async ({ page }) => {
@@ -70,10 +76,9 @@ test('restaurant keyword search tolerates common speech-recognition typo without
   await input.fill('resturants in Jagannath Nagar');
   await expect(input).toHaveValue('resturants in Jagannath Nagar');
   await page.locator('#mapSearch').click();
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await waitForMapResults(page);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
-  await expect(page.locator('#mapFrame')).toBeHidden();
 });
 
 test('restaurants-to-place phrasing stays inside Maps and becomes an in-place POI search', async ({ page }) => {
@@ -82,26 +87,29 @@ test('restaurants-to-place phrasing stays inside Maps and becomes an in-place PO
   await command.fill('show me restaurants to Jagannath Nagar');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
-  await expect(page.locator('#mapQuery')).toHaveValue(/restaurants in Jagannath Nagar/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#mapQuery')).toHaveValue(/restaurants in Jagannath Nagar/i, { timeout: 15_000 });
+  await waitForMapResults(page);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
-test('restaurant results paginate and only reveal the map after selection', async ({ page }) => {
+test('restaurant results paginate and keep the map synchronized with the visible page', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
   await page.locator('#mapQuery').fill('restaurants in Jagannath Nagar');
   await page.locator('#mapSearch').click();
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await waitForMapResults(page);
   const next = page.locator('#mapNext');
   if (await next.count()) {
-    await expect(page.locator('#mapFrame')).toBeHidden();
     const first = await page.locator('#mapResults [data-jarvis-map-v25]').first().innerText();
+    const firstSrc = await page.locator('#mapFrame iframe').getAttribute('src');
     await next.click();
     await expect(page.locator('#mapResults [data-jarvis-map-v25]').first()).not.toHaveText(first);
-    await expect(page.locator('#mapFrame')).toBeHidden();
+    await expect(page.locator('#mapFrame')).toBeVisible();
+    await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
+    const nextSrc = await page.locator('#mapFrame iframe').getAttribute('src');
+    expect(nextSrc).not.toBe(firstSrc);
   }
   await page.locator('#mapResults [data-jarvis-map-v25]').first().click();
   await expect(page.locator('#mapFrame iframe')).toBeVisible();
@@ -113,14 +121,14 @@ test('command routing does not leave a stale hardcoded map result over a later m
   await command.fill('take me to Jagannath Nagar');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
-  await expect(page.locator('#mapQuery')).toHaveValue(/Jagannath Nagar/i);
+  await expect(page.locator('#mapQuery')).toHaveValue(/Jagannath Nagar/i, { timeout: 15_000 });
   await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
   const mapInput = page.locator('#mapQuery');
   await mapInput.fill('Khandagiri');
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).toContainText(/Khandagiri/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Jagannath Nagar|Jharapada, Bhubaneswar/i);
-  await expect(page.locator('#mapFrame')).toBeHidden();
+  await expect(page.locator('#mapFrame')).toBeVisible();
   await page.locator('#mapResults .place-result').first().click();
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=/);
   await expect(page.locator('script[src*="jarvis-map-hard-override.js"]')).toHaveCount(0);
