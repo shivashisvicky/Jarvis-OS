@@ -41,7 +41,7 @@ jobs:
       - name: Deploy
         working-directory: workers/search
         run: wrangler deploy --name jarvis-search
-      - name: Smoke test search GET
+      - name: Smoke test web search GET
         run: |
           set -euo pipefail
           url='https://jarvis-search.shivashisvicky112.workers.dev/api/search?q=Hrithik%20Roshan'
@@ -53,4 +53,21 @@ jobs:
           d=json.load(open('/tmp/search.json'))
           assert isinstance(d.get('results'), list), d
           print('SEARCH_GATEWAY_SMOKE=PASS results=', len(d['results']))
+          PY
+      - name: Smoke test Places POI GET
+        run: |
+          set -euo pipefail
+          url='https://jarvis-search.shivashisvicky112.workers.dev/api/places?kind=restaurant&lat=20.2923&lon=85.8638&radius=5000&limit=6'
+          status=$(curl --silent --show-error --output /tmp/places.json --write-out '%{http_code}' -H 'Accept: application/json' "$url")
+          cat /tmp/places.json
+          test "$status" = 200
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/places.json'))
+          results=d.get('results')
+          assert isinstance(results, list) and results, d
+          assert len(results) <= 6, d
+          names=' '.join(str(x.get('name','')) for x in results).lower()
+          assert 'hospital' not in names, d
+          print('PLACES_GATEWAY_SMOKE=PASS results=', len(results))
           PY
