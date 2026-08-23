@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_YOUTUBE_COMMAND_AUTHORITY_V1__) return;
-  window.__JARVIS_YOUTUBE_COMMAND_AUTHORITY_V1__ = true;
+  if (window.__JARVIS_YOUTUBE_COMMAND_AUTHORITY_V2__) return;
+  window.__JARVIS_YOUTUBE_COMMAND_AUTHORITY_V2__ = true;
 
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
   const isYouTubeCommand = value => {
@@ -18,11 +18,9 @@
     q = q.replace(/^\s*(?:for|on|in)\s+/i, '');
     return clean(q).replace(/[.!?]+$/, '').trim();
   };
-
   const openMedia = query => {
     const nav = document.querySelector('.nav[data-app="media"]');
     if (nav instanceof HTMLElement && !nav.classList.contains('selected')) nav.click();
-
     let tries = 0;
     const timer = window.setInterval(() => {
       tries += 1;
@@ -37,26 +35,21 @@
       if (tries >= 60) window.clearInterval(timer);
     }, 50);
   };
-
-  const replyText = query => query
-    ? `Searching YouTube for “${query}”.`
-    : 'Opening the YouTube media console.';
+  const replyText = query => query ? `Searching YouTube for “${query}”.` : 'Opening the YouTube media console.';
 
   const speakOnce = text => {
     try {
-      window.jarvisMarkSpokenResponse?.(text);
+      const standard = window.jarvisVoiceAuthoritySpeak || window.jarvisCinematicSpeak || window.jarvisSpeak;
+      if (typeof standard === 'function') {
+        standard(text, { rate: 0.92, pitch: 0.54, volume: 0.96, language: 'en-GB' });
+        return;
+      }
       if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.rate = 0.92;
       u.pitch = 0.54;
       u.volume = 0.96;
       u.lang = 'en-GB';
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = ['Daniel', 'Arthur', 'George', 'Oliver', 'James', 'Alex', 'Fred', 'Thomas'];
-      const voice = voices.find(v => preferred.some(name => v.name.toLowerCase().includes(name.toLowerCase())) && /^en-GB/i.test(v.lang))
-        || voices.find(v => /^en-GB/i.test(v.lang));
-      if (voice) u.voice = voice;
       window.speechSynthesis.speak(u);
     } catch {}
   };
@@ -67,10 +60,7 @@
     openMedia(query);
     const reply = replyText(query);
     const replyNode = document.querySelector('#jarvisReply');
-    if (replyNode) {
-      replyNode.textContent = reply;
-      replyNode.classList.add('visible');
-    }
+    if (replyNode) { replyNode.textContent = reply; replyNode.classList.add('visible'); }
     return reply;
   };
 
@@ -93,6 +83,6 @@
     const reply = replyText(query);
     event.preventDefault();
     event.stopImmediatePropagation();
-    speakOnce(reply);
+    window.setTimeout(() => speakOnce(reply), 0);
   }, true);
 })();
