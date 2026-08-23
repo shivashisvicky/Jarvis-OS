@@ -5,7 +5,8 @@ window.__JARVIS_COMMAND_GRAMMAR_AUTHORITY_V1__=true;
 
 // Lightweight grammar gate. It normalizes speech/text before the existing
 // module routers run. It never calls a network service or an LLM.
-const clean=s=>String(s||'').replace(/\s+/g,' ').trim().replace(/[.!?]+$/,'').trim();
+// Preserve '?' because the intelligence router uses it to recognize natural questions.
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim().replace(/[.!]+$/,'').trim();
 const normalize=s=>{
  let q=clean(s);
  if(!q)return q;
@@ -28,14 +29,16 @@ const normalize=s=>{
  // into the search query, while preserving the user's actual search terms.
  q=q.replace(/\s+(?:on|in)\s+(?:the\s+)?web\s*$/i,'');
  q=q.replace(/\s+(?:on|in)\s+the\s+internet\s*$/i,'');
+ q=q.replace(/\s+(?:on|in)\s+(?:google|bing)\s*$/i,'');
 
  // Media grammar outside YouTube. Keep the requested subject intact.
  q=q.replace(/\s+(?:in|on)\s+the\s+media\s*$/i,'');
 
  // A narrow calculator grammar for obvious arithmetic questions. General
  // "what is ..." questions are left untouched.
- if(/^\s*what(?:'s| is)\s+[-+*/%\d().\s]+(?:plus|minus|times|multiplied by|divided by)[-+*/%\d().\s]+$/i.test(q)){
-   q=q.replace(/^\s*what(?:'s| is)\s+/i,'calculate ');
+ const arithmeticQ=q.replace(/\?$/,'');
+ if(/^\s*what(?:'s| is)\s+[-+*/%\d().\s]+(?:plus|minus|times|multiplied by|divided by)[-+*/%\d().\s]+$/i.test(arithmeticQ)){
+   q=arithmeticQ.replace(/^\s*what(?:'s| is)\s+/i,'calculate ');
  }
  return clean(q);
 };
