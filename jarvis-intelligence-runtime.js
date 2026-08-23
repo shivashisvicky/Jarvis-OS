@@ -41,9 +41,8 @@
     return text;
   };
   const isFollowUp = q => /^(why|how|what about (it|that|this|them|those)|which one|which is (best|better)|and\s+(why|what|how)|tell me more|go on|continue|what do you mean|what about it)\s*[?.!]*$/i.test(q.trim());
-  // Short natural-language replies such as "casual wear", "formal wear", "the blue one"
-  // are answers to the previous turn when context exists. They must not fall through
-  // to the generic web/simple-lookup classifier and jump to Search Hub.
+  // Short natural-language replies are contextual when they answer a recent JARVIS question.
+  // This is intentionally local and lightweight: no extra network call and no LLM classification.
   const isContextualFragment = q => {
     const s=String(q||'').trim();
     if(!s || !conversation.length || s.length>100 || /[?!]/.test(s)) return false;
@@ -51,7 +50,11 @@
     if(/^(?:take me|go to|navigate|directions?|open maps?|play|open youtube|youtube)\b/i.test(s)) return false;
     const words=s.split(/\s+/).filter(Boolean).length;
     if(words>8) return false;
-    return /^(?:casual|formal|business|smart casual|summer|winter|spring|autumn|blue|red|green|black|white|the\s+(?:blue|red|green|black|white|first|second|third)|that one|this one|something\s+more|something\s+else|both|either|neither|yes|no|maybe|okay|ok|sure|i\s+(?:want|prefer|like)|make it|go with)\b/i.test(s);
+    const explicitFragment=/^(?:casual|formal|business|smart casual|summer|winter|spring|autumn|blue|red|green|black|white|the\s+(?:blue|red|green|black|white|first|second|third)|that one|this one|something\s+more|something\s+else|both|either|neither|yes|no|maybe|okay|ok|sure|i\s+(?:want|prefer|like)|make it|go with)\b/i.test(s);
+    const last=conversation[conversation.length-1];
+    const previousAssistant=conversation.slice().reverse().find(t=>t.role==='assistant');
+    const recentQuestion=previousAssistant && /\?\s*$/.test(String(previousAssistant.text).trim());
+    return explicitFragment || (recentQuestion && last?.role==='assistant');
   };
   const contextualQuery = query => {
     const context=contextText();
@@ -69,9 +72,9 @@
   const isFreshWebQuery=raw=>/\b(latest|breaking|news|headlines|current events|recent|today's news|right now)\b/i.test(String(raw||''));
   const isWebSearchQuery=raw=>!isContextualFragment(raw)&&(isExplicitWebSearch(raw)||isSimpleLookup(raw)||isFreshWebQuery(raw));
   const isIntelligenceQuery=raw=>{const q=String(raw||'').trim().toLowerCase();if(!q||isLocalCommand(q)||isMathExpression(q))return false;if(isContextualFragment(q))return true;if(isWebSearchQuery(q))return true;return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what(?: is|['’]s| are| was| were)|who(?: is|['’]s)|analy[sz]e|which|should i|is it|can you|could you|do you|does)\b/.test(q)||q.length>55||/\?$/.test(q)};
-  const localAnswer=query=>{if(/\btell me about (yourself|you)\b|\bwhat are you\b|\bwho are you\b/.test(query.toLowerCase())){const text='I am JARVIS, your personal intelligence workspace. The local core handles commands, voice, news, web search, maps, media and tools.';reply(text);remember('user',query);remember('assistant',text);return true}return false};
+  const localAnswer=query=>{if(/\btell me about (yourself|you)\b|\bwhat are you\b|\bwho are you\b/.test(query.toLowerCase())){const text='I am JARVIS, your personal intelligence workspace. The local core handles commands, voice, news, web search, maps and tools.';reply(text);remember('user',query);remember('assistant',text);return true}return false};
   const waitForWebSearch=(query,attempts=0)=>{const input=document.querySelector('#webQuery'),button=document.querySelector('#webSearch');if(input&&button){input.value=query;input.dispatchEvent(new Event('input',{bubbles:true}));button.click();return true}if(attempts>=80){reply(`I could not open the web search for “${query}”.`);return false}setTimeout(()=>waitForWebSearch(query,attempts+1),75);return true};
-  const searchWeb=query=>{reply(`Searching the web for “${query}”…`,false);const nav=document.querySelector('[data-app="web"]');if(nav)nav.click();else if(!document.querySelector('#webQuery'))return reply('The web search module is unavailable right now.');waitForWebSearch(query);return true};
+  const searchWeb=query=>{reply(`Searching the web for “${query}”…`,false);const nav=document.querySelector('[data-app="web"]');if(nav)nav.click();else if(!document.querySelector('#webQuery'))return reply('The web search module is unavailable right now.');waitForWebSearch(query);return true;};
 
   const ask=async query=>{
     query=String(query||'').trim();if(!query)return false;
