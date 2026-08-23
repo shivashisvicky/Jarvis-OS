@@ -3,7 +3,7 @@
 if(window.__JARVIS_MAP_PAGINATION_V1__)return;
 window.__JARVIS_MAP_PAGINATION_V1__=true;
 const PAGE=6;
-let page=1,lastSignature='',prefetchTimer=0,rendering=false;
+let page=1,lastSignature='',lastQuery='',prefetchTimer=0,rendering=false;
 const q=s=>document.querySelector(s);
 const cards=()=>[...document.querySelectorAll('#mapResults [data-jarvis-map-v21]')];
 const frame=()=>q('#mapFrame');
@@ -30,7 +30,17 @@ function ensurePagination(){
  const legacy=el.querySelector('#mapMoreResultsV21');if(legacy)legacy.style.display='none';
 }
 function schedulePrefetch(){if(prefetchTimer||cards().length>=6)return;prefetchTimer=setTimeout(()=>{prefetchTimer=0;const more=q('#mapMoreResultsV21');if(more instanceof HTMLButtonElement&&!more.disabled)more.click();},700);}
-function watch(){const el=q('#mapResults');if(!el)return;const sig=normalize(el.innerText||'');if(sig===lastSignature){prepareMap();ensurePagination();return;}lastSignature=sig;if(rendering)return;rendering=true;requestAnimationFrame(()=>{prepareMap();ensurePagination();schedulePrefetch();rendering=false;});}
+function watch(){
+ const el=q('#mapResults');if(!el)return;
+ const query=normalize(q('#mapQuery')?.value||'');
+ if(query!==lastQuery){lastQuery=query;page=1;}
+ const sig=normalize(el.innerText||'');
+ if(sig===lastSignature){prepareMap();return;}
+ lastSignature=sig;
+ if(rendering)return;
+ rendering=true;
+ requestAnimationFrame(()=>{prepareMap();ensurePagination();schedulePrefetch();rendering=false;});
+}
 new MutationObserver(watch).observe(document.documentElement,{childList:true,subtree:true});
 setInterval(watch,500);watch();
 })();
