@@ -1,21 +1,20 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_IOS_COMMAND_VOICE_FIX__)return;
-window.__JARVIS_IOS_COMMAND_VOICE_FIX__=true;
+if(window.__JARVIS_IOS_COMMAND_VOICE_FIX_V2__)return;
+window.__JARVIS_IOS_COMMAND_VOICE_FIX_V2__=true;
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(!isIOS)return;
-const C=(window).SpeechRecognition||(window).webkitSpeechRecognition;
+const C=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(!C)return;
 let recognition=null;
+let stopTimer=0;
 let lastSubmitted='';
 let lastSubmittedAt=0;
 const button=()=>document.querySelector('#voiceBtn');
 const setState=active=>button()?.classList.toggle('listening',active);
+const clearWatchdog=()=>{if(stopTimer){window.clearTimeout(stopTimer);stopTimer=0}};
 const primeSpeechFromGesture=()=>{
  try{
-   // Use the single speech authority prime. The previous implementation
-   // primed through jarvisPrimeSpeech() and then immediately queued a second
-   // silent utterance, which could leave iOS WebKit with duplicate speech work.
    if(typeof window.jarvisPrimeSpeech==='function'){
      window.jarvisPrimeSpeech();
      return;
@@ -31,15 +30,26 @@ const primeSpeechFromGesture=()=>{
    }
  }catch{}
 };
-const stop=()=>{const r=recognition;recognition=null;if(r){try{r.stop()}catch{try{r.abort()}catch{}}}setState(false)};
+const stop=()=>{
+ clearWatchdog();
+ const r=recognition;
+ recognition=null;
+ if(r){
+   r.onresult=null;
+   r.onspeechend=null;
+   r.onerror=null;
+   r.onend=null;
+   try{r.abort()}catch{try{r.stop()}catch{}}
+ }
+ setState(false);
+};
+window.jarvisStopIOSVoice=stop;
 const submitTranscript=text=>{
  const input=document.querySelector('#commandInput');
  const form=document.querySelector('#commandForm');
  if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return;
  const normalized=String(text||'').trim().replace(/\s+/g,' ').toLowerCase();
  const now=Date.now();
- // iOS can deliver the same final transcript more than once around the
- // recognition shutdown boundary. One command must produce one response.
  if(!normalized)return;
  if(normalized===lastSubmitted&&now-lastSubmittedAt<3500)return;
  lastSubmitted=normalized;
@@ -53,22 +63,40 @@ const start=e=>{
  if(!t)return;
  e.preventDefault();e.stopImmediatePropagation();
  if(recognition){stop();return;}
- // Prime once while the original tap is still active. Recognition results
- // arrive asynchronously, so do not attempt another prime there.
  primeSpeechFromGesture();
- const r=new C();recognition=r;
- r.lang='en-GB';r.interimResults=true;r.continuous=false;r.maxAlternatives=3;
- r.onstart=()=>setState(true);
+ const r=new C();
+ recognition=r;
+ r.lang='en-GB';
+ r.interimResults=true;
+ r.continuous=false;
+ r.maxAlternatives=3;
+ r.onstart=()=>{
+   setState(true);
+   clearWatchdog();
+   // Absolute safety valve. iOS WebKit can occasionally leave a recognition
+   // session alive after speechend/onresult. Never allow the page to retain
+   // the microphone indefinitely.
+   stopTimer=window.setTimeout(stop,10000);
+ };
+ r.onspeechend=()=>{window.setTimeout(()=>{if(recognition===r)stop()},150)};
  r.onresult=ev=>{
    let final='';
    for(let i=ev.resultIndex;i<ev.results.length;i++)if(ev.results[i].isFinal)final+=ev.results[i][0].transcript;
-   if(final.trim()){const text=final.trim();stop();submitTranscript(text)}
+   if(final.trim()){
+     const text=final.trim();
+     stop();
+     submitTranscript(text);
+   }
  };
  r.onerror=()=>stop();
- r.onend=()=>{if(recognition===r){recognition=null;setState(false)}};
+ r.onend=()=>{if(recognition===r){clearWatchdog();recognition=null;setState(false)}};
  try{r.start()}catch{stop()}
 };
 document.addEventListener('click',start,true);
+document.addEventListener('submit',e=>{if((e.target instanceof HTMLFormElement)&&e.target.id==='commandForm')stop()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')stop()},true);
+window.addEventListener('jarvis:voice-command',()=>stop(),true);
 window.addEventListener('pagehide',stop);
+window.addEventListener('beforeunload',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
 })();
