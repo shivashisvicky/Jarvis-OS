@@ -1,46 +1,96 @@
 (()=>{
   'use strict';
-  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V6__)return;
-  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V6__=true;
+  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V7__)return;
+  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V7__=true;
   const C=window.SpeechRecognition||window.webkitSpeechRecognition;
   const sessions=new Set();
   let blockedUntil=0;
   let stopping=false;
-  if(C?.prototype){try{const nativeStart=C.prototype.start;C.prototype.start=function(...args){if(Date.now()<blockedUntil)return;sessions.add(this);try{this.addEventListener('end',()=>sessions.delete(this),{once:true})}catch{}try{this.addEventListener('error',()=>sessions.delete(this),{once:true})}catch{}return nativeStart.apply(this,args)}}catch{}}
+  let nativeSpeak=null;
+  let nativeCancel=null;
+  const synth=window.speechSynthesis;
+
+  if(synth){
+    try{
+      nativeSpeak=synth.speak.bind(synth);
+      nativeCancel=synth.cancel.bind(synth);
+      // A STOP must win over any already queued utterance. During the tiny
+      // release window, a competing speak() call is ignored so another
+      // authority cannot immediately restart the sentence we just stopped.
+      synth.speak=function(utterance){
+        if(Date.now()<blockedUntil)return;
+        return nativeSpeak(utterance);
+      };
+    }catch{}
+  }
+
+  if(C?.prototype){try{
+    const nativeStart=C.prototype.start;
+    C.prototype.start=function(...args){
+      if(Date.now()<blockedUntil)return;
+      sessions.add(this);
+      try{this.addEventListener('end',()=>sessions.delete(this),{once:true})}catch{}
+      try{this.addEventListener('error',()=>sessions.delete(this),{once:true})}catch{}
+      return nativeStart.apply(this,args)
+    }
+  }catch{}}
+
   const stopRecognition=r=>{if(!r)return;try{r.onresult=null}catch{}try{r.onspeechend=null}catch{}try{r.onerror=null}catch{}try{r.onend=null}catch{}try{r.abort()}catch{}try{r.stop()}catch{}};
+
   const stopSpeechImmediately=()=>{
-    try{window.jarvisVoiceAuthorityStop?.()}catch{}
-    try{window.jarvisStopSpeaking?.()}catch{}
-    try{window.speechSynthesis?.pause()}catch{}
-    try{window.speechSynthesis?.cancel()}catch{}
-    try{window.speechSynthesis?.cancel()}catch{}
+    if(!synth)return;
+    try{nativeCancel?.()}catch{}
+    try{synth.pause()}catch{}
+    try{synth.cancel()}catch{}
+    try{nativeCancel?.()}catch{}
+    try{synth.cancel()}catch{}
+    try{synth.resume()}catch{}
   };
+
   const hardStop=()=>{
     if(stopping)return;
     stopping=true;
     try{
-      blockedUntil=Date.now()+8000;
+      // Keep STOP authoritative long enough to beat iOS/WebKit's occasional
+      // delayed speech callback, but do not affect the next user command.
+      blockedUntil=Date.now()+1200;
       for(const r of Array.from(sessions))stopRecognition(r);
       sessions.clear();
-      stopSpeechImmediately();
-      try{window.jarvisArmVoiceRelease?.(8000)}catch{}
+      try{window.jarvisArmVoiceRelease?.(1200)}catch{}
       try{window.jarvisStopAllVoiceSessions?.()}catch{}
+      try{window.jarvisStopIOSVoice?.()}catch{}
       try{window.jarvisStopVoice?.()}catch{}
       try{window.jarvisForceStopVoice?.()}catch{}
       stopSpeechImmediately();
       try{document.querySelector('#voiceBtn')?.classList.remove('listening')}catch{}
       try{document.querySelector('#jarvisSpeechStop')?.setAttribute('hidden','')}catch{}
       try{const b=document.querySelector('#jarvisIOSStopVoice');if(b instanceof HTMLElement)b.hidden=true}catch{}
-      try{window.dispatchEvent(new CustomEvent('jarvis:force-stop-voice'))}catch{}
-      stopSpeechImmediately();
+      // One final cancel on the next frame catches an utterance queued by an
+      // onend/onstart callback during the first cancellation pass.
+      requestAnimationFrame(()=>stopSpeechImmediately());
     }finally{window.setTimeout(()=>{stopping=false},0)}
   };
-  const isStopVoiceButton=target=>{const el=target?.closest?.('button,[role="button"],input');if(!el)return false;const label=`${el.textContent||''} ${el.getAttribute?.('aria-label')||''} ${el.getAttribute?.('id')||''}`.replace(/\s+/g,' ').trim();return /\bstop\s+voice\b/i.test(label)};
-  const bindButton=button=>{if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v6')return;button.dataset.jarvisStopBound='v6';const handler=event=>{event.preventDefault();event.stopImmediatePropagation();hardStop()};for(const type of ['pointerdown','pointerup','touchstart','touchend','mousedown','mouseup','click']){try{button.addEventListener(type,handler,{capture:true,passive:type!=='touchstart'&&type!=='touchend'})}catch{}}};
+
+  const isStopVoiceButton=target=>{
+    const el=target?.closest?.('button,[role="button"],input');
+    if(!el)return false;
+    const label=`${el.textContent||''} ${el.getAttribute?.('aria-label')||''} ${el.getAttribute?.('id')||''}`.replace(/\s+/g,' ').trim();
+    return /\bstop\s+voice\b/i.test(label)
+  };
+
+  const bindButton=button=>{
+    if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v7')return;
+    button.dataset.jarvisStopBound='v7';
+    const handler=event=>{event.preventDefault();event.stopImmediatePropagation();hardStop()};
+    for(const type of ['pointerdown','touchstart','mousedown','click']){
+      try{button.addEventListener(type,handler,{capture:true,passive:type!=='touchstart'})}catch{}
+    }
+  };
+
   const scan=()=>document.querySelectorAll('button,[role="button"],input').forEach(el=>{if(isStopVoiceButton(el))bindButton(el)});
   new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
   scan();
-  for(const type of ['pointerdown','pointerup','touchstart','touchend','mousedown','mouseup','click'])document.addEventListener(type,event=>{if(isStopVoiceButton(event.target))hardStop()},true);
+  for(const type of ['pointerdown','touchstart','mousedown','click'])document.addEventListener(type,event=>{if(isStopVoiceButton(event.target))hardStop()},true);
   window.addEventListener('jarvis:force-stop-voice',hardStop,true);
   window.jarvisStopSpeechImmediately=stopSpeechImmediately;
 })();
