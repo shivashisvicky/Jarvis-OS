@@ -1,4 +1,4 @@
-(() => {
+(()=>{
   'use strict';
   if (typeof window === 'undefined' || window.__JARVIS_INTELLIGENCE_RUNTIME__) return;
   window.__JARVIS_INTELLIGENCE_RUNTIME__ = true;
@@ -41,10 +41,22 @@
     return text;
   };
   const isFollowUp = q => /^(why|how|what about (it|that|this|them|those)|which one|which is (best|better)|and\s+(why|what|how)|tell me more|go on|continue|what do you mean|what about it)\s*[?.!]*$/i.test(q.trim());
+  // Short natural-language replies such as "casual wear", "formal wear", "the blue one"
+  // are answers to the previous turn when context exists. They must not fall through
+  // to the generic web/simple-lookup classifier and jump to Search Hub.
+  const isContextualFragment = q => {
+    const s=String(q||'').trim();
+    if(!s || !conversation.length || s.length>100 || /[?!]/.test(s)) return false;
+    if(/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\b/i.test(s)) return false;
+    if(/^(?:take me|go to|navigate|directions?|open maps?|play|open youtube|youtube)\b/i.test(s)) return false;
+    const words=s.split(/\s+/).filter(Boolean).length;
+    if(words>8) return false;
+    return /^(?:casual|formal|business|smart casual|summer|winter|spring|autumn|blue|red|green|black|white|the\s+(?:blue|red|green|black|white|first|second|third)|that one|this one|something\s+more|something\s+else|both|either|neither|yes|no|maybe|okay|ok|sure|i\s+(?:want|prefer|like)|make it|go with)\b/i.test(s);
+  };
   const contextualQuery = query => {
     const context=contextText();
     if(!context) return query;
-    if(isFollowUp(query)) return `Continue the conversation. Answer the user's follow-up using the recent exchange as context. Be concise and do not restate the conversation.\nRecent exchange:\n${context}\nFollow-up: ${query}`;
+    if(isFollowUp(query) || isContextualFragment(query)) return `Continue the conversation. Answer the user's follow-up using the recent exchange as context. Treat the current message as a contextual answer or refinement when appropriate. Be concise and do not restate the conversation.\nRecent exchange:\n${context}\nFollow-up: ${query}`;
     return `Use the recent conversation only to resolve references such as “it”, “that”, “which one”, or “why”. Do not repeat the context unless needed.\nRecent conversation:\n${context}\nCurrent request:\n${query}`;
   };
   const clearContext=()=>{conversation=[];try{sessionStorage.removeItem(CONTEXT_KEY)}catch{}};
@@ -53,10 +65,10 @@
   const isMathExpression=raw=>{const q=String(raw||'').trim().toLowerCase().replace(/[=?]+$/,'').trim();if(!q||q.length>80||!/[+\-*/%]/.test(q))return false;return /^[0-9\s()+\-*/%.]+$/.test(q)};
   const calculate=raw=>{const expression=String(raw||'').trim().replace(/[=?]+$/,'').trim();if(!/^[0-9\s()+\-*/%.]+$/.test(expression))return false;try{const value=Function(`"use strict"; return (${expression})`)();if(typeof value!=='number'||!Number.isFinite(value))return false;reply(`${expression} = ${value}`);return true}catch{return false}};
   const isExplicitWebSearch=raw=>/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\b/i.test(String(raw||'').trim());
-  const isSimpleLookup=raw=>{const q=String(raw||'').trim();if(!q||q.length>80||/[?!]/.test(q)||isLocalCommand(q)||isExplicitWebSearch(q)||isMathExpression(q))return false;if(/^(?:take me|go to|navigate|directions?|open maps?)\b/i.test(q))return false;if(!/^[\p{L}\p{N}][\p{L}\p{N} .,'&+\-()]{1,79}$/u.test(q))return false;if(q.split(/\s+/).length>6)return false;return !/^(tell|what|who|why|how|can|could|should|is|are|do|does|will|where|when|which)\b/i.test(q)};
+  const isSimpleLookup=raw=>{const q=String(raw||'').trim();if(!q||q.length>80||/[?!]/.test(q)||isLocalCommand(q)||isExplicitWebSearch(q)||isMathExpression(q)||isContextualFragment(q))return false;if(/^(?:take me|go to|navigate|directions?|open maps?)\b/i.test(q))return false;if(!/^[\p{L}\p{N}][\p{L}\p{N} .,'&+\-()]{1,79}$/u.test(q))return false;if(q.split(/\s+/).length>6)return false;return !/^(tell|what|who|why|how|can|could|should|is|are|do|does|will|where|when|which)\b/i.test(q)};
   const isFreshWebQuery=raw=>/\b(latest|breaking|news|headlines|current events|recent|today's news|right now)\b/i.test(String(raw||''));
-  const isWebSearchQuery=raw=>isExplicitWebSearch(raw)||isSimpleLookup(raw)||isFreshWebQuery(raw);
-  const isIntelligenceQuery=raw=>{const q=String(raw||'').trim().toLowerCase();if(!q||isLocalCommand(q)||isMathExpression(q))return false;if(isWebSearchQuery(q))return true;return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what(?: is|['’]s| are| was| were)|who(?: is|['’]s)|analy[sz]e|which|should i|is it|can you|could you|do you|does)\b/.test(q)||q.length>55||/\?$/.test(q)};
+  const isWebSearchQuery=raw=>!isContextualFragment(raw)&&(isExplicitWebSearch(raw)||isSimpleLookup(raw)||isFreshWebQuery(raw));
+  const isIntelligenceQuery=raw=>{const q=String(raw||'').trim().toLowerCase();if(!q||isLocalCommand(q)||isMathExpression(q))return false;if(isContextualFragment(q))return true;if(isWebSearchQuery(q))return true;return /\b(explain|summari[sz]e|compare|why|how|best|recommend|research|tell me about|what(?: is|['’]s| are| was| were)|who(?: is|['’]s)|analy[sz]e|which|should i|is it|can you|could you|do you|does)\b/.test(q)||q.length>55||/\?$/.test(q)};
   const localAnswer=query=>{if(/\btell me about (yourself|you)\b|\bwhat are you\b|\bwho are you\b/.test(query.toLowerCase())){const text='I am JARVIS, your personal intelligence workspace. The local core handles commands, voice, news, web search, maps, media and tools.';reply(text);remember('user',query);remember('assistant',text);return true}return false};
   const waitForWebSearch=(query,attempts=0)=>{const input=document.querySelector('#webQuery'),button=document.querySelector('#webSearch');if(input&&button){input.value=query;input.dispatchEvent(new Event('input',{bubbles:true}));button.click();return true}if(attempts>=80){reply(`I could not open the web search for “${query}”.`);return false}setTimeout(()=>waitForWebSearch(query,attempts+1),75);return true};
   const searchWeb=query=>{reply(`Searching the web for “${query}”…`,false);const nav=document.querySelector('[data-app="web"]');if(nav)nav.click();else if(!document.querySelector('#webQuery'))return reply('The web search module is unavailable right now.');waitForWebSearch(query);return true};
@@ -68,7 +80,7 @@
     if(isMathExpression(query)){const ok=calculate(query);if(ok){remember('user',query);remember('assistant',document.querySelector('#jarvisReply')?.textContent||'')}return ok}
     if(isWebSearchQuery(query)){remember('user',query);return searchWeb(query.replace(/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\s+/i,'').trim())}
     if(STATIC_PAGES&&!REMOTE_ENDPOINT){reply('Remote intelligence is not connected to this deployment yet. The local JARVIS core is still online.');return false}
-    const controller=new AbortController();const timeoutMs=isFollowUp(query)?30000:20000;const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    const controller=new AbortController();const timeoutMs=isFollowUp(query)||isContextualFragment(query)?30000:20000;const timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{
       remember('user',query);reply('JARVIS intelligence is researching that…',false);
       const compactContext=conversation.slice(-MAX_TURNS).map(t=>({role:t.role,text:String(t.text).slice(0,1100)}));
@@ -77,7 +89,7 @@
       reply(data.text);remember('assistant',data.text);window.dispatchEvent(new CustomEvent('jarvis:intelligence-result',{detail:{...data,conversation:conversation.slice(-MAX_TURNS)}}));return true;
     }catch(error){
       conversation=conversation.filter(t=>!(t.role==='user'&&t.text===query));saveContext();
-      const message=error?.name==='AbortError'?(isFollowUp(query)?'The follow-up took too long to return.':'The intelligence gateway timed out.'):String(error?.message||error);
+      const message=error?.name==='AbortError'?(isFollowUp(query)||isContextualFragment(query)?'The follow-up took too long to return.':'The intelligence gateway timed out.'):String(error?.message||error);
       reply(`Intelligence gateway unavailable: ${message}`);window.dispatchEvent(new CustomEvent('jarvis:intelligence-error',{detail:{error:message,query}}));return false;
     }finally{clearTimeout(timer)}
   };
