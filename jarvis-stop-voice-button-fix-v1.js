@@ -1,22 +1,18 @@
 (()=>{
   'use strict';
-  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V9__)return;
-  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V9__=true;
+  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V10__)return;
+  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V10__=true;
 
   const synth=window.speechSynthesis||null;
-  let bound=false;
   let stopping=false;
-  let blockedUntil=0;
-  let lastPointer=0;
+  let lastTap=0;
 
   const cancelSpeech=()=>{
     try{window.jarvisStopSpeechImmediately?.()}catch{}
     try{window.jarvisStopSpeaking?.()}catch{}
     try{window.jarvisCinematicStop?.()}catch{}
     try{window.jarvisVoiceAuthorityStop?.()}catch{}
-    if(synth){
-      try{synth.cancel()}catch{}
-    }
+    try{synth?.cancel()}catch{}
   };
 
   const stopMic=()=>{
@@ -31,14 +27,12 @@
   const hardStop=()=>{
     if(stopping)return;
     stopping=true;
-    blockedUntil=Date.now()+1500;
     cancelSpeech();
     stopMic();
-    try{window.dispatchEvent(new CustomEvent('jarvis:voice-stop',{detail:{source:'stop-button-v9'}}))}catch{}
-    window.setTimeout(()=>{cancelSpeech();stopMic()},0);
-    window.setTimeout(()=>{cancelSpeech()},80);
-    window.setTimeout(()=>{cancelSpeech()},220);
-    window.setTimeout(()=>{cancelSpeech()},500);
+    try{window.dispatchEvent(new CustomEvent('jarvis:voice-stop',{detail:{source:'stop-button-v10'}}))}catch{}
+    window.setTimeout(cancelSpeech,80);
+    window.setTimeout(cancelSpeech,220);
+    window.setTimeout(cancelSpeech,500);
     try{const b=document.querySelector('#jarvisIOSStopVoice');if(b instanceof HTMLElement)b.hidden=true}catch{}
     try{document.querySelector('#jarvisSpeechStop')?.setAttribute('hidden','')}catch{}
     window.setTimeout(()=>{stopping=false},0);
@@ -52,26 +46,31 @@
   };
 
   const bind=button=>{
-    if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v9')return;
-    button.dataset.jarvisStopBound='v9';
-    const handler=e=>{
+    if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v10')return;
+    button.dataset.jarvisStopBound='v10';
+    button.style.webkitTapHighlightColor='transparent';
+    button.style.touchAction='manipulation';
+    const down=event=>{
       const now=Date.now();
-      if(now-lastPointer<120)return;
-      lastPointer=now;
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      if(now-lastTap<150)return;
+      lastTap=now;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      button.classList.add('jarvis-stop-pressed');
+      button.setAttribute('aria-pressed','true');
+      window.setTimeout(()=>button.classList.remove('jarvis-stop-pressed'),180);
       hardStop();
     };
-    button.addEventListener('pointerdown',handler,{capture:true,passive:false});
-    button.addEventListener('touchstart',handler,{capture:true,passive:false});
-    button.addEventListener('mousedown',handler,{capture:true,passive:false});
-    button.addEventListener('click',handler,{capture:true,passive:false});
+    const up=()=>button.classList.remove('jarvis-stop-pressed');
+    button.addEventListener('pointerdown',down,{capture:true,passive:false});
+    button.addEventListener('touchstart',down,{capture:true,passive:false});
+    button.addEventListener('mousedown',down,{capture:true,passive:false});
+    button.addEventListener('pointerup',up,{capture:true});
+    button.addEventListener('touchend',up,{capture:true});
+    button.addEventListener('click',up,{capture:true});
   };
 
   const scan=()=>document.querySelectorAll('button,[role="button"],input').forEach(el=>{if(isStop(el))bind(el)});
   scan();
   new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
-  for(const type of ['pointerdown','touchstart','mousedown','click']){
-    document.addEventListener(type,e=>{if(isStop(e.target))hardStop()},true);
-  }
 })();
