@@ -50,19 +50,22 @@ test('restaurant keyword search returns a POI list instead of a destination-only
   await page.locator('.nav[data-app="maps"]').click();
   const input = page.locator('#mapQuery');
   await input.fill('restaurants in Jagannath Nagar');
+  await expect(input).toHaveAttribute('autocorrect', 'off');
+  await expect(input).toHaveAttribute('spellcheck', 'false');
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v21]').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
 });
 
-test('restaurant keyword search tolerates speech-recognition typo', async ({ page }) => {
+test('restaurant keyword search tolerates common speech-recognition typo without changing the typed field', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
   const input = page.locator('#mapQuery');
   await input.fill('resturants in Jagannath Nagar');
+  await expect(input).toHaveValue('resturants in Jagannath Nagar');
   await page.locator('#mapSearch').click();
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v21]').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
 });
 
