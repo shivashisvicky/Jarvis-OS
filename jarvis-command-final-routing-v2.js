@@ -11,12 +11,18 @@ const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const extract=s=>{
   let q=normalize(s).replace(/^\s*(?:please\s+)?(?:show\s+me|show|find|locate|where\s+are|look\s+for)\s+/i,'').trim();
   q=q.replace(/\bresturants?\b/ig,'restaurants');
+  // Maps' POI resolver expects a location connector such as "in"/"near".
+  // Normalize the natural-language "restaurants to Jagannath Nagar" form to
+  // the same semantic query without changing navigation commands.
+  if(/\b(?:restaurants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\s+stations?)?|fuel|gyms?|supermarkets?|temples?)\b[\s\S]*\bto\b/i.test(q)){
+    q=q.replace(/\bto\b/i,'in');
+  }
   return q;
 };
 const stopVoice=()=>{try{window.jarvisStopIOSVoice?.()}catch{};try{window.dispatchEvent(new Event('jarvis:force-stop-voice'))}catch{}};
 const openJarvisMaps=query=>{
   stopVoice();
-  const nav=document.querySelector('.nav[data-app="maps"]);
+  const nav=document.querySelector('.nav[data-app="maps"]');
   if(nav instanceof HTMLElement)nav.click();
   window.setTimeout(()=>window.dispatchEvent(new CustomEvent('jarvis:map-intent',{detail:{place:query,query,source:'poi-command'},cancelable:true})),0);
 };
