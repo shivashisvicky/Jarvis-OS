@@ -43,7 +43,7 @@ test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ 
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
 });
 
-test('Maps has one POI runtime and restaurant keyword search returns a POI list', async ({ page }) => {
+test('Maps has one POI runtime and restaurant keyword search returns only restaurant-category POIs', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('script[src*="jarvis-map-runtime-v24.js"]')).toHaveCount(0);
   await expect(page.locator('script[src*="jarvis-map-absolute-authority-v21.js"]')).toHaveCount(1);
@@ -56,6 +56,8 @@ test('Maps has one POI runtime and restaurant keyword search returns a POI list'
   await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
   await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
+  await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
+  await expect(page.locator('#mapFrame')).toBeHidden();
 });
 
 test('restaurant keyword search tolerates common speech-recognition typo without changing the typed field', async ({ page }) => {
@@ -67,6 +69,8 @@ test('restaurant keyword search tolerates common speech-recognition typo without
   await page.locator('#mapSearch').click();
   await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
+  await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
+  await expect(page.locator('#mapFrame')).toBeHidden();
 });
 
 test('restaurants-to-place phrasing stays inside Maps and becomes an in-place POI search', async ({ page }) => {
@@ -77,6 +81,8 @@ test('restaurants-to-place phrasing stays inside Maps and becomes an in-place PO
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await expect(page.locator('#mapQuery')).toHaveValue(/restaurants in Jagannath Nagar/i);
   await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
+  await expect(page.locator('#mapResults')).not.toContainText(/Hospital|Pharmacy|School|Bank/i);
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
