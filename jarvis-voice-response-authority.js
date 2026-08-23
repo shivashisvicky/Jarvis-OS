@@ -47,7 +47,7 @@
 
   const announce = value => {
     const text = clean(value);
-    if (!text || (text === lastText && Date.now() - lastAt < 2500)) return false;
+    if (!text || text === lastText) return false;
     lastText = text;
     lastAt = Date.now();
     void authority(text);
@@ -60,14 +60,15 @@
     const reply = document.querySelector('#jarvisReply');
     if (!reply || !reply.classList.contains('visible')) return;
     const text = clean(reply.textContent);
-    if (!text) return;
+    if (!text || text === lastText) return;
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
-      // The normal command pipeline explicitly speaks its response. If the
-      // browser is already speaking/has speech queued, the observer must not
-      // announce the same reply a second time.
+      // Emergency fallback only. Once a reply text has been announced, this
+      // observer must never speak the unchanged DOM text again. The previous
+      // time-based re-announcement caused an endless iOS loop every 2.5s.
+      if (text === lastText) return;
       if (nativeSpeechBusy()) return;
-      if (text !== lastText || Date.now() - lastAt >= 2500) announce(text);
+      announce(text);
     }, 180);
   };
 
