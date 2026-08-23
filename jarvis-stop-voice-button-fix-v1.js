@@ -1,7 +1,7 @@
 (()=>{
   'use strict';
-  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V5__)return;
-  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V5__=true;
+  if(window.__JARVIS_STOP_VOICE_BUTTON_FIX_V6__)return;
+  window.__JARVIS_STOP_VOICE_BUTTON_FIX_V6__=true;
   const C=window.SpeechRecognition||window.webkitSpeechRecognition;
   const sessions=new Set();
   let blockedUntil=0;
@@ -10,7 +10,6 @@
   const stopRecognition=r=>{if(!r)return;try{r.onresult=null}catch{}try{r.onspeechend=null}catch{}try{r.onerror=null}catch{}try{r.onend=null}catch{}try{r.abort()}catch{}try{r.stop()}catch{}};
   const stopSpeechImmediately=()=>{
     try{window.jarvisVoiceAuthorityStop?.()}catch{}
-    try{window.jarvisStopSpeechImmediately?.()}catch{}
     try{window.jarvisStopSpeaking?.()}catch{}
     try{window.speechSynthesis?.pause()}catch{}
     try{window.speechSynthesis?.cancel()}catch{}
@@ -37,7 +36,7 @@
     }finally{window.setTimeout(()=>{stopping=false},0)}
   };
   const isStopVoiceButton=target=>{const el=target?.closest?.('button,[role="button"],input');if(!el)return false;const label=`${el.textContent||''} ${el.getAttribute?.('aria-label')||''} ${el.getAttribute?.('id')||''}`.replace(/\s+/g,' ').trim();return /\bstop\s+voice\b/i.test(label)};
-  const bindButton=button=>{if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v5')return;button.dataset.jarvisStopBound='v5';const handler=event=>{event.preventDefault();event.stopImmediatePropagation();hardStop()};for(const type of ['pointerdown','pointerup','touchstart','touchend','mousedown','mouseup','click']){try{button.addEventListener(type,handler,{capture:true,passive:type!=='touchstart'&&type!=='touchend'})}catch{}}};
+  const bindButton=button=>{if(!(button instanceof HTMLElement)||button.dataset.jarvisStopBound==='v6')return;button.dataset.jarvisStopBound='v6';const handler=event=>{event.preventDefault();event.stopImmediatePropagation();hardStop()};for(const type of ['pointerdown','pointerup','touchstart','touchend','mousedown','mouseup','click']){try{button.addEventListener(type,handler,{capture:true,passive:type!=='touchstart'&&type!=='touchend'})}catch{}}};
   const scan=()=>document.querySelectorAll('button,[role="button"],input').forEach(el=>{if(isStopVoiceButton(el))bindButton(el)});
   new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
   scan();
