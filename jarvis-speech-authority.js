@@ -10,6 +10,7 @@
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let speaking = false;
   let warmed = false;
 
@@ -52,10 +53,10 @@
     document.body.appendChild(button);
   };
 
-  // iOS Safari can reject speech created after a microphone-recognition
-  // callback unless speechSynthesis was explicitly activated by the original
-  // tap. Use a tiny, silent utterance rather than an empty utterance. Empty
-  // utterances are ignored by some iOS WebKit versions and do not unlock TTS.
+  // iOS Safari needs a speech gesture unlock, but it is important that only
+  // one layer owns speech. On iOS we therefore keep the browser's native
+  // speechSynthesis.speak untouched. The separate voice authority captures
+  // the original native function and uses it for the actual response.
   const prime = () => {
     if (warmed) return;
     warmed = true;
@@ -78,18 +79,23 @@
   window.jarvisStopSpeaking = () => { nativeCancel(); setSpeaking(false); };
   window.jarvisGetEffectiveSpeechRate = getRate;
 
-  synth.speak = utterance => {
-    try {
-      synth.resume();
-      if (utterance && typeof utterance === 'object' && 'rate' in utterance) utterance.rate = getRate();
-      if (utterance && typeof utterance === 'object') {
-        utterance.onstart = () => setSpeaking(true);
-        utterance.onend = () => setSpeaking(false);
-        utterance.onerror = () => setSpeaking(false);
-      }
-    } catch {}
-    return nativeSpeak(utterance);
-  };
+  // Desktop browsers keep the wrapper because other desktop voice paths use
+  // it for consistent rate/state handling. iOS deliberately bypasses it to
+  // avoid Safari receiving multiple speech-control layers.
+  if (!isIOS) {
+    synth.speak = utterance => {
+      try {
+        synth.resume();
+        if (utterance && typeof utterance === 'object' && 'rate' in utterance) utterance.rate = getRate();
+        if (utterance && typeof utterance === 'object') {
+          utterance.onstart = () => setSpeaking(true);
+          utterance.onend = () => setSpeaking(false);
+          utterance.onerror = () => setSpeaking(false);
+        }
+      } catch {}
+      return nativeSpeak(utterance);
+    };
+  }
 
   window.jarvisSpeak = (text, options = {}) => {
     if (!text) return false;
