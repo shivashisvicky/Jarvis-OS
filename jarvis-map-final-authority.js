@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_MAP_FINAL_AUTHORITY_V5__)return;
-window.__JARVIS_MAP_FINAL_AUTHORITY_V5__=true;
+if(window.__JARVIS_MAP_FINAL_AUTHORITY_V6__)return;
+window.__JARVIS_MAP_FINAL_AUTHORITY_V6__=true;
 
 const aliases=[
  {keys:['jagannath','nagar'],name:'Jagannath Nagar',display_name:'Jharapada, Bhubaneswar, Odisha 751010',detail:'Jharapada, Bhubaneswar, Odisha 751010',lat:20.2923,lon:85.8638},
@@ -15,7 +15,7 @@ const tokens=s=>String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\
 const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').replace(/\s+/g,' ').trim();
 const alias=s=>{const t=tokens(clean(s));return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
 const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
-const cacheKey=q=>`jarvis-map-v5:${clean(q).toLowerCase()}`;
+const cacheKey=q=>`jarvis-map-v6:${clean(q).toLowerCase()}`;
 const readCache=q=>{try{const v=JSON.parse(localStorage.getItem(cacheKey(q))||'null');return v&&Array.isArray(v.data)&&Date.now()-v.ts<15*60*1000?v.data:null}catch{return null}};
 const writeCache=(q,data)=>{try{localStorage.setItem(cacheKey(q),JSON.stringify({ts:Date.now(),data}))}catch{}};
 const show=(p,frame)=>{const d=.016,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${esc(p.name)}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
@@ -36,12 +36,14 @@ const nominatim=async(query,contextual=false)=>{
 const rank=(q,places)=>{const lower=clean(q).toLowerCase();return places.map(p=>{const text=`${p.name} ${p.display_name}`.toLowerCase();return{...p,__score:(text.includes(lower)?100:0)+(p.name.toLowerCase()===lower?80:0)+wordHits(q,text)*20+(['amenity','shop','tourism','leisure'].includes(p.category)?10:0)}}).sort((a,b)=>b.__score-a.__score).slice(0,8).map(({__score,...p})=>p)};
 const canonical=async q=>{const a=alias(q);if(a)return[a];const exact=await nominatim(q,false),exactUseful=exact.filter(p=>useful(q,p));if(exactUseful.length)return rank(q,exactUseful);const contextual=await nominatim(q,true);return rank(q,contextual.filter(p=>useful(q,p)))};
 const renderResults=(places,results,frame,query)=>{if(!places.length){results.innerHTML=`<div class="empty">No location matched all keywords in “${esc(query)}”. Try adding a city or state.</div>`;frame.innerHTML='';return;}results.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${places.length} LOCATION${places.length===1?'':'S'} FOUND · KEYWORD MATCH</div>`+places.map((p,i)=>`<button type="button" class="place-result" data-final-map="${i}"><strong>${i+1}. ${esc(p.name)}</strong><small>${esc(p.display_name||p.detail||'')}</small></button>`).join('');results.querySelectorAll('[data-final-map]').forEach(b=>b.addEventListener('click',()=>show(places[Number(b.dataset.finalMap)],frame)));show(places[0],frame)};
-const search=async q=>{const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!(input instanceof HTMLInputElement)||!results||!frame)return false;const query=clean(q||input.value);if(!query)return false;input.value=query;input.dataset.jarvisMapQuery=query;results.innerHTML='<div class="empty">SEARCHING EXACT LOCATION…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';renderResults(await canonical(query),results,frame,query);return true};
-let pending='';let busy=false;const consume=()=>{if(busy||!pending)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pending;pending='';busy=true;void search(q).finally(()=>{busy=false})};
+const search=async q=>{const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!(input instanceof HTMLInputElement)||!results||!frame)return false;const query=clean(q||input.value);if(!query)return false;input.value=query;input.dataset.jarvisMapQuery=query;delete input.dataset.jarvisBootstrap;delete results.dataset.jarvisBootstrap;delete frame.dataset.jarvisBootstrap;results.innerHTML='<div class="empty">SEARCHING EXACT LOCATION…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';renderResults(await canonical(query),results,frame,query);return true};
+let pending='';let busy=false;let readyTimer=0;
+const consume=()=>{if(busy||!pending)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pending;pending='';busy=true;void search(q).finally(()=>{busy=false})};
+const routeWhenReady=q=>{pending=clean(q);if(readyTimer)window.clearInterval(readyTimer);let tries=0;readyTimer=window.setInterval(()=>{const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){window.clearInterval(readyTimer);readyTimer=0;input.value=pending;consume();}else if(++tries>=60){window.clearInterval(readyTimer);readyTimer=0;pending=''}},50)};
 const mapIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
-const voiceGuard=e=>{const raw=String(e.detail?.text||'').trim();if(!raw||!mapIntent(raw))return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=clean(raw);if(!q)return;e.preventDefault();e.stopImmediatePropagation();pending=q;consume()};
-const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pending=q;consume()};
-const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){pending=clean(input.value);consume()}};
+const voiceGuard=e=>{const raw=String(e.detail?.text||'').trim();if(!raw||!mapIntent(raw))return;const q=clean(raw);if(!q)return;e.preventDefault();e.stopImmediatePropagation();routeWhenReady(q)};
+const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;routeWhenReady(q)};
+const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement)routeWhenReady(input.value)};
 const inputGuard=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||t.id!=='mapQuery')return;const q=clean(t.value),a=alias(q);if(!a)return;e.preventDefault();e.stopImmediatePropagation();const results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(results&&frame)renderResults([a],results,frame,q)};
 window.addEventListener('click',clickGuard,true);window.addEventListener('input',inputGuard,true);window.addEventListener('jarvis:voice-command',voiceGuard,true);window.addEventListener('jarvis:maps',mapsCommand,true);new MutationObserver(()=>consume()).observe(document.documentElement,{childList:true,subtree:true});consume();
 })();
