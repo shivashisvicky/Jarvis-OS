@@ -45,6 +45,24 @@ test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ 
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
 });
 
+test('command routing does not leave a stale hardcoded map result over a later manual search', async ({ page }) => {
+  await openHome(page);
+  const command = page.locator('#commandInput');
+  await command.fill('take me to Jagannath Nagar');
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps');
+  await expect(page.locator('#mapQuery')).toHaveValue(/Jagannath Nagar/i);
+  await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
+
+  const mapInput = page.locator('#mapQuery');
+  await mapInput.fill('Khandagiri');
+  await page.locator('#mapSearch').click();
+  await expect(page.locator('#mapResults')).toContainText(/Khandagiri/i);
+  await expect(page.locator('#mapResults')).not.toContainText(/Jagannath Nagar|Jharapada, Bhubaneswar/i);
+  await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=/);
+  await expect(page.locator('script[src*="jarvis-map-hard-override.js"]')).toHaveCount(0);
+});
+
 test('lazy voice module loads on demand and owns speech', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
