@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_IOS_VOICE_FIX_V3__) return;
-  window.__JARVIS_IOS_VOICE_FIX_V3__ = true;
+  if (window.__JARVIS_IOS_VOICE_FIX_V4__) return;
+  window.__JARVIS_IOS_VOICE_FIX_V4__ = true;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!isIOS || !('speechSynthesis' in window)) return;
@@ -9,6 +9,7 @@
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
+  let speaking = false;
 
   const hardStop = () => {
     try { window.jarvisArmVoiceRelease?.(6000); } catch {}
@@ -18,10 +19,8 @@
     try { window.jarvisForceStopVoice?.(); } catch {}
     try { nativeCancel(); } catch {}
     try { synth.cancel(); } catch {}
-    try { synth.resume(); } catch {}
     try { document.querySelector('#voiceBtn')?.classList.remove('listening'); } catch {}
     try { const b = document.querySelector('#jarvisIOSStopVoice'); if (b instanceof HTMLElement) b.hidden = true; } catch {}
-    try { window.dispatchEvent(new CustomEvent('jarvis:force-stop-voice')); } catch {}
   };
 
   const ensureStop = () => {
@@ -41,7 +40,12 @@
     document.body.appendChild(b);
     return b;
   };
-  const setSpeaking = value => { ensureStop().hidden = !value; };
+
+  const setSpeaking = value => {
+    speaking = Boolean(value);
+    const b = ensureStop();
+    b.hidden = !speaking;
+  };
 
   const speakNative = (text, options = {}) => {
     const clean = String(text || '').trim();
@@ -49,7 +53,6 @@
     try {
       ensureStop().hidden = false;
       nativeCancel();
-      try { synth.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = Math.min(1.05, Math.max(.85, Number(options.rate) || .95));
       utterance.pitch = 1;
@@ -67,36 +70,20 @@
     }
   };
 
-  const originalSpeak = synth.speak.bind(synth);
-  synth.speak = utterance => {
-    try { synth.resume(); } catch {}
-    if (utterance) {
-      utterance.onstart = () => setSpeaking(true);
-      utterance.onend = () => setSpeaking(false);
-      utterance.onerror = error => { console.warn('[JARVIS iOS voice] speech error', error); setSpeaking(false); };
-    }
-    return originalSpeak(utterance);
-  };
-
   const install = () => {
     ensureStop();
     window.jarvisVoiceAuthoritySpeak = speakNative;
     window.jarvisCinematicSpeak = speakNative;
     window.jarvisSpeak = speakNative;
   };
-  const warm = event => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (target.closest('#jarvisIOSStopVoice')) return;
-    if (!target.closest('#commandInput, #commandForm, #voiceBtn, #testVoice, #jhcActions, [data-jhc]')) return;
-    try { synth.resume(); } catch {}
-    install();
-  };
-  ensureStop();
+
+  // Do not wrap speechSynthesis.speak(), resume it on every touch, or reinstall
+  // the voice engine while speech is playing. Those operations can cause iOS
+  // WebKit to duck/attenuate an active utterance over time.
   install();
-  document.addEventListener('pointerdown', warm, true);
-  document.addEventListener('touchstart', warm, true);
-  const timer = window.setInterval(() => install(), 250);
-  window.setTimeout(() => window.clearInterval(timer), 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { synth.resume(); } catch {} install(); } });
+  window.addEventListener('jarvis:force-stop-voice', hardStop, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hardStop();
+    else install();
+  });
 })();
