@@ -14,14 +14,14 @@
     const context=loadContext();
     if(!context.length)return false;
     const last=context[context.length-1];
-    if(last?.role!=='assistant')return false;
-    return /\?\s*$/.test(String(last.text||'').trim());
+    return last?.role==='assistant';
   };
 
   // Voice recognition in src/jarvis.ts dispatches jarvis:voice-command and then
   // directly calls executeCommand(). That bypasses the commandForm submit event,
   // so the intelligence runtime's submit capture cannot protect contextual replies.
-  // This authority sits on that event path and consumes contextual answers first.
+  // Any short natural-language answer following a JARVIS response stays in the
+  // conversation unless it is clearly an explicit command or local module command.
   window.addEventListener('jarvis:voice-command',event=>{
     const query=String(event.detail?.text||'').trim();
     if(!isContextAnswer(query))return;
