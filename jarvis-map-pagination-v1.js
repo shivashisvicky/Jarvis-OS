@@ -6,18 +6,9 @@ const PAGE=6;
 let page=1,lastSignature='',lastQuery='',prefetchTimer=0,rendering=false;
 const q=s=>document.querySelector(s);
 const cards=()=>[...document.querySelectorAll('#mapResults [data-jarvis-map-v21]')];
-const frame=()=>q('#mapFrame');
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
-function prepareMap(){
- const el=q('#mapResults'),f=frame();
- if(!el||!f)return;
- if(f.parentElement!==el)el.insertBefore(f,el.firstChild);
- f.style.position='sticky';f.style.top='0px';f.style.zIndex='6';f.style.display='block';f.style.width='100%';f.style.height='230px';f.style.minHeight='230px';f.style.margin='0 0 8px';f.style.background='rgba(3,7,11,.98)';f.style.borderRadius='12px';f.style.overflow='hidden';
- const iframe=f.querySelector('iframe');
- if(iframe){iframe.style.width='100%';iframe.style.height='230px';iframe.style.minHeight='230px';iframe.style.display='block';}
-}
 function ensurePagination(){
- const el=q('#mapResults');if(!el)return;prepareMap();
+ const el=q('#mapResults');if(!el)return;
  const all=cards();if(!all.length)return;
  const total=all.length,pages=Math.max(1,Math.ceil(total/PAGE));if(page>pages)page=pages;
  all.forEach((b,i)=>{b.style.display=(Math.floor(i/PAGE)+1===page)?'':'none';});
@@ -29,17 +20,22 @@ function ensurePagination(){
  const info=document.createElement('span');info.textContent=`${Math.min((page-1)*PAGE+1,total)}–${Math.min(page*PAGE,total)} of ${total}`;info.style.cssText='width:100%;text-align:center;color:var(--muted,#78939c);font-size:11px;margin-top:2px;';pager.appendChild(info);
  const legacy=el.querySelector('#mapMoreResultsV21');if(legacy)legacy.style.display='none';
 }
-function schedulePrefetch(){if(prefetchTimer||cards().length>=6)return;prefetchTimer=setTimeout(()=>{prefetchTimer=0;const more=q('#mapMoreResultsV21');if(more instanceof HTMLButtonElement&&!more.disabled)more.click();},700);}
+function schedulePrefetch(){
+ if(prefetchTimer||cards().length>=6)return;
+ const more=q('#mapMoreResultsV21');
+ if(!(more instanceof HTMLButtonElement)||more.disabled)return;
+ prefetchTimer=setTimeout(()=>{prefetchTimer=0;const current=q('#mapMoreResultsV21');if(current instanceof HTMLButtonElement&&!current.disabled)current.click();},900);
+}
 function watch(){
  const el=q('#mapResults');if(!el)return;
  const query=normalize(q('#mapQuery')?.value||'');
  if(query!==lastQuery){lastQuery=query;page=1;}
  const sig=normalize(el.innerText||'');
- if(sig===lastSignature){prepareMap();return;}
+ if(sig===lastSignature){ensurePagination();return;}
  lastSignature=sig;
  if(rendering)return;
  rendering=true;
- requestAnimationFrame(()=>{prepareMap();ensurePagination();schedulePrefetch();rendering=false;});
+ requestAnimationFrame(()=>{ensurePagination();schedulePrefetch();rendering=false;});
 }
 new MutationObserver(watch).observe(document.documentElement,{childList:true,subtree:true});
 setInterval(watch,500);watch();
