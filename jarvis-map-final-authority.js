@@ -1,56 +1,49 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_MAP_FINAL_AUTHORITY__)return;
-window.__JARVIS_MAP_FINAL_AUTHORITY__=true;
+if(window.__JARVIS_MAP_FINAL_AUTHORITY_V2__)return;
+window.__JARVIS_MAP_FINAL_AUTHORITY_V2__=true;
+
+// Map search authority. Search the user's exact text first, then use a
+// Bhubaneswar context fallback only when the exact query has no useful hit.
+// Nominatim is user-triggered only, never autocomplete or polling.
 const aliases=[
  {keys:['jagannath','nagar'],name:'Jagannath Nagar',detail:'Jharapada, Bhubaneswar, Odisha 751010',lat:20.2923,lon:85.8638},
  {keys:['ggp','colony'],name:'GGP Colony',detail:'Jagannath Nagar, Rasulgarh, Bhubaneswar, Odisha 751025',lat:20.2934,lon:85.8659},
  {keys:['maa','enclave'],name:'Maa Enclave',detail:'Jagannath Nagar, Jharapada, Bhubaneswar, Odisha',lat:20.2923,lon:85.8638},
- {keys:['jharapada'],name:'Jharapada',detail:'Bhubaneswar, Odisha',lat:20.2910,lon:85.8680}
+ {keys:['jharapada'],name:'Jharapada',detail:'Bhubaneswar, Odisha',lat:20.2910,lon:85.8680},
+ {keys:['rasulgarh'],name:'Rasulgarh',detail:'Bhubaneswar, Odisha',lat:20.3054,lon:85.8594},
+ {keys:['bhubaneswar'],name:'Bhubaneswar',detail:'Khordha, Odisha, India',lat:20.2961,lon:85.8245}
 ];
 const tokens=s=>String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
-const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').trim();
-const alias=s=>{const t=tokens(s);return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
-const speak=text=>{try{const fn=window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak;if(typeof fn==='function')fn(text);else window.dispatchEvent(new CustomEvent('jarvis:intelligence-speak',{detail:{text}}))}catch{}};
-let pendingDestination='';
-const show=(p,frame)=>{const d=.018,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${String(p.name).replace(/"/g,'&quot;')}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
-const canonical=async q=>{
- const a=alias(q);if(a)return[a];
- const query=/bhubaneswar|odisha|india/i.test(q)?q:`${q}, Bhubaneswar, Odisha, India`;
- let data=[];
- try{const u=new URL('https://nominatim.openstreetmap.org/search');u.searchParams.set('format','jsonv2');u.searchParams.set('q',query);u.searchParams.set('limit','10');u.searchParams.set('addressdetails','1');u.searchParams.set('countrycodes','in');u.searchParams.set('accept-language','en');const r=await fetch(u,{cache:'no-store',headers:{Accept:'application/json'}});if(r.ok)data=await r.json()}catch{}
- const ts=tokens(q);const mapped=(Array.isArray(data)?data:[]).map(x=>({name:String(x.name||x.display_name||'Location').split(',')[0],display_name:String(x.display_name||''),lat:+x.lat,lon:+x.lon})).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
- return mapped.map(p=>{const text=(p.name+' '+p.display_name).toLowerCase();const hits=ts.filter(t=>text.includes(t)).length;return{...p,score:(text.includes(q.toLowerCase())?100:0)+hits*20}}).filter(p=>p.score>=ts.length*20).sort((a,b)=>b.score-a.score).map(({score,...p})=>p).slice(0,8);
+const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').replace(/\s+/g,' ').trim();
+const alias=s=>{const t=tokens(clean(s));return aliases.find(a=>a.keys.every(k=>t.includes(k)))||null};
+const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+const show=(p,frame)=>{
+ const d=.016,bbox=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;
+ frame.innerHTML=`<iframe title="JARVIS map for ${esc(p.name)}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`;
 };
-const search=async q=>{
- const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');
- if(!(input instanceof HTMLInputElement)||!results||!frame)return false;
- const query=clean(q||input.value);if(!query)return false;input.value=query;results.innerHTML='<div class="empty">SEARCHING KEYWORD-MATCHED LOCATIONS…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';
- const places=await canonical(query);
- if(!places.length){results.innerHTML=`<div class="empty">No location matched all keywords in “${query}”.</div>`;frame.innerHTML='';return true;}
- results.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${places.length} LOCATION${places.length===1?'':'S'} FOUND · KEYWORD MATCH</div>`+places.map((p,i)=>`<button type="button" class="place-result" data-final-map="${i}"><strong>${i+1}. ${p.name}</strong><small>${p.display_name||p.detail||''}</small></button>`).join('');
- results.querySelectorAll('[data-final-map]').forEach(b=>b.addEventListener('click',()=>show(places[Number(b.dataset.finalMap)],frame)));
- show(places[0],frame);return true;
+const wordHits=(q,text)=>{const qt=tokens(q),tt=tokens(text);return qt.filter(t=>tt.includes(t)).length};
+const useful=(q,p)=>{const qt=tokens(q);if(!qt.length)return false;const text=`${p.name||''} ${p.display_name||''}`;return wordHits(q,text)>=qt.length};
+const mapResult=x=>({name:String(x.name||x.display_name||'Location').split(',')[0].trim()||'Location',display_name:String(x.display_name||''),lat:+x.lat,lon:+x.lon,type:String(x.type||''),category:String(x.category||x.class||'')});
+const nominatim=async(query,contextual=false)=>{
+ try{
+  const u=new URL('https://nominatim.openstreetmap.org/search');
+  u.searchParams.set('format','jsonv2');
+  u.searchParams.set('q',contextual?`${query}, Bhubaneswar, Odisha, India`:query);
+  u.searchParams.set('limit','12');u.searchParams.set('addressdetails','1');u.searchParams.set('namedetails','1');u.searchParams.set('countrycodes','in');u.searchParams.set('accept-language','en');u.searchParams.set('dedupe','1');
+  const r=await fetch(u.toString(),{cache:'no-store',headers:{Accept:'application/json','User-Agent':'JARVIS-OS/1.0 (map search)'}});if(!r.ok)return[];
+  const data=await r.json();return(Array.isArray(data)?data:[]).map(mapResult).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+ }catch{return[]}
 };
-const consumePending=()=>{if(!pendingDestination)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pendingDestination;pendingDestination='';void search(q)};
-const mapsIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
-const voiceGuard=e=>{
- const raw=String(e.detail?.text||'').trim();if(!raw||!mapsIntent(raw))return;
- const input=document.querySelector('#mapQuery');
- if(!(input instanceof HTMLInputElement))return;
- const q=clean(raw);if(!q)return;
- e.preventDefault();e.stopImmediatePropagation();
- pendingDestination=q;
- speak(`Taking you to ${q}.`);
- void search(q);
-};
-const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pendingDestination=q;consumePending()};
-const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();void search(document.querySelector('#mapQuery')?.value||'')};
-const inputGuard=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||t.id!=='mapQuery')return;const q=t.value.trim();if(!alias(clean(q)))return;e.stopImmediatePropagation();void search(q)};
-document.addEventListener('click',clickGuard,true);
-document.addEventListener('input',inputGuard,true);
-window.addEventListener('jarvis:voice-command',voiceGuard,true);
-window.addEventListener('jarvis:maps',mapsCommand,true);
-new MutationObserver(()=>consumePending()).observe(document.documentElement,{childList:true,subtree:true});
-consumePending();
+const rank=(q,places)=>{const lower=clean(q).toLowerCase();return places.map(p=>{const text=`${p.name} ${p.display_name}`.toLowerCase(),words=wordHits(q,text);const exact=text.includes(lower)?100:0,nameExact=p.name.toLowerCase()===lower?80:0,poi=['amenity','shop','tourism','leisure'].includes(p.category)?10:0;return{...p,__score:exact+nameExact+words*20+poi}}).sort((a,b)=>b.__score-a.__score).slice(0,8).map(({__score,...p})=>p)};
+const canonical=async q=>{const a=alias(q);if(a)return[a];const exact=await nominatim(q,false),exactUseful=exact.filter(p=>useful(q,p));if(exactUseful.length)return rank(q,exactUseful);const contextual=await nominatim(q,true);return rank(q,contextual.filter(p=>useful(q,p)))};
+const renderResults=(places,results,frame,query)=>{if(!places.length){results.innerHTML=`<div class="empty">No location matched all keywords in “${esc(query)}”. Try adding a city or state.</div>`;frame.innerHTML='';return;}results.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${places.length} LOCATION${places.length===1?'':'S'} FOUND · KEYWORD MATCH</div>`+places.map((p,i)=>`<button type="button" class="place-result" data-final-map="${i}"><strong>${i+1}. ${esc(p.name)}</strong><small>${esc(p.display_name)}</small></button>`).join('');results.querySelectorAll('[data-final-map]').forEach(b=>b.addEventListener('click',()=>show(places[Number(b.dataset.finalMap)],frame)));show(places[0],frame)};
+const search=async q=>{const input=document.querySelector('#mapQuery'),results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!(input instanceof HTMLInputElement)||!results||!frame)return false;const query=clean(q||input.value);if(!query)return false;input.value=query;input.dataset.jarvisMapQuery=query;results.innerHTML='<div class="empty">SEARCHING EXACT LOCATION…</div>';frame.innerHTML='<div class="empty">Searching map services…</div>';const places=await canonical(query);renderResults(places,results,frame,query);return true};
+let pending='';let busy=false;const consume=()=>{if(busy||!pending)return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=pending;pending='';busy=true;void search(q).finally(()=>{busy=false})};
+const mapIntent=q=>/\b(map|maps|directions|navigate|location|take me to|go to)\b/i.test(String(q||''));
+const voiceGuard=e=>{const raw=String(e.detail?.text||'').trim();if(!raw||!mapIntent(raw))return;const input=document.querySelector('#mapQuery');if(!(input instanceof HTMLInputElement))return;const q=clean(raw);if(!q)return;e.preventDefault();e.stopImmediatePropagation();pending=q;consume()};
+const mapsCommand=e=>{const q=clean(String(e.detail?.place||e.detail?.query||''));if(!q)return;pending=q;consume()};
+const clickGuard=e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){pending=clean(input.value);consume()}};
+const inputGuard=e=>{const t=e.target;if(!(t instanceof HTMLInputElement)||t.id!=='mapQuery')return;const q=clean(t.value),a=alias(q);if(!a)return;e.preventDefault();e.stopImmediatePropagation();const results=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(results&&frame)renderResults([a],results,frame,q)};
+window.addEventListener('click',clickGuard,true);window.addEventListener('input',inputGuard,true);window.addEventListener('jarvis:voice-command',voiceGuard,true);window.addEventListener('jarvis:maps',mapsCommand,true);new MutationObserver(()=>consume()).observe(document.documentElement,{childList:true,subtree:true});consume();
 })();
