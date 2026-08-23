@@ -54,7 +54,7 @@ test('restaurant keyword search returns a POI list instead of a destination-only
   await expect(input).toHaveAttribute('spellcheck', 'false');
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).not.toContainText(/1 LOCATION FOUND/i);
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/SHOWING .*RESTAURANTS/i);
 });
 
@@ -65,8 +65,19 @@ test('restaurant keyword search tolerates common speech-recognition typo without
   await input.fill('resturants in Jagannath Nagar');
   await expect(input).toHaveValue('resturants in Jagannath Nagar');
   await page.locator('#mapSearch').click();
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v23]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapResults')).toContainText(/RESTAURANTS/i);
+});
+
+test('restaurants-to-place phrasing stays inside Maps and becomes an in-place POI search', async ({ page }) => {
+  await openHome(page);
+  const command = page.locator('#commandInput');
+  await command.fill('show me restaurants to Jagannath Nagar');
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps');
+  await expect(page.locator('#mapQuery')).toHaveValue(/restaurants in Jagannath Nagar/i);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v24]').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
 test('command routing does not leave a stale hardcoded map result over a later manual search', async ({ page }) => {
