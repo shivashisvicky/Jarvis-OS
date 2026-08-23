@@ -7,8 +7,22 @@ let page=1,lastSignature='',lastQuery='',prefetchTimer=0,rendering=false;
 const q=s=>document.querySelector(s);
 const cards=()=>[...document.querySelectorAll('#mapResults [data-jarvis-map-v21]')];
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
+function ensureMapListLayout(){
+ const results=q('#mapResults'),frame=q('#mapFrame'),grid=results?.closest('.maps-grid');
+ if(!results||!frame||!grid)return;
+ const compact=window.matchMedia?.('(max-width:760px)').matches;
+ if(compact){
+   grid.style.display='grid';grid.style.gridTemplateColumns='minmax(0,1fr)';grid.style.gridTemplateRows='auto auto';grid.style.gap='10px';
+   const listPanel=results.closest('.panel');if(listPanel){listPanel.style.gridRow='2';listPanel.style.minWidth='0';}
+   frame.style.gridRow='1';frame.style.position='sticky';frame.style.top='8px';frame.style.zIndex='8';frame.style.height='230px';frame.style.minHeight='230px';frame.style.overflow='hidden';
+   const iframe=frame.querySelector('iframe');if(iframe){iframe.style.width='100%';iframe.style.height='230px';iframe.style.minHeight='230px';display:iframe.style.display='block';}
+ }else{
+   frame.style.position='sticky';frame.style.top='10px';frame.style.zIndex='5';frame.style.minHeight='360px';
+ }
+}
 function ensurePagination(){
  const el=q('#mapResults');if(!el)return;
+ ensureMapListLayout();
  const all=cards();if(!all.length)return;
  const total=all.length,pages=Math.max(1,Math.ceil(total/PAGE));if(page>pages)page=pages;
  all.forEach((b,i)=>{b.style.display=(Math.floor(i/PAGE)+1===page)?'':'none';});
@@ -31,11 +45,11 @@ function watch(){
  const query=normalize(q('#mapQuery')?.value||'');
  if(query!==lastQuery){lastQuery=query;page=1;}
  const sig=normalize(el.innerText||'');
- if(sig===lastSignature){ensurePagination();return;}
+ if(sig===lastSignature){ensureMapListLayout();ensurePagination();return;}
  lastSignature=sig;
  if(rendering)return;
  rendering=true;
- requestAnimationFrame(()=>{ensurePagination();schedulePrefetch();rendering=false;});
+ requestAnimationFrame(()=>{ensureMapListLayout();ensurePagination();schedulePrefetch();rendering=false;});
 }
 new MutationObserver(watch).observe(document.documentElement,{childList:true,subtree:true});
 setInterval(watch,500);watch();
