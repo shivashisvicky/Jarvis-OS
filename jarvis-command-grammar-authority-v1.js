@@ -21,8 +21,8 @@ const normalize=s=>{
  if(/\b(?:restaurant|restaurants|cafe|cafes|hospital|hospitals|pharmacy|pharmacies|hotel|hotels|school|schools|bank|banks|atm|atms|petrol|fuel|gym|gyms|supermarket|supermarkets|temple|temples)\b/i.test(q)){
    q=q.replace(/\b(?:restaurants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\s+stations?)?|fuel|gyms?|supermarkets?|temples?)\b([\s\S]*?)\s+to\s+/i,(m)=>m.replace(/\s+to\s+/i,' in '));
  }
- q=q.replace(/\b(?:take me|navigate me|navigate)\s+in\s+/i,'$&'.replace(/\bin\s*$/i,'to '));
- q=q.replace(/\b(?:take me|navigate me|navigate)\s+at\s+/i,'$&'.replace(/\bat\s*$/i,'to '));
+ q=q.replace(/\b(take me|navigate me|navigate)\s+in\s+/i,'$1 to ');
+ q=q.replace(/\b(take me|navigate me|navigate)\s+at\s+/i,'$1 to ');
 
  // Web/search grammar: remove destination prepositions that otherwise leak
  // into the search query, while preserving the user's actual search terms.
