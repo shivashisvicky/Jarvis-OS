@@ -8,8 +8,16 @@
   const STATIC_PAGES = /(^|\.)github\.io$/i.test(location.hostname);
   const REMOTE_ENDPOINT = /^https?:\/\//i.test(ENDPOINT);
   const CONTEXT_KEY = 'jarvis-session-context-v2';
-  const MAX_TURNS = 6;
+  // Keep four user/assistant exchanges available for lightweight follow-ups.
+  const MAX_TURNS = 8;
   const MAX_CONTEXT_CHARS = 3200;
+
+  const stopVoiceBeforeProcessing = () => {
+    try { window.jarvisStopAllVoiceSessions?.(); } catch {}
+    try { window.jarvisForceStopVoice?.(); } catch {}
+    try { window.jarvisStopIOSVoice?.(); } catch {}
+    try { window.speechSynthesis?.cancel(); } catch {}
+  };
 
   const speechRate = () => {
     try { const getter = window.jarvisGetSpeechRate || window.jarvisGetEffectiveSpeechRate; if (typeof getter === 'function') return Number(getter()) || 0.92; } catch {}
@@ -55,6 +63,9 @@
 
   const ask=async query=>{
     query=String(query||'').trim();if(!query)return false;
+    // Intelligence can be reached from voice, submit, or a contextual follow-up.
+    // Release WebKit's microphone before any network/intelligence work begins.
+    stopVoiceBeforeProcessing();
     if(localAnswer(query))return true;
     if(isMathExpression(query)){const ok=calculate(query);if(ok){remember('user',query);remember('assistant',document.querySelector('#jarvisReply')?.textContent||'')}return ok}
     if(isWebSearchQuery(query)){remember('user',query);return searchWeb(query.replace(/^(?:search|look\s*up|lookup|find|google|bing|web\s+search)\s+/i,'').trim())}
@@ -62,7 +73,7 @@
     const controller=new AbortController();const timeoutMs=isFollowUp(query)?30000:20000;const timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{
       remember('user',query);reply('JARVIS intelligence is researching that…',false);
-      const compactContext=conversation.slice(-4).map(t=>({role:t.role,text:String(t.text).slice(0,1100)}));
+      const compactContext=conversation.slice(-MAX_TURNS).map(t=>({role:t.role,text:String(t.text).slice(0,1100)}));
       const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({query:contextualQuery(query),context:compactContext}),signal:controller.signal,cache:'no-store'});
       const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||`Gateway HTTP ${r.status}`);if(!data?.text)throw new Error('No intelligence response');
       reply(data.text);remember('assistant',data.text);window.dispatchEvent(new CustomEvent('jarvis:intelligence-result',{detail:{...data,conversation:conversation.slice(-MAX_TURNS)}}));return true;
@@ -76,6 +87,6 @@
   document.addEventListener('jarvis:intelligence-query',event=>{const query=String(event.detail?.query||'').trim();if(query)void ask(query)});
   const intercept=event=>{const form=event.target?.closest?.('#commandForm');if(!form)return;const input=form.querySelector('#commandInput');const query=input?.value?.trim()||'';if(!isIntelligenceQuery(query)&&!isMathExpression(query))return;event.preventDefault();event.stopImmediatePropagation();void ask(query)};
   document.addEventListener('submit',intercept,true);
-  window.addEventListener('jarvis:voice-command',event=>{const query=String(event.detail?.text||'').trim();if(!isIntelligenceQuery(query)&&!isMathExpression(query))return;event.preventDefault();void ask(query)});
+  window.addEventListener('jarvis:voice-command',event=>{const query=String(event.detail?.text||'').trim();if(!isIntelligenceQuery(query)&&!isMathExpression(query))return;event.preventDefault();stopVoiceBeforeProcessing();void ask(query)});
   window.jarvisIntelligence={ask,available:()=>Boolean(REMOTE_ENDPOINT||SEARCH_ENDPOINT)||!STATIC_PAGES,endpoint:ENDPOINT,getConversation:()=>conversation.slice(-MAX_TURNS),clearConversation:clearContext};
 })();
