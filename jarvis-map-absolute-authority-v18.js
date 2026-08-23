@@ -2,13 +2,6 @@
 'use strict';
 if(window.__JARVIS_MAP_ABSOLUTE_AUTHORITY_V18__)return;
 window.__JARVIS_MAP_ABSOLUTE_AUTHORITY_V18__=true;
-
-/*
- * Absolute Maps authority.
- * This is intentionally last in index.html. Older map patches may still exist
- * in a cached shell, so this layer blocks their POI network calls and owns the
- * rendered POI result set.
- */
 const PLACES=[
  {keys:['jagannath','nagar'],name:'Jagannath Nagar',display:'Jharapada, Bhubaneswar, Odisha 751010',lat:20.2923,lon:85.8638},
  {keys:['saheed','nagar'],name:'Saheed Nagar',display:'Saheed Nagar, Bhubaneswar, Odisha 751007',lat:20.2895,lon:85.8486},
@@ -17,20 +10,7 @@ const PLACES=[
  {keys:['rasulgarh'],name:'Rasulgarh',display:'Rasulgarh, Bhubaneswar, Odisha',lat:20.3054,lon:85.8594},
  {keys:['bhubaneswar'],name:'Bhubaneswar',display:'Bhubaneswar, Odisha, India',lat:20.2961,lon:85.8245}
 ];
-const KINDS={
- restaurant:{tag:'amenity',values:['restaurant','fast_food','food_court'],label:'restaurants'},
- cafe:{tag:'amenity',values:['cafe'],label:'cafes'},
- hospital:{tag:'amenity',values:['hospital'],label:'hospitals'},
- pharmacy:{tag:'amenity',values:['pharmacy'],label:'pharmacies'},
- hotel:{tag:'tourism',values:['hotel'],label:'hotels'},
- school:{tag:'amenity',values:['school'],label:'schools'},
- bank:{tag:'amenity',values:['bank'],label:'banks'},
- atm:{tag:'amenity',values:['atm'],label:'ATMs'},
- fuel:{tag:'amenity',values:['fuel'],label:'petrol stations'},
- gym:{tag:'leisure',values:['fitness_centre'],label:'gyms'},
- supermarket:{tag:'shop',values:['supermarket'],label:'supermarkets'},
- temple:{tag:'amenity',values:['place_of_worship'],label:'temples'}
-};
+const KINDS={restaurant:{tag:'amenity',values:['restaurant','fast_food','food_court'],label:'restaurants'},cafe:{tag:'amenity',values:['cafe'],label:'cafes'},hospital:{tag:'amenity',values:['hospital'],label:'hospitals'},pharmacy:{tag:'amenity',values:['pharmacy'],label:'pharmacies'},hotel:{tag:'tourism',values:['hotel'],label:'hotels'},school:{tag:'amenity',values:['school'],label:'schools'},bank:{tag:'amenity',values:['bank'],label:'banks'},atm:{tag:'amenity',values:['atm'],label:'ATMs'},fuel:{tag:'amenity',values:['fuel'],label:'petrol stations'},gym:{tag:'leisure',values:['fitness_centre'],label:'gyms'},supermarket:{tag:'shop',values:['supermarket'],label:'supermarkets'},temple:{tag:'amenity',values:['place_of_worship'],label:'temples'}};
 const FIRST_RADIUS=5000,MORE_RADIUS=10000,PAGE=6,MAX=30;
 const clean=s=>String(s||'').replace(/^(?:please\s+)?(?:search|find|look up|show me|show|locate|open maps? for|take me to|take me|navigate me to|navigate to|directions? to|go to)\s+/i,'').replace(/\s+/g,' ').trim();
 const tokens=s=>clean(s).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
@@ -39,93 +19,28 @@ const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const distanceKm=(a,b)=>{const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lon-a.lon)*Math.PI/180,la1=a.lat*Math.PI/180,la2=b.lat*Math.PI/180,h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(h)))};
 const state={query:'',kind:null,center:null,results:[],seen:new Set(),hasMore:false,loading:false};
-const remember=p=>{state.seen.add(p.id)};
+const remember=p=>state.seen.add(p.id);
 const duplicate=p=>state.seen.has(p.id)||state.results.some(x=>norm(x.name)===norm(p.name)&&distanceKm(x,p)<.25);
 const mapResult=e=>{const tags=e.tags||{},lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon),name=String(tags.name||'').trim();return{id:`${e.type||'osm'}/${e.id}`,name,display:[tags['addr:housenumber'],tags['addr:street'],tags['addr:suburb'],tags['addr:city']].filter(Boolean).join(' · '),lat,lon}};
 const internalFetch=async(url,options={})=>{window.__JARVIS_MAP_V18_INTERNAL_FETCH__=true;try{return await fetch(url,options)}finally{window.__JARVIS_MAP_V18_INTERNAL_FETCH__=false}};
 const originalFetch=window.fetch.bind(window);
-window.fetch=async(input,init)=>{
- const url=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');
- if(!window.__JARVIS_MAP_V18_INTERNAL_FETCH__&&/(?:nominatim\.openstreetmap\.org\/search|overpass-(?:api|kumi)\.systems\/api\/interpreter)/i.test(url)){
-   return new Response(JSON.stringify([]),{status:200,headers:{'Content-Type':'application/json'}});
- }
- return originalFetch(input,init);
-};
-let lastRequest=0;
-const pace=async()=>{const wait=Math.max(0,500-(Date.now()-lastRequest));if(wait)await new Promise(r=>setTimeout(r,wait));lastRequest=Date.now()};
+window.fetch=async(input,init)=>{const url=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');if(!window.__JARVIS_MAP_V18_INTERNAL_FETCH__&&/(?:nominatim\.openstreetmap\.org\/search|overpass-(?:api|kumi)\.systems\/api\/interpreter)/i.test(url))return new Response(JSON.stringify([]),{status:200,headers:{'Content-Type':'application/json'}});return originalFetch(input,init)};
+let lastRequest=0;const pace=async()=>{const wait=Math.max(0,500-(Date.now()-lastRequest));if(wait)await new Promise(r=>setTimeout(r,wait));lastRequest=Date.now()};
 const fetchJson=async(url,ms=7000)=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),ms);try{const r=await internalFetch(url,{cache:'no-store',headers:{Accept:'application/json'},signal:c.signal});if(!r.ok)return null;return await r.json()}catch{return null}finally{clearTimeout(timer)}};
-const overpass=async(kind,center,radius)=>{
- await pace();
- const filters=kind.values.map(v=>`nwr["${kind.tag}"="${v}"][name](around:${radius},${center.lat},${center.lon});`).join('');
- const query=`[out:json][timeout:12];(${filters});out center tags;`;
- for(const endpoint of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
-   const u=new URL(endpoint);u.searchParams.set('data',query);
-   const data=await fetchJson(u.toString(),8000);if(!data)continue;
-   const out=[];
-   for(const e of Array.isArray(data.elements)?data.elements:[]){
-     const p=mapResult(e);if(!Number.isFinite(p.lat)||!Number.isFinite(p.lon)||!p.name)continue;
-     const d=distanceKm(p,center);
-     if(d>radius||duplicate(p))continue;
-     out.push({...p,distance:d});
-   }
-   out.sort((a,b)=>a.distance-b.distance);
-   return out;
- }
- return [];
-};
+const overpass=async(kind,center,radius)=>{await pace();const filters=kind.values.map(v=>`nwr["${kind.tag}"="${v}"][name](around:${radius},${center.lat},${center.lon});`).join('');const query=`[out:json][timeout:12];(${filters});out center tags;`;for(const endpoint of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){const u=new URL(endpoint);u.searchParams.set('data',query);const data=await fetchJson(u.toString(),8000);if(!data)continue;const out=[];for(const e of Array.isArray(data.elements)?data.elements:[]){const p=mapResult(e);if(!Number.isFinite(p.lat)||!Number.isFinite(p.lon)||!p.name)continue;const d=distanceKm(p,center);if(d>radius||duplicate(p))continue;out.push({...p,distance:d})}out.sort((a,b)=>a.distance-b.distance);return out}return[]};
 const category=q=>{const l=clean(q).toLowerCase();for(const [key,k] of Object.entries(KINDS)){const singular=k.label.replace(/s$/,'');if(new RegExp(`\\b${key.replace('_','\\s?')}s?\\b`).test(l)||new RegExp(`\\b${singular}s?\\b`).test(l))return k}return null};
 const locationText=q=>clean(q).match(/\b(?:in|near|around|at)\s+(.+)$/i)?.[1]?.trim()||'';
 const show=(p,frame)=>{if(!frame)return;const d=.016,b=`${p.lon-d},${p.lat-d},${p.lon+d},${p.lat+d}`;frame.innerHTML=`<iframe title="JARVIS map for ${esc(p.name)}" loading="lazy" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(b)}&layer=mapnik&marker=${encodeURIComponent(`${p.lat},${p.lon}`)}"></iframe>`};
-const render=(title)=>{
- const el=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!el||!frame)return;
- const label=state.kind?.label?.toUpperCase()||'RESULTS',count=state.results.length;
- el.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${title||`SHOWING ${count} ${label}`}</div>`+
- state.results.map((p,i)=>`<button type="button" class="place-result" data-jarvis-map-v18="${i}"><strong>${i+1}. ${esc(p.name)}</strong><small>${esc(p.display||'Nearby result')}</small></button>`).join('')+
- (count&&state.hasMore&&count<MAX?`<button type="button" class="primary" id="mapMoreResultsV18" style="width:100%;margin-top:8px">MORE ${label} →</button>`:'');
- el.querySelectorAll('[data-jarvis-map-v18]').forEach(b=>b.addEventListener('click',()=>show(state.results[Number(b.dataset.jarvisMapV18)],frame)));
- el.querySelector('#mapMoreResultsV18')?.addEventListener('click',()=>void more());
- if(state.results[0])show(state.results[0],frame);
-};
-const searchPoi=async query=>{
- const kind=category(query);if(!kind)return false;
- const loc=locationText(query)||'Bhubaneswar';
- const center=placeFor(loc)||{lat:20.2961,lon:85.8245,name:'Bhubaneswar'};
- state.query=query;state.kind=kind;state.center=center;state.results=[];state.seen=new Set();state.loading=true;state.hasMore=false;
- render(`SEARCHING LOCAL ${kind.label.toUpperCase()}…`);
- const got=await overpass(kind,center,FIRST_RADIUS);
- for(const p of got){if(state.results.length>=PAGE)break;if(duplicate(p))continue;remember(p);state.results.push(p)}
- state.hasMore=state.results.length>0;
- state.loading=false;
- render(state.results.length?undefined:`NO LOCAL ${kind.label.toUpperCase()} FOUND`);
- return true;
-};
-const more=async()=>{
- if(state.loading||!state.kind||!state.center)return;
- state.loading=true;render(`LOADING MORE ${state.kind.label.toUpperCase()}…`);
- const got=await overpass(state.kind,state.center,MORE_RADIUS);
- for(const p of got){if(state.results.length>=MAX)break;if(duplicate(p))continue;remember(p);state.results.push(p)}
- state.hasMore=state.results.length<MAX&&got.length>0;state.loading=false;
- render(got.length?'':`NO ADDITIONAL LOCAL ${state.kind.label.toUpperCase()}`);
-};
-const search=async raw=>{
- const input=document.querySelector('#mapQuery'),el=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!(input instanceof HTMLInputElement)||!el||!frame)return;
- const query=clean(raw||input.value);if(!query)return;input.value=query;input.dataset.jarvisMapV18=query;
- if(await searchPoi(query))return;
- const p=placeFor(query);
- if(p){el.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">1 LOCATION FOUND</div><button type="button" class="place-result" id="jarvisMapV18Single"><strong>1. ${esc(p.name)}</strong><small>${esc(p.display)}</small></button>`;el.querySelector('#jarvisMapV18Single')?.addEventListener('click',()=>show(p,frame));show(p,frame);return}
- el.innerHTML='<div class="empty">LOCATION SEARCH IS LIMITED TO THE JARVIS MAP DATASET.</div>';frame.innerHTML='<div class="empty">No local map result.</div>';
-};
-const bind=()=>{
- const input=document.querySelector('#mapQuery'),button=document.querySelector('#mapSearch');if(!(input instanceof HTMLInputElement)||!(button instanceof HTMLButtonElement))return;
- if(button.dataset.jarvisMapV18Bound==='1')return;button.dataset.jarvisMapV18Bound='1';
- button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();void search(input.value)});
-};
+const render=title=>{const el=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!el||!frame)return;const label=state.kind?.label?.toUpperCase()||'RESULTS',count=state.results.length;el.dataset.jarvisMapV18Owned='1';el.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">${title||`SHOWING ${count} ${label}`}</div>`+state.results.map((p,i)=>`<button type="button" class="place-result" data-jarvis-map-v18="${i}"><strong>${i+1}. ${esc(p.name)}</strong><small>${esc(p.display||'Nearby result')}</small></button>`).join('')+(count&&state.hasMore&&count<MAX?`<button type="button" class="primary" id="mapMoreResultsV18" style="width:100%;margin-top:8px">MORE ${label} →</button>`:'');el.querySelectorAll('[data-jarvis-map-v18]').forEach(b=>b.addEventListener('click',()=>show(state.results[Number(b.dataset.jarvisMapV18)],frame)));el.querySelector('#mapMoreResultsV18')?.addEventListener('click',()=>void more());if(state.results[0])show(state.results[0],frame)};
+const searchPoi=async query=>{const kind=category(query);if(!kind)return false;const loc=locationText(query)||'Bhubaneswar';const center=placeFor(loc)||{lat:20.2961,lon:85.8245,name:'Bhubaneswar'};state.query=query;state.kind=kind;state.center=center;state.results=[];state.seen=new Set();state.loading=true;state.hasMore=false;render(`SEARCHING LOCAL ${kind.label.toUpperCase()}…`);const got=await overpass(kind,center,FIRST_RADIUS);for(const p of got){if(state.results.length>=PAGE)break;if(duplicate(p))continue;remember(p);state.results.push(p)}state.hasMore=state.results.length>0;state.loading=false;render(state.results.length?undefined:`NO LOCAL ${kind.label.toUpperCase()} FOUND`);return true};
+const more=async()=>{if(state.loading||!state.kind||!state.center)return;state.loading=true;render(`LOADING MORE ${state.kind.label.toUpperCase()}…`);const got=await overpass(state.kind,state.center,MORE_RADIUS);for(const p of got){if(state.results.length>=MAX)break;if(duplicate(p))continue;remember(p);state.results.push(p)}state.hasMore=state.results.length<MAX&&got.length>0;state.loading=false;render(got.length?'':`NO ADDITIONAL LOCAL ${state.kind.label.toUpperCase()}`)};
+const search=async raw=>{const input=document.querySelector('#mapQuery'),el=document.querySelector('#mapResults'),frame=document.querySelector('#mapFrame');if(!(input instanceof HTMLInputElement)||!el||!frame)return;const query=clean(raw||input.value);if(!query)return;input.value=query;input.dataset.jarvisMapV18=query;if(await searchPoi(query))return;const p=placeFor(query);if(p){el.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">1 LOCATION FOUND</div><button type="button" class="place-result" id="jarvisMapV18Single"><strong>1. ${esc(p.name)}</strong><small>${esc(p.display)}</small></button>`;el.dataset.jarvisMapV18Owned='1';el.querySelector('#jarvisMapV18Single')?.addEventListener('click',()=>show(p,frame));show(p,frame);return}el.innerHTML='<div class="empty">LOCATION SEARCH IS LIMITED TO THE JARVIS MAP DATASET.</div>';el.dataset.jarvisMapV18Owned='1';frame.innerHTML='<div class="empty">No local map result.</div>'};
+const bind=()=>{const input=document.querySelector('#mapQuery'),button=document.querySelector('#mapSearch');if(!(input instanceof HTMLInputElement)||!(button instanceof HTMLButtonElement))return;if(button.dataset.jarvisMapV18Bound==='1')return;button.dataset.jarvisMapV18Bound='1';button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();void search(input.value)})};
 const openAndSearch=q=>{const nav=document.querySelector('.nav[data-app="maps"]');if(nav instanceof HTMLElement&&!nav.classList.contains('selected'))nav.click();let tries=0;const timer=setInterval(()=>{bind();const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){clearInterval(timer);input.value=clean(q);void search(input.value)}else if(++tries>80)clearInterval(timer)},50)};
-const originalDispatch=window.dispatchEvent.bind(window);
-window.dispatchEvent=function(event){try{if(event instanceof CustomEvent&&(event.type==='jarvis:map-intent'||event.type==='jarvis:maps')){const q=String(event.detail?.place||event.detail?.query||'').trim();if(q){openAndSearch(q);return true}}}catch{}return originalDispatch(event)};
+const originalDispatch=window.dispatchEvent.bind(window);window.dispatchEvent=function(event){try{if(event instanceof CustomEvent&&(event.type==='jarvis:map-intent'||event.type==='jarvis:maps')){const q=String(event.detail?.place||event.detail?.query||'').trim();if(q){openAndSearch(q);return true}}}catch{}return originalDispatch(event)};
 window.addEventListener('click',e=>{const t=e.target instanceof Element?e.target.closest('#mapSearch'):null;if(!t)return;const input=document.querySelector('#mapQuery');if(input instanceof HTMLInputElement){e.preventDefault();e.stopImmediatePropagation();void search(input.value)}},true);
 window.addEventListener('jarvis:map-intent',e=>{const q=String(e.detail?.place||e.detail?.query||'').trim();if(!q)return;e.preventDefault();e.stopImmediatePropagation();openAndSearch(q)},true);
 window.addEventListener('jarvis:maps',e=>{e.preventDefault();e.stopImmediatePropagation()},true);
-new MutationObserver(()=>{bind();if(state.query&&document.querySelector('#mapResults')?.dataset.jarvisMapV18Rendered!=='1'){const el=document.querySelector('#mapResults');if(el)el.dataset.jarvisMapV18Rendered='1';render()}}).observe(document.documentElement,{childList:true,subtree:true});
+new MutationObserver(()=>{bind();const el=document.querySelector('#mapResults');if(state.query&&el&&el.dataset.jarvisMapV18Owned!=='1'){render()}}).observe(document.documentElement,{childList:true,subtree:true});
 bind();
 })();
