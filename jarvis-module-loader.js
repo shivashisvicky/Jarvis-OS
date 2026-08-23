@@ -17,31 +17,58 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260823-voice-lazy-v4-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const scriptPromises = new Map();
+  const cssPromises = new Map();
+  const assetUrl = name => `./${name}?v=20260823-voice-lazy-v5-${name.replace(/[^a-z0-9]/gi, '')}`;
 
-  const loadScript = src => new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
-    if (existing) return resolve();
-    const script = document.createElement('script');
-    script.src = src;
-    script.defer = true;
-    script.dataset.jarvisFeatureSrc = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(script);
-  });
+  const findExistingScript = src => {
+    const exact = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
+    if (exact) return exact;
+    const base = src.split('?')[0].replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    return document.querySelector(`script[src^="${base}"]`);
+  };
 
-  const loadCss = href => new Promise((resolve, reject) => {
-    const existing = document.querySelector(`link[data-jarvis-feature-href="${href}"]`);
-    if (existing) return resolve();
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    link.dataset.jarvisFeatureHref = href;
-    link.onload = () => resolve();
-    link.onerror = () => reject(new Error(`Failed to load ${href}`));
-    document.head.appendChild(link);
-  });
+  const loadScript = src => {
+    if (scriptPromises.has(src)) return scriptPromises.get(src);
+    const existing = findExistingScript(src);
+    if (existing) {
+      const ready = Promise.resolve();
+      scriptPromises.set(src, ready);
+      return ready;
+    }
+    const task = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.defer = true;
+      script.dataset.jarvisFeatureSrc = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+    scriptPromises.set(src, task);
+    return task;
+  };
+
+  const loadCss = href => {
+    if (cssPromises.has(href)) return cssPromises.get(href);
+    const existing = document.querySelector(`link[data-jarvis-feature-href="${href}"]`) || document.querySelector(`link[href^="${href.split('?')[0]}"]`);
+    if (existing) {
+      const ready = Promise.resolve();
+      cssPromises.set(href, ready);
+      return ready;
+    }
+    const task = new Promise((resolve, reject) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.dataset.jarvisFeatureHref = href;
+      link.onload = () => resolve();
+      link.onerror = () => reject(new Error(`Failed to load ${href}`));
+      document.head.appendChild(link);
+    });
+    cssPromises.set(href, task);
+    return task;
+  };
 
   const loadFeature = async name => {
     if (!features[name]) return;
