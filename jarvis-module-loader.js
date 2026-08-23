@@ -19,7 +19,7 @@
   const pending = new Map();
   const scriptPromises = new Map();
   const cssPromises = new Map();
-  const assetUrl = name => `./${name}?v=20260823-voice-lazy-v5-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260824-media-play-v1-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const findExistingScript = src => {
     const exact = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
