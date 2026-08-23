@@ -16,145 +16,161 @@ function cors(origin) {
   };
 }
 
-function json(data, status, origin) {
+function json(data, status, origin, cache = 'no-store') {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors(origin) },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache, ...cors(origin) },
   });
 }
 
 function clean(value) {
-  return String(value || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return String(value || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function decodeHtml(value) {
-  return String(value || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#x2F;/gi, '/')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  return String(value || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x2F;/gi, '/').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
 }
 
 function isVideoUrl(link) {
-  try {
-    const host = new URL(link).hostname;
-    return /(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)vimeo\.com$|(^|\.)dailymotion\.com$/i.test(host);
-  } catch {
-    return false;
-  }
+  try { return /(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)vimeo\.com$|(^|\.)dailymotion\.com$/i.test(new URL(link).hostname); } catch { return false; }
 }
 
-function videoIntent(query) {
-  return /\b(video|videos|youtube|watch|trailer|song|music video)\b/i.test(query);
-}
+function videoIntent(query) { return /\b(video|videos|youtube|watch|trailer|song|music video)\b/i.test(query); }
 
 function normalizeResults(items, query) {
-  const allowVideo = videoIntent(query);
-  const seen = new Set();
-  return items
-    .map(item => ({
-      title: clean(decodeHtml(item.title)),
-      link: String(item.link || '').trim(),
-      source: clean(decodeHtml(item.source || 'WEB')),
-      snippet: clean(decodeHtml(item.snippet || '')),
-    }))
+  const allowVideo = videoIntent(query), seen = new Set();
+  return items.map(item => ({ title: clean(decodeHtml(item.title)), link: String(item.link || '').trim(), source: clean(decodeHtml(item.source || 'WEB')), snippet: clean(decodeHtml(item.snippet || '')) }))
     .filter(item => item.title && /^https?:\/\//i.test(item.link))
     .filter(item => allowVideo || !isVideoUrl(item.link))
-    .filter(item => {
-      if (seen.has(item.link)) return false;
-      seen.add(item.link);
-      return true;
-    })
-    .slice(0, 8);
+    .filter(item => !seen.has(item.link) && (seen.add(item.link), true)).slice(0, 8);
 }
 
-async function fetchText(url, headers = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6500);
-  try {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 JARVIS Search/1.0', ...headers },
-      redirect: 'follow',
-      signal: controller.signal,
-      cf: { cacheTtl: 30, cacheEverything: false },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.text();
-  } finally {
-    clearTimeout(timer);
+async function fetchText(url, headers = {}, ms = 6500) {
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), ms);
+  try { const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 JARVIS Search/1.0', ...headers }, redirect: 'follow', signal: controller.signal, cf: { cacheTtl: 30, cacheEverything: false } }); if (!response.ok) throw new Error(`HTTP ${response.status}`); return await response.text(); }
+  finally { clearTimeout(timer); }
+}
+
+async function fetchJson(url, headers = {}, ms = 4500) {
+  try { const text = await fetchText(url, { Accept: 'application/json', ...headers }, ms); return JSON.parse(text); } catch { return null; }
+}
+
+const POI = {
+  restaurant: { search: 'restaurant', key: 'amenity', values: ['restaurant', 'fast_food', 'food_court'] },
+  cafe: { search: 'cafe', key: 'amenity', values: ['cafe'] },
+  hospital: { search: 'hospital', key: 'amenity', values: ['hospital'] },
+  pharmacy: { search: 'pharmacy', key: 'amenity', values: ['pharmacy'] },
+  hotel: { search: 'hotel', key: 'tourism', values: ['hotel'] },
+  school: { search: 'school', key: 'amenity', values: ['school'] },
+  bank: { search: 'bank', key: 'amenity', values: ['bank'] },
+  atm: { search: 'atm', key: 'amenity', values: ['atm'] },
+  fuel: { search: 'fuel', key: 'amenity', values: ['fuel'] },
+  gym: { search: 'gym', key: 'leisure', values: ['fitness_centre'] },
+  supermarket: { search: 'supermarket', key: 'shop', values: ['supermarket'] },
+  temple: { search: 'temple', key: 'amenity', values: ['place_of_worship'] },
+};
+
+function km(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function dedupe(items, limit, lat, lon) {
+  const seen = new Set(), out = [];
+  for (const item of items) {
+    const nameKey = clean(item.name).toLowerCase();
+    if (!nameKey || seen.has(nameKey)) continue;
+    seen.add(nameKey);
+    const distance = km(lat, lon, item.lat, item.lon);
+    out.push({ ...item, distance });
+    if (out.length >= limit) break;
   }
+  return out.sort((a, b) => a.distance - b.distance).slice(0, limit);
+}
+
+async function photonPlaces(kind, lat, lon, radius, limit) {
+  const u = new URL('https://photon.komoot.io/api/');
+  u.searchParams.set('q', `${kind.search}`); u.searchParams.set('lat', lat); u.searchParams.set('lon', lon); u.searchParams.set('limit', '60');
+  const data = await fetchJson(u.toString(), {}, 4500); const results = [];
+  for (const feature of Array.isArray(data?.features) ? data.features : []) {
+    const p = feature.properties || {}, key = String(p.osm_key || p.key || '').toLowerCase(), value = String(p.osm_value || p.value || '').toLowerCase();
+    if (key !== kind.key || !kind.values.includes(value)) continue;
+    const coordinates = feature.geometry?.coordinates || [], itemLat = Number(coordinates[1]), itemLon = Number(coordinates[0]);
+    if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
+    const distance = km(lat, lon, itemLat, itemLon); if (distance > radius / 1000) continue;
+    results.push({ name: String(p.name || '').trim(), display: [p.street, p.district, p.city].filter(Boolean).join(' · '), lat: itemLat, lon: itemLon });
+  }
+  return dedupe(results, limit, lat, lon);
+}
+
+async function overpassPlaces(kind, lat, lon, radius, limit) {
+  const filters = kind.values.map(v => `nwr["${kind.key}"="${v}"][name](around:${radius},${lat},${lon});`).join('');
+  const u = new URL('https://overpass-api.de/api/interpreter'); u.searchParams.set('data', `[out:json][timeout:5];(${filters});out center tags;`);
+  const data = await fetchJson(u.toString(), {}, 5500); const results = [];
+  for (const element of Array.isArray(data?.elements) ? data.elements : []) {
+    const tags = element.tags || {}, itemLat = Number(element.lat ?? element.center?.lat), itemLon = Number(element.lon ?? element.center?.lon);
+    if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
+    const value = String(tags[kind.key] || '').toLowerCase(); if (!kind.values.includes(value)) continue;
+    results.push({ name: String(tags.name || '').trim(), display: [tags['addr:housenumber'], tags['addr:street'], tags['addr:suburb'], tags['addr:city']].filter(Boolean).join(' · '), lat: itemLat, lon: itemLon });
+  }
+  return dedupe(results, limit, lat, lon);
+}
+
+async function nominatimPlaces(kind, lat, lon, radius, limit) {
+  const u = new URL('https://nominatim.openstreetmap.org/search');
+  u.searchParams.set('format', 'jsonv2'); u.searchParams.set('q', `${kind.search} near ${lat},${lon}`); u.searchParams.set('limit', '50'); u.searchParams.set('countrycodes', 'in'); u.searchParams.set('addressdetails', '1');
+  const data = await fetchJson(u.toString(), { 'Accept-Language': 'en' }, 4500); const results = [];
+  for (const item of Array.isArray(data) ? data : []) {
+    const cls = String(item.class || '').toLowerCase(), type = String(item.type || '').toLowerCase(); if (cls !== kind.key || !kind.values.includes(type)) continue;
+    const itemLat = Number(item.lat), itemLon = Number(item.lon); if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
+    if (km(lat, lon, itemLat, itemLon) > radius / 1000) continue;
+    results.push({ name: String(item.name || item.display_name || '').split(',')[0].trim(), display: String(item.display_name || ''), lat: itemLat, lon: itemLon });
+  }
+  return dedupe(results, limit, lat, lon);
+}
+
+async function places(kindName, lat, lon, radius, limit) {
+  const kind = POI[kindName]; if (!kind) return [];
+  const providers = [photonPlaces(kind, lat, lon, radius, limit), overpassPlaces(kind, lat, lon, radius, limit), nominatimPlaces(kind, lat, lon, radius, limit)];
+  const pending = providers.map(p => p.then(results => results.length ? results : Promise.reject(new Error('empty'))));
+  try { return await Promise.any(pending); } catch { return []; }
 }
 
 async function bingSearch(query) {
-  const url = `https://www.bing.com/search?format=rss&q=${encodeURIComponent(query)}`;
-  const xml = await fetchText(url, { Accept: 'application/rss+xml, application/xml, text/xml' });
-  const items = [];
-  const matches = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
-  for (const item of matches) {
-    const title = item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '';
-    const link = item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '';
-    const description = item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || '';
-    items.push({ title, link, source: 'Bing', snippet: description });
-  }
+  const xml = await fetchText(`https://www.bing.com/search?format=rss&q=${encodeURIComponent(query)}`, { Accept: 'application/rss+xml, application/xml, text/xml' });
+  const items = []; for (const item of (xml.match(/<item>[\s\S]*?<\/item>/gi) || [])) items.push({ title: item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '', link: item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '', source: 'Bing', snippet: item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || '' });
   return normalizeResults(items, query);
 }
 
 async function braveSearch(query) {
-  const url = `https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`;
-  const html = await fetchText(url, { Accept: 'text/html,application/xhtml+xml' });
-  const items = [];
-  const anchors = html.match(/<a[^>]+class=["'][^"']*result-header[^"']*["'][^>]*>[\s\S]*?<\/a>/gi) || [];
-  for (const anchor of anchors) {
-    const href = anchor.match(/href=["']([^"']+)["']/i)?.[1] || '';
-    const title = anchor.match(/<span[^>]*>([\s\S]*?)<\/span>/i)?.[1] || anchor;
-    items.push({ title, link: href, source: 'Brave', snippet: '' });
-  }
-  if (items.length) return normalizeResults(items, query);
-  return [];
+  const html = await fetchText(`https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`, { Accept: 'text/html,application/xhtml+xml' });
+  const items = []; for (const anchor of (html.match(/<a[^>]+class=["'][^"']*result-header[^"']*["'][^>]*>[\s\S]*?<\/a>/gi) || [])) items.push({ title: anchor.match(/<span[^>]*>([\s\S]*?)<\/span>/i)?.[1] || anchor, link: anchor.match(/href=["']([^"']+)["']/i)?.[1] || '', source: 'Brave', snippet: '' });
+  return normalizeResults(items, query);
 }
 
 async function searchWeb(provider, query) {
-  if (provider === 'brave') {
-    try {
-      const brave = await braveSearch(query);
-      if (brave.length) return { results: brave, provider: 'Brave' };
-    } catch {}
-  }
-  const bing = await bingSearch(query);
-  if (bing.length) return { results: bing, provider: 'Bing' };
-  throw new Error('No web search provider returned usable results');
+  if (provider === 'brave') { try { const brave = await braveSearch(query); if (brave.length) return { results: brave, provider: 'Brave' }; } catch {} }
+  const bing = await bingSearch(query); if (bing.length) return { results: bing, provider: 'Bing' }; throw new Error('No web search provider returned usable results');
 }
 
 export default {
   async fetch(request) {
-    const url = new URL(request.url);
-    const origin = request.headers.get('Origin') || '';
+    const url = new URL(request.url), origin = request.headers.get('Origin') || '';
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
-    if (url.pathname === '/' && request.method === 'GET') {
-      return json({ ok: true, service: 'JARVIS Search Gateway', providers: ['brave', 'bing'] }, 200, origin);
+    if (url.pathname === '/' && request.method === 'GET') return json({ ok: true, service: 'JARVIS Search Gateway', providers: ['brave', 'bing'], places: true }, 200, origin);
+    if (url.pathname === '/api/places' && request.method === 'GET') {
+      if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed', results: [] }, 403, origin);
+      const kind = String(url.searchParams.get('kind') || '').trim().toLowerCase();
+      const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
+      const radius = Math.min(Math.max(Number(url.searchParams.get('radius') || 5000), 500), 10000), limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 6), 1), 30);
+      if (!POI[kind] || !Number.isFinite(lat) || !Number.isFinite(lon)) return json({ error: 'kind, lat and lon are required', results: [] }, 400, origin);
+      try { const results = await places(kind, lat, lon, radius, limit); return json({ ok: true, kind, results }, 200, origin, 'public, max-age=20, stale-while-revalidate=30'); } catch (error) { return json({ error: String(error?.message || error), results: [] }, 502, origin); }
     }
     if (url.pathname !== '/api/search' || request.method !== 'GET') return json({ error: 'Not found' }, 404, origin);
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
-
-    const q = String(url.searchParams.get('q') || '').trim();
-    const provider = url.searchParams.get('provider') === 'brave' ? 'brave' : 'bing';
-    if (!q) return json({ error: 'q is required', results: [] }, 400, origin);
-    if (q.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
-
-    try {
-      const result = await searchWeb(provider, q);
-      return json({ ...result, query: q }, 200, origin);
-    } catch (error) {
-      return json({ error: String(error?.message || error), code: 'SEARCH_UNAVAILABLE', results: [], provider }, 502, origin);
-    }
+    const q = String(url.searchParams.get('q') || '').trim(), provider = url.searchParams.get('provider') === 'brave' ? 'brave' : 'bing';
+    if (!q) return json({ error: 'q is required', results: [] }, 400, origin); if (q.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
+    try { const result = await searchWeb(provider, q); return json({ ...result, query: q }, 200, origin); } catch (error) { return json({ error: String(error?.message || error), code: 'SEARCH_UNAVAILABLE', results: [], provider }, 502, origin); }
   },
 };
