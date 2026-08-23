@@ -41,6 +41,12 @@ test('YouTube grammar remains owned by the dedicated YouTube authority', async (
   await expect(page.locator('#videoQuery')).toHaveValue(/war update news/i, { timeout: 15_000 });
 });
 
+test('natural-question punctuation survives normalization', async ({ page }) => {
+  await openHome(page);
+  const normalized = await page.evaluate(() => window.jarvisNormalizeCommand?.('What is the capital of India?'));
+  expect(normalized).toBe('What is the capital of India?');
+});
+
 test('grammar gate does not add a network or intelligence round trip', async ({ page }) => {
   await openHome(page);
   const value = await page.evaluate(() => typeof window.jarvisNormalizeCommand === 'function');
