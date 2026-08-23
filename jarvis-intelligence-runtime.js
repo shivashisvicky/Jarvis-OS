@@ -35,7 +35,7 @@
   let conversation = loadContext();
   const saveContext = () => { try { sessionStorage.setItem(CONTEXT_KEY, JSON.stringify(conversation.slice(-MAX_TURNS))); } catch {} };
   const remember = (role,text) => { const value=String(text||'').trim(); if(!value)return; conversation.push({role,text:value,at:Date.now()}); conversation=conversation.slice(-MAX_TURNS); saveContext(); };
-  const contextText = (turns=conversation.slice(-4)) => {
+  const contextText = (turns=conversation.slice(-MAX_TURNS)) => {
     let text=turns.map(t=>`${t.role==='user'?'User':'JARVIS'}: ${String(t.text).slice(0,1100)}`).join('\n');
     if(text.length>MAX_CONTEXT_CHARS) text=text.slice(-MAX_CONTEXT_CHARS);
     return text;
@@ -63,8 +63,6 @@
 
   const ask=async query=>{
     query=String(query||'').trim();if(!query)return false;
-    // Intelligence can be reached from voice, submit, or a contextual follow-up.
-    // Release WebKit's microphone before any network/intelligence work begins.
     stopVoiceBeforeProcessing();
     if(localAnswer(query))return true;
     if(isMathExpression(query)){const ok=calculate(query);if(ok){remember('user',query);remember('assistant',document.querySelector('#jarvisReply')?.textContent||'')}return ok}
