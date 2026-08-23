@@ -5,7 +5,7 @@
 
   const CONTEXT_KEY='jarvis-session-context-v2';
   const loadContext=()=>{try{const v=JSON.parse(sessionStorage.getItem(CONTEXT_KEY)||'[]');return Array.isArray(v)?v.slice(-8):[]}catch{return[]}};
-  const isExplicitCommand=q=>/^(?:search|look\s*up|lookup|find|google|bing|web\s+search|take me|go to|navigate|directions?|open maps?|play|open youtube|youtube)\b/i.test(String(q||'').trim());
+  const isExplicitCommand=q=>/^(?:search|look\s*up|lookup|find|show\s+me|show|locate|where\s+are|look\s+for|google|bing|web\s+search|take me|go to|navigate|directions?|open\s+(?:maps?|youtube|media|games?|calculator|settings|files|notes?|search)|play|open youtube|youtube)\b/i.test(String(q||'').trim());
   const isLocalCommand=q=>/\b(?:time|clock|date|weather|temperature|forecast|maps?|directions?|navigate|take me to|go to|youtube|play|video|games?|snake|calculator|settings|files|notes?|remember|remind me|sftp|api lab)\b/i.test(String(q||''));
   const isContextAnswer=q=>{
     const s=String(q||'').trim();
