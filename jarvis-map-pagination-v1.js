@@ -15,7 +15,7 @@ function ensureMapListLayout(){
    grid.style.display='grid';grid.style.gridTemplateColumns='minmax(0,1fr)';grid.style.gridTemplateRows='auto auto';grid.style.gap='10px';
    const listPanel=results.closest('.panel');if(listPanel){listPanel.style.gridRow='2';listPanel.style.minWidth='0';}
    frame.style.gridRow='1';frame.style.position='sticky';frame.style.top='8px';frame.style.zIndex='8';frame.style.height='230px';frame.style.minHeight='230px';frame.style.overflow='hidden';
-   const iframe=frame.querySelector('iframe');if(iframe){iframe.style.width='100%';iframe.style.height='230px';iframe.style.minHeight='230px';display:iframe.style.display='block';}
+   const iframe=frame.querySelector('iframe');if(iframe){iframe.style.width='100%';iframe.style.height='230px';iframe.style.minHeight='230px';iframe.style.display='block';}
  }else{
    frame.style.position='sticky';frame.style.top='10px';frame.style.zIndex='5';frame.style.minHeight='360px';
  }
