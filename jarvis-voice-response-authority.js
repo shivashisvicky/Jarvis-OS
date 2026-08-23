@@ -3,90 +3,32 @@
   if (window.__JARVIS_VOICE_RESPONSE_AUTHORITY__) return;
   window.__JARVIS_VOICE_RESPONSE_AUTHORITY__ = true;
 
+  // The command pipeline is already the authoritative speaker. This bridge is
+  // intentionally passive so a DOM mutation cannot re-speak the same reply
+  // after the original utterance has finished. That was the source of the
+  // delayed second "local time" response on iOS.
   let lastText = '';
   let lastAt = 0;
-  let observer = null;
-  let timer = 0;
-  let voiceLoad = null;
 
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
-  const nativeSpeechBusy = () => {
-    try {
-      return 'speechSynthesis' in window && (
-        window.speechSynthesis.speaking ||
-        window.speechSynthesis.pending
-      );
-    } catch {
-      return false;
-    }
-  };
 
-  const ensureVoice = async () => {
-    if (typeof window.jarvisVoiceAuthoritySpeak === 'function' || typeof window.jarvisSpeak === 'function') return true;
-    if (voiceLoad) return voiceLoad;
-    const loader = window.jarvisLoadFeature;
-    if (typeof loader !== 'function') return false;
-    voiceLoad = Promise.resolve(loader('voice')).then(() => {
-      return typeof window.jarvisVoiceAuthoritySpeak === 'function' || typeof window.jarvisSpeak === 'function';
-    }).catch(() => false).finally(() => { voiceLoad = null; });
-    return voiceLoad;
-  };
-
-  const authority = async text => {
-    const ready = await ensureVoice();
-    if (!ready) return false;
-    const fn = window.jarvisVoiceAuthoritySpeak || window.jarvisCinematicSpeak || window.jarvisSpeak;
-    if (typeof fn !== 'function') return false;
-    try {
-      const result = fn(text);
-      return result !== false;
-    } catch {
-      return false;
-    }
-  };
-
-  const announce = value => {
+  window.jarvisMarkSpokenResponse = value => {
     const text = clean(value);
-    if (!text || text === lastText) return false;
+    if (!text) return false;
     lastText = text;
     lastAt = Date.now();
-    void authority(text);
     return true;
   };
 
-  window.jarvisAnnounceResponse = announce;
-
-  const inspect = () => {
-    const reply = document.querySelector('#jarvisReply');
-    if (!reply || !reply.classList.contains('visible')) return;
-    const text = clean(reply.textContent);
-    if (!text || text === lastText) return;
-    window.clearTimeout(timer);
-    timer = window.setTimeout(() => {
-      // Emergency fallback only. Once a reply text has been announced, this
-      // observer must never speak the unchanged DOM text again. The previous
-      // time-based re-announcement caused an endless iOS loop every 2.5s.
-      if (text === lastText) return;
-      if (nativeSpeechBusy()) return;
-      announce(text);
-    }, 180);
+  // Kept as a compatibility API for older bridges, but it deliberately does
+  // not speak. Normal command execution owns speech now.
+  window.jarvisAnnounceResponse = value => {
+    const text = clean(value);
+    if (!text) return false;
+    lastText = text;
+    lastAt = Date.now();
+    return true;
   };
 
-  const boot = () => {
-    if (observer || !document.body) return;
-    observer = new MutationObserver(inspect);
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['class']
-    });
-    inspect();
-  };
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
-  window.setTimeout(boot, 500);
-  window.setTimeout(boot, 1500);
+  window.jarvisGetLastSpokenResponse = () => ({ text: lastText, at: lastAt });
 })();
