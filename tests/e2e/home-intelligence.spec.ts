@@ -32,7 +32,7 @@ test('navigation phrases stay in the local command router', async ({ page }) => 
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
-test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ page }) => {
+test('Jagannath Nagar resolves to the Bhubaneswar canonical location and map opens after selection', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
   const input = page.locator('#mapQuery');
@@ -40,6 +40,8 @@ test('Jagannath Nagar resolves to the Bhubaneswar canonical location', async ({ 
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).toContainText(/Jharapada, Bhubaneswar, Odisha/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Gunupur|Rayagada/i);
+  await expect(page.locator('#mapFrame')).toBeHidden();
+  await page.locator('#mapResults .place-result').first().click();
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=20\.2923%2C85\.8638/);
 });
 
@@ -118,6 +120,8 @@ test('command routing does not leave a stale hardcoded map result over a later m
   await page.locator('#mapSearch').click();
   await expect(page.locator('#mapResults')).toContainText(/Khandagiri/i);
   await expect(page.locator('#mapResults')).not.toContainText(/Jagannath Nagar|Jharapada, Bhubaneswar/i);
+  await expect(page.locator('#mapFrame')).toBeHidden();
+  await page.locator('#mapResults .place-result').first().click();
   await expect(page.locator('#mapFrame iframe')).toHaveAttribute('src', /marker=/);
   await expect(page.locator('script[src*="jarvis-map-hard-override.js"]')).toHaveCount(0);
 });
