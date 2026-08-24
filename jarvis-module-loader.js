@@ -4,7 +4,7 @@
   window.__JARVIS_MODULE_LOADER__ = true;
 
   const features = {
-    web: { scripts: ['jarvis-web-search.js'], css: ['jarvis-web-polish.css'] },
+    web: { scripts: ['jarvis-web-search.js', 'jarvis-search-provider-fidelity-v1.js'], css: ['jarvis-web-polish.css'] },
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
     voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'] },
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260825-search-v3-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260825-phase2-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
