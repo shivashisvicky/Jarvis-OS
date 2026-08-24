@@ -20,7 +20,7 @@
   const scriptPromises = new Map();
   const cssPromises = new Map();
   const assetUrl = name => {
-    const version = /voice/i.test(name) ? '20260824-android-voice-v2' : /mobile/i.test(name) ? '20260824-android-mobile-v2' : '20260824-media-play-v2';
+    const version = /voice/i.test(name) ? '20260824-android-voice-v3' : /mobile/i.test(name) ? '20260824-android-mobile-v2' : '20260824-media-play-v2';
     return `./${name}?v=${version}-${name.replace(/[^a-z0-9]/gi, '')}`;
   };
 
@@ -92,4 +92,9 @@
   };
 
   window.jarvisLoadFeature = loadFeature;
+
+  // Voice controls are part of the global shell, not a page-specific feature.
+  // Load them after the loader is ready so Settings always exposes rate/accent,
+  // while failures remain isolated and never block application boot.
+  void loadFeature('voice').catch(error => console.warn('JARVIS voice feature preload failed', error));
 })();
