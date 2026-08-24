@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_IOS_COMMAND_VOICE_FIX_V3__)return;
-window.__JARVIS_IOS_COMMAND_VOICE_FIX_V3__=true;
+if(window.__JARVIS_IOS_COMMAND_VOICE_FIX_V4__)return;
+window.__JARVIS_IOS_COMMAND_VOICE_FIX_V4__=true;
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(!isIOS)return;
 const C=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -14,7 +14,7 @@ let generation=0;
 const button=()=>document.querySelector('#voiceBtn');
 const setState=active=>{const b=button();if(b instanceof HTMLElement)b.classList.toggle('listening',Boolean(active));};
 const clearWatchdog=()=>{if(stopTimer){window.clearTimeout(stopTimer);stopTimer=0}};
-const releaseMic=r=>{if(!r)return;try{r.abort()}catch{try{r.stop()}catch{}}[0,80,250,600].forEach(ms=>window.setTimeout(()=>{try{r.abort()}catch{try{r.stop()}catch{}}},ms))};
+const releaseMic=r=>{if(!r)return;try{r.abort()}catch{try{r.stop()}catch{}}[0,80,250,600,1000].forEach(ms=>window.setTimeout(()=>{try{r.abort()}catch{try{r.stop()}catch{}}},ms))};
 const stop=()=>{generation++;clearWatchdog();const r=recognition;recognition=null;if(r){try{r.onresult=null;r.onspeechend=null;r.onerror=null;r.onend=null}catch{}releaseMic(r)}setState(false);};
 window.jarvisStopIOSVoice=stop;
 window.jarvisStopVoiceRecognitionOnly=stop;
@@ -32,7 +32,16 @@ const start=e=>{
  r.lang='en-GB';r.interimResults=true;r.continuous=false;r.maxAlternatives=3;
  r.onstart=()=>{if(recognition!==r||generation!==myGeneration){releaseMic(r);return}setState(true);clearWatchdog();stopTimer=window.setTimeout(()=>{if(recognition===r)stop()},7000)};
  r.onspeechend=()=>{if(recognition===r)window.setTimeout(()=>{if(recognition===r)stop()},100)};
- r.onresult=ev=>{if(recognition!==r)return;let final='';for(let i=ev.resultIndex;i<ev.results.length;i++)if(ev.results[i].isFinal)final+=ev.results[i][0].transcript;if(final.trim()){const text=final.trim();const current=r;stop();submitTranscript(text);releaseMic(current)}};
+ r.onresult=ev=>{if(recognition!==r)return;let final='';for(let i=ev.resultIndex;i<ev.results.length;i++)if(ev.results[i].isFinal)final+=ev.results[i][0].transcript;if(final.trim()){
+   const text=final.trim();
+   const current=r;
+   stop();
+   releaseMic(current);
+   // Critical iOS handoff: let WebKit finish releasing the microphone before
+   // the command pipeline calls speechSynthesis. This is what the stable
+   // pre-regression path effectively did for recognition -> spoken response.
+   window.setTimeout(()=>submitTranscript(text),280);
+ }};
  r.onerror=()=>{if(recognition===r)stop();else releaseMic(r)};
  r.onend=()=>{if(recognition===r){clearWatchdog();recognition=null;setState(false)}};
  try{r.start()}catch{stop()}
