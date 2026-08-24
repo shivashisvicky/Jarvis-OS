@@ -20,7 +20,7 @@
   const scriptPromises = new Map();
   const cssPromises = new Map();
   const assetUrl = name => {
-    const version = /voice/i.test(name) ? '20260824-android-voice-v1' : '20260824-media-play-v2';
+    const version = /voice/i.test(name) ? '20260824-android-voice-v2' : /mobile/i.test(name) ? '20260824-android-mobile-v2' : '20260824-media-play-v2';
     return `./${name}?v=${version}-${name.replace(/[^a-z0-9]/gi, '')}`;
   };
 
