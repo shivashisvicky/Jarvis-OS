@@ -5,7 +5,8 @@
  */
 (() => {
   'use strict';
-  if (typeof window === 'undefined' || window.__JARVIS_VOICE_AUTHORITY__) return;
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (window.__JARVIS_VOICE_AUTHORITY__) return;
   window.__JARVIS_VOICE_AUTHORITY__ = true;
 
   const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence';
@@ -67,8 +68,6 @@
       nativeCancel?.();
       try { window.speechSynthesis.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(String(text));
-      // Mobile browsers are more reliable with their default speech voice and
-      // a normal pitch. Do not depend on getVoices(), which can be empty early.
       utterance.rate = useNative ? Math.min(1.05, Math.max(.85, rate())) : rate();
       utterance.pitch = useNative ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
@@ -240,9 +239,16 @@
     return true;
   };
 
-  window.jarvisVoiceAuthoritySpeak = speakGenerated;
-  window.jarvisCinematicSpeak = speakGenerated;
-  window.jarvisSpeak = speakGenerated;
+  // iOS has a dedicated native voice authority loaded before this lazy module.
+  // Do not overwrite it after startup. The overwrite caused voice-triggered
+  // replies to become silent while text-triggered replies continued to speak,
+  // because the two paths used different speech implementations.
+  const iosAuthorityAlreadyInstalled = isIOS && typeof window.jarvisSpeak === 'function';
+  if (!iosAuthorityAlreadyInstalled) {
+    window.jarvisVoiceAuthoritySpeak = speakGenerated;
+    window.jarvisCinematicSpeak = speakGenerated;
+    window.jarvisSpeak = speakGenerated;
+  }
   window.jarvisVoiceAuthorityStop = stop;
 
   const unlockOnGesture = () => {
@@ -254,9 +260,6 @@
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { window.speechSynthesis?.resume(); } catch {} } });
 
-  // Do not wrap speechSynthesis on iOS/Safari/Android. Native browser speech is
-  // the final authority on mobile, avoiding the Web Audio autoplay/streaming
-  // path that can become silent when recognition hands control back to Chrome.
   if (nativeSpeech && !useNative) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
