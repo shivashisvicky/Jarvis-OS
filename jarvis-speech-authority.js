@@ -1,8 +1,8 @@
 (() => {
   'use strict';
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (window.__JARVIS_SPEECH_AUTHORITY_V2__) return;
-  window.__JARVIS_SPEECH_AUTHORITY_V2__ = true;
+  if (window.__JARVIS_SPEECH_AUTHORITY_V3__) return;
+  window.__JARVIS_SPEECH_AUTHORITY_V3__ = true;
 
   const MIN = 0.80;
   const MAX = 1.20;
@@ -27,27 +27,27 @@
     return DEFAULT;
   };
 
+  // JARVIS has one Android accent. Do not allow a Samsung/Chrome locale choice
+  // to silently switch the actual speaker to an Indian, Russian, or system voice.
   const getAccent = () => {
+    if (isAndroid) return 'en-GB';
     try {
       const value = window.localStorage?.getItem('jarvisSpeechAccent');
       return /^en-(GB|IN)$/i.test(value || '') ? value : 'en-GB';
     } catch { return 'en-GB'; }
   };
 
-  // Android Chrome can report a changing/empty voice list during startup. Never
-  // fall back to an arbitrary device voice. Prefer a known English voice and
-  // keep the utterance language pinned to the selected JARVIS accent.
+  const badVoice = name => /russian|рус|русский|ru[-_ ]?ru/i.test(String(name || ''));
   const selectVoice = voices => {
     const accent = getAccent().toLowerCase();
-    const exact = voices.filter(v => String(v.lang || '').toLowerCase() === accent);
+    const exact = voices.filter(v => String(v.lang || '').toLowerCase() === accent && !badVoice(v.name));
     const preferred = /en-gb/i.test(accent)
-      ? /Daniel|Arthur|George|Oliver|James|Thomas|Google UK English|English United Kingdom|Natural|Enhanced|Premium/i
+      ? /Google UK English Male|English United Kingdom Male|Daniel|Arthur|George|Oliver|James|Thomas|Natural|Enhanced|Premium/i
       : /Google|Natural|Enhanced|Premium|India|English India/i;
     return exact.find(v => preferred.test(String(v.name || '')))
-      || exact.find(v => /natural|enhanced|premium|google/i.test(String(v.name || '')))
+      || exact.find(v => /male|natural|enhanced|premium|google/i.test(String(v.name || '')))
       || exact[0]
-      || voices.find(v => /^en-(GB|IN)$/i.test(String(v.lang || '')))
-      || voices.find(v => /^en-/i.test(String(v.lang || '')))
+      || voices.find(v => /^en-GB/i.test(String(v.lang || '')) && !badVoice(v.name))
       || null;
   };
 
@@ -75,6 +75,8 @@
       utterance.rate = getRate();
       utterance.pitch = isAndroid ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
+      // Android is deliberately pinned to JARVIS English UK. If Chrome's voice
+      // registry is temporarily empty, language still remains en-GB.
       utterance.lang = selected?.lang || getAccent();
       if (selected) utterance.voice = selected;
       nativeSpeak(utterance);
@@ -84,15 +86,11 @@
 
   window.jarvisSpeak = speak;
 
-  // On Android, own the native speech call so other legacy bridges cannot inject
-  // a random Samsung/Russian voice or overwrite the configured rate.
   if (isAndroid && !isIOS) {
     synth.speak = utterance => speak(utterance?.text || '', utterance || {});
   }
 
-  // Wait briefly for Android's asynchronous voice registry before the first real
-  // response. This avoids selecting a transient/default voice during startup.
-  synth.addEventListener?.('voiceschanged', () => { if (!warmed) return; });
+  synth.addEventListener?.('voiceschanged', () => { /* selection is performed per utterance */ });
   document.addEventListener('pointerdown', prime, { capture: true, passive: true });
   document.addEventListener('touchstart', prime, { capture: true, passive: true });
 })();
