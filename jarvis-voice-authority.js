@@ -1,12 +1,13 @@
 /* J.A.R.V.I.S. Voice Authority
- * Desktop: remote TTS. iOS/Safari/Android: native browser speech, deliberately kept
- * synchronous with the command response path so mobile browsers cannot lose audio
- * after microphone recognition or an asynchronous TTS fetch.
+ * Primary path: remote TTS on desktop. iOS/Safari deliberately uses the
+ * browser speech engine so command responses remain reliable after a
+ * microphone recognition callback. This keeps typed and spoken commands on
+ * the same response path instead of depending on a post-gesture Web Audio
+ * fetch/decode operation.
  */
 (() => {
   'use strict';
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (window.__JARVIS_VOICE_AUTHORITY__) return;
+  if (typeof window === 'undefined' || window.__JARVIS_VOICE_AUTHORITY__) return;
   window.__JARVIS_VOICE_AUTHORITY__ = true;
 
   const endpoint = document.querySelector('meta[name="jarvis-intelligence-endpoint"]')?.getAttribute('content') || 'https://jarvis-intelligence.shivashisvicky112.workers.dev/api/openai-intelligence';
@@ -16,9 +17,7 @@
   const nativeSpeak = nativeSpeech ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
   const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isAndroid = /Android/i.test(navigator.userAgent || '');
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const useNative = isIOS || isSafari || isAndroid;
   const requestId = { value: 0 };
   let playing = false;
   let audioContext = null;
@@ -28,11 +27,11 @@
   const rate = () => {
     try {
       const getter = window.jarvisGetSpeechRate || window.jarvisGetEffectiveSpeechRate;
-      if (typeof getter === 'function') return Math.min(1.15, Math.max(.85, Number(getter()) || .95));
+      if (typeof getter === 'function') return Math.min(1.2, Math.max(.8, Number(getter()) || .92));
       const stored = localStorage.getItem('jarvisSpeechRate');
-      if (stored !== null) return Math.min(1.15, Math.max(.85, Number(stored) || .95));
+      if (stored !== null) return Math.min(1.2, Math.max(.8, Number(stored) || .92));
     } catch {}
-    return .95;
+    return .92;
   };
 
   const getAudioContext = () => {
@@ -68,18 +67,16 @@
       nativeCancel?.();
       try { window.speechSynthesis.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(String(text));
-      utterance.rate = useNative ? Math.min(1.05, Math.max(.85, rate())) : rate();
-      utterance.pitch = useNative ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
+      utterance.rate = rate();
+      utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
       utterance.lang = options.language || 'en-GB';
-      if (!useNative) {
-        const voices = window.speechSynthesis.getVoices();
-        const voice = voices.find(v => /en-GB/i.test(v.lang) && /Daniel|Arthur|George|Oliver|James|Thomas/i.test(v.name))
-          || voices.find(v => /en-GB/i.test(v.lang))
-          || voices.find(v => /en-IN/i.test(v.lang))
-          || voices[0];
-        if (voice) utterance.voice = voice;
-      }
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => /en-GB/i.test(v.lang) && /Daniel|Arthur|George|Oliver|James|Thomas/i.test(v.name))
+        || voices.find(v => /en-GB/i.test(v.lang))
+        || voices.find(v => /en-IN/i.test(v.lang))
+        || voices[0];
+      if (voice) utterance.voice = voice;
       nativeSpeak(utterance);
       return true;
     } catch { return false; }
@@ -103,6 +100,7 @@
     const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -138,6 +136,7 @@
     }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.value = 1;
     const gain = ctx.createGain();
     gain.gain.value = .96;
     source.connect(gain);
@@ -145,7 +144,7 @@
     activeSources.add(source);
     source.onended = () => { activeSources.delete(source); try { source.disconnect(); gain.disconnect(); } catch {} };
     const now = ctx.currentTime;
-    const lead = state.started ? .012 : .075;
+    const lead = state.started ? 0.012 : 0.075;
     state.nextTime = Math.max(state.nextTime, now + lead);
     source.start(state.nextTime);
     state.nextTime += buffer.duration;
@@ -217,7 +216,7 @@
     } catch (error) {
       if (id === requestId.value) {
         const fallbackWorked = nativeFallback(item.text, item.options);
-        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked, mobileWav: isIOS || isSafari || isAndroid } }));
+        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked, mobileWav: isIOS || isSafari } }));
       }
     } finally {
       playing = false;
@@ -228,7 +227,7 @@
   const speakGenerated = (text, options = {}) => {
     const clean = String(text || '').trim();
     if (!clean) return false;
-    if (useNative) {
+    if (isIOS || isSafari) {
       stop();
       return nativeFallback(clean, options);
     }
@@ -239,28 +238,18 @@
     return true;
   };
 
-  // iOS has a dedicated native voice authority loaded before this lazy module.
-  // Do not overwrite it after startup. The overwrite caused voice-triggered
-  // replies to become silent while text-triggered replies continued to speak,
-  // because the two paths used different speech implementations.
-  const iosAuthorityAlreadyInstalled = isIOS && typeof window.jarvisSpeak === 'function';
-  if (!iosAuthorityAlreadyInstalled) {
-    window.jarvisVoiceAuthoritySpeak = speakGenerated;
-    window.jarvisCinematicSpeak = speakGenerated;
-    window.jarvisSpeak = speakGenerated;
-  }
+  window.jarvisVoiceAuthoritySpeak = speakGenerated;
+  window.jarvisCinematicSpeak = speakGenerated;
+  window.jarvisSpeak = speakGenerated;
   window.jarvisVoiceAuthorityStop = stop;
 
-  const unlockOnGesture = () => {
-    if (nativeSpeech) try { window.speechSynthesis.resume(); } catch {}
-    if (!useNative) prime();
-  };
+  const unlockOnGesture = () => { prime(); if (nativeSpeech) try { window.speechSynthesis.resume(); } catch {} };
   document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('touchstart', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { window.speechSynthesis?.resume(); } catch {} } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { prime(); try { window.speechSynthesis?.resume(); } catch {} } });
 
-  if (nativeSpeech && !useNative) {
+  if (nativeSpeech) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
       if (text) speakGenerated(text, { language: utterance?.lang, pitch: utterance?.pitch, volume: utterance?.volume });
