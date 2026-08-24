@@ -37,10 +37,9 @@ const start=e=>{
  r.onend=()=>{if(recognition===r){clearWatchdog();recognition=null;setState(false)}};
  try{r.start()}catch{stop()}
 };
-// Capture one authoritative tap path. This prevents the React/module handler
-// and this iOS fallback from both creating recognition sessions.
+// One capture-phase click path owns the iOS microphone. Other module handlers
+// never get a chance to create a competing recognition session.
 document.addEventListener('click',start,true);
-document.addEventListener('pointerup',e=>{const t=e.target instanceof Element?e.target.closest('#voiceBtn'):null;if(t){try{e.preventDefault();e.stopImmediatePropagation()}catch{}start(e)}},true);
 document.addEventListener('submit',e=>{if(e.target instanceof HTMLFormElement&&e.target.id==='commandForm')stop()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')stop()},true);
 window.addEventListener('jarvis:voice-command',()=>stop(),true);
