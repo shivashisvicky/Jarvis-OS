@@ -1,12 +1,12 @@
 (() => {
   'use strict';
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (window.__JARVIS_SPEECH_AUTHORITY_V3__) return;
-  window.__JARVIS_SPEECH_AUTHORITY_V3__ = true;
+  if (window.__JARVIS_SPEECH_AUTHORITY_V4__) return;
+  window.__JARVIS_SPEECH_AUTHORITY_V4__ = true;
 
   const MIN = 0.80;
   const MAX = 1.20;
-  const DEFAULT = 1.08;
+  const DEFAULT = 1.05;
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
@@ -27,35 +27,19 @@
     return DEFAULT;
   };
 
-  const getAccent = () => {
-    try {
-      const value = window.localStorage?.getItem('jarvisSpeechAccent');
-      return /^en-(GB|IN)$/i.test(value || '') ? String(value) : 'en-GB';
-    } catch { return 'en-GB'; }
-  };
+  // One global JARVIS accent. Do not let stale local/device settings switch
+  // Samsung into another language or accent.
+  const getAccent = () => 'en-GB';
 
   const badVoice = name => /russian|рус|русский|ru[-_ ]?ru/i.test(String(name || ''));
-  const maleVoice = name => /male|man|guy|daniel|arthur|george|oliver|james|thomas|alex|fred|google uk english male|english united kingdom male/i.test(String(name || ''));
-  const premiumVoice = name => /natural|enhanced|premium|neural|google/i.test(String(name || ''));
+  const preferredVoice = name => /daniel|arthur|george|oliver|james|thomas|alex|fred|google uk english|english united kingdom|natural|enhanced|premium|neural/i.test(String(name || ''));
   const selectVoice = voices => {
-    const accent = getAccent().toLowerCase();
     const usable = voices.filter(v => !badVoice(v.name));
-    const exact = usable.filter(v => String(v.lang || '').toLowerCase() === accent);
-    const exactMale = exact.filter(v => maleVoice(v.name));
-    const exactPremiumMale = exactMale.filter(v => premiumVoice(v.name));
-    if (exactPremiumMale[0]) return exactPremiumMale[0];
-    if (exactMale[0]) return exactMale[0];
-    const exactPremium = exact.filter(v => premiumVoice(v.name));
-    if (exactPremium[0]) return exactPremium[0];
-    if (exact[0]) return exact[0];
-
-    // Samsung/Android devices may expose only a female UK voice. Prefer a
-    // clearly male English voice over silently accepting the wrong timbre.
-    const englishMale = usable.find(v => /^en-(GB|IN|US)/i.test(String(v.lang || '')) && maleVoice(v.name));
-    if (englishMale) return englishMale;
-    return usable.find(v => /^en-GB/i.test(String(v.lang || '')))
-      || usable.find(v => /^en-IN/i.test(String(v.lang || '')))
-      || usable.find(v => /^en-US/i.test(String(v.lang || '')))
+    const exact = usable.filter(v => String(v.lang || '').toLowerCase() === 'en-gb');
+    return exact.find(v => preferredVoice(v.name))
+      || exact.find(v => /natural|enhanced|premium|neural|google/i.test(String(v.name || '')))
+      || exact[0]
+      || usable.find(v => /^en-GB/i.test(String(v.lang || '')))
       || null;
   };
 
@@ -77,13 +61,12 @@
       prime();
       nativeCancel();
       synth.resume();
-      const voices = synth.getVoices();
-      const selected = selectVoice(voices);
+      const selected = selectVoice(synth.getVoices());
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = getRate();
-      utterance.pitch = isAndroid ? 0.92 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
+      utterance.pitch = isAndroid ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
-      utterance.lang = selected?.lang || getAccent();
+      utterance.lang = 'en-GB';
       if (selected) utterance.voice = selected;
       nativeSpeak(utterance);
       return true;
@@ -91,12 +74,8 @@
   };
 
   window.jarvisSpeak = speak;
-
-  if (isAndroid && !isIOS) {
-    synth.speak = utterance => speak(utterance?.text || '', utterance || {});
-  }
-
-  synth.addEventListener?.('voiceschanged', () => { /* selection is performed per utterance */ });
+  if (isAndroid && !isIOS) synth.speak = utterance => speak(utterance?.text || '', utterance || {});
+  synth.addEventListener?.('voiceschanged', () => {});
   document.addEventListener('pointerdown', prime, { capture: true, passive: true });
   document.addEventListener('touchstart', prime, { capture: true, passive: true });
 })();
