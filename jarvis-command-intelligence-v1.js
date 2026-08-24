@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_INTELLIGENCE_V1__)return;
-window.__JARVIS_COMMAND_INTELLIGENCE_V1__=true;
+if(window.__JARVIS_COMMAND_INTELLIGENCE_V2__)return;
+window.__JARVIS_COMMAND_INTELLIGENCE_V2__=true;
 
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const strip=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').replace(/[.!?]+$/,'').trim();
@@ -10,9 +10,7 @@ let lastChoice=null;
 const speak=text=>{
  const el=document.querySelector('#jarvisReply');
  if(el){el.textContent=text;el.classList.add('visible');}
- window.setTimeout(()=>{
-   try{(window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak)?.(text)}catch{}
- },140);
+ window.setTimeout(()=>{try{(window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak)?.(text)}catch{}},140);
 };
 
 const choice=q=>{
@@ -28,13 +26,18 @@ const choice=q=>{
  return true;
 };
 
-const why=q=>{
- if(!lastChoice)return false;
- if(/^\s*(?:why|why did you choose|why did you pick)\b/i.test(q)){
-   speak(`I chose ${lastChoice.picked}. There is no special reason, I simply picked it this time.`);
-   return true;
- }
+const isChoiceFollowUp=q=>{
+ const s=normalize(q).toLowerCase().replace(/[.!?]+$/,'');
+ if(!lastChoice||!s)return false;
+ if(/^(why|why did you|why have you|what made you|what was your reason|was there a reason|any (specific )?reason|what(?:'s| is) the reason|how did you decide|how did you choose|why that one|why this one|why (?:the )?(?:one|choice))\b/.test(s))return true;
+ if(new RegExp(`\\b${lastChoice.picked.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i').test(s)&&/\b(why|reason|decid|choose|pick|made)\b/i.test(s))return true;
  return false;
+};
+
+const why=q=>{
+ if(!isChoiceFollowUp(q))return false;
+ speak(`I chose ${lastChoice.picked}. There is no special reason, I simply picked it this time.`);
+ return true;
 };
 
 const handle=q=>{q=normalize(q);if(!q)return false;if(choice(q))return true;if(why(q))return true;return false};
