@@ -4,6 +4,7 @@
   window.__JARVIS_SETTINGS_VOICE_CONTROLS_V2__ = true;
 
   const RATE_KEY = 'jarvisSpeechRate';
+  const RATE_VERSION_KEY = 'jarvisSpeechRateVersion';
   const ACCENT_KEY = 'jarvisSpeechAccent';
   const DEFAULT_RATE = 1.05;
   const DEFAULT_ACCENT = 'en-GB';
@@ -12,12 +13,17 @@
   const getRate = () => {
     try {
       const stored = Number(localStorage.getItem(RATE_KEY));
+      if (localStorage.getItem(RATE_VERSION_KEY) !== '2' && stored === 0.92) {
+        localStorage.setItem(RATE_KEY, String(DEFAULT_RATE));
+        localStorage.setItem(RATE_VERSION_KEY, '2');
+        return DEFAULT_RATE;
+      }
       return Number.isFinite(stored) ? clamp(stored) : DEFAULT_RATE;
     } catch { return DEFAULT_RATE; }
   };
   const setRate = value => {
     const rate = clamp(value);
-    try { localStorage.setItem(RATE_KEY, String(rate)); } catch {}
+    try { localStorage.setItem(RATE_KEY, String(rate)); localStorage.setItem(RATE_VERSION_KEY, '2'); } catch {}
     return rate;
   };
   const getAccent = () => {
@@ -75,9 +81,7 @@
     });
   };
 
-  const boot = () => {
-    if (document.querySelector('.settings-card')) install();
-  };
+  const boot = () => { if (document.querySelector('.settings-card')) install(); };
   new MutationObserver(boot).observe(document.documentElement, { childList: true, subtree: true });
   boot();
 })();
