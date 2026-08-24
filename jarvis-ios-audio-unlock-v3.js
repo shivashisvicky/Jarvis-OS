@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_IOS_AUDIO_UNLOCK_V6__)return;
-window.__JARVIS_IOS_AUDIO_UNLOCK_V6__=true;
+if(window.__JARVIS_IOS_AUDIO_UNLOCK_V7__)return;
+window.__JARVIS_IOS_AUDIO_UNLOCK_V7__=true;
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(!isIOS||!('speechSynthesis'in window))return;
 const synth=window.speechSynthesis;
@@ -16,30 +16,28 @@ const prime=()=>{
     if(C){if(!ctx||ctx.state==='closed')ctx=new C({latencyHint:'interactive'});if(ctx.state!=='running')void ctx.resume()}
   }catch{}
   try{
-    // iOS only consistently unlocks the speech route when a real utterance is
-    // started from the user's gesture. The previously-hidden zero-volume
-    // utterance could be optimized away by WebKit, so use a very short, quiet
-    // audible utterance and cancel only after onstart fires.
-    const u=new SpeechSynthesisUtterance('.');
-    u.lang='en-GB';u.rate=8;u.pitch=1;u.volume=.08;
-    let started=false;
-    u.onstart=()=>{
-      started=true;
-      window.setTimeout(()=>{try{synth.cancel();synth.resume()}catch{}priming=false},25);
-    };
+    // This is intentionally the same operation that proved successful when
+    // the temporary visible audio-unlock control was used: a real utterance
+    // is started directly from the microphone gesture. Do not cancel it from
+    // this gesture handler. Leaving the route warm is more reliable on iOS.
+    const u=new SpeechSynthesisUtterance('Voice channel ready.');
+    u.lang='en-GB';u.rate=.95;u.pitch=1;u.volume=.01;
+    u.onstart=()=>{priming=false};
     u.onend=()=>{priming=false};
     u.onerror=()=>{priming=false};
     synth.speak(u);
-    window.setTimeout(()=>{if(!started){try{synth.resume()}catch{}priming=false}},220);
     return true;
   }catch{priming=false;try{synth.resume()}catch{};return false}
 };
 const bind=()=>{
   const b=document.querySelector('#voiceBtn');
-  if(!(b instanceof HTMLElement)||b.dataset.jarvisAudioPrimed==='v6')return;
-  b.dataset.jarvisAudioPrimed='v6';
-  b.addEventListener('pointerdown',prime,true);
-  b.addEventListener('touchstart',prime,true);
+  if(!(b instanceof HTMLElement)||b.dataset.jarvisAudioPrimed==='v7')return;
+  b.dataset.jarvisAudioPrimed='v7';
+  // The click is the authoritative gesture. Pointer/touch only prepare the
+  // audio context; the actual speech activation is done by click so WebKit
+  // sees the same user activation that the known-good visible button used.
+  b.addEventListener('pointerdown',()=>{try{synth.resume()}catch{}},true);
+  b.addEventListener('touchstart',()=>{try{synth.resume()}catch{}},true);
   b.addEventListener('click',prime,true);
 };
 const hideLegacy=()=>{const b=document.querySelector('#jarvisAudioUnlock');if(b instanceof HTMLElement)b.remove()};
