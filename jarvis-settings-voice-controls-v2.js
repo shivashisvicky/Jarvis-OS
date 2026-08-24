@@ -1,13 +1,14 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_SETTINGS_VOICE_CONTROLS_V2__) return;
-  window.__JARVIS_SETTINGS_VOICE_CONTROLS_V2__ = true;
+  if (window.__JARVIS_SETTINGS_VOICE_CONTROLS_V3__) return;
+  window.__JARVIS_SETTINGS_VOICE_CONTROLS_V3__ = true;
 
   const RATE_KEY = 'jarvisSpeechRate';
   const RATE_VERSION_KEY = 'jarvisSpeechRateVersion';
   const ACCENT_KEY = 'jarvisSpeechAccent';
   const DEFAULT_RATE = 1.05;
   const DEFAULT_ACCENT = 'en-GB';
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
   const clamp = value => Math.min(1.2, Math.max(.8, Number(value) || DEFAULT_RATE));
 
   const getRate = () => {
@@ -27,11 +28,12 @@
     return rate;
   };
   const getAccent = () => {
+    if (isAndroid) return DEFAULT_ACCENT;
     try { return /^en-(GB|IN)$/i.test(localStorage.getItem(ACCENT_KEY) || '') ? localStorage.getItem(ACCENT_KEY) : DEFAULT_ACCENT; }
     catch { return DEFAULT_ACCENT; }
   };
   const setAccent = value => {
-    const accent = /^en-(GB|IN)$/i.test(String(value)) ? String(value) : DEFAULT_ACCENT;
+    const accent = isAndroid ? DEFAULT_ACCENT : (/^en-(GB|IN)$/i.test(String(value)) ? String(value) : DEFAULT_ACCENT);
     try { localStorage.setItem(ACCENT_KEY, accent); } catch {}
     return accent;
   };
@@ -71,12 +73,21 @@
 
     const accent = document.createElement('div');
     accent.className = 'jarvis-voice-control';
-    accent.innerHTML = '<label for="jarvisSpeechAccent">JARVIS ACCENT</label><select id="jarvisSpeechAccent" class="jarvis-voice-accent"><option value="en-GB">English (UK) · JARVIS standard</option><option value="en-IN">English (India)</option></select><div class="jarvis-voice-note">The standard JARVIS accent is English (UK). Exact voice timbre depends on the voices installed by the device/browser.</div>';
+    accent.innerHTML = '<label for="jarvisSpeechAccent">JARVIS ACCENT</label><select id="jarvisSpeechAccent" class="jarvis-voice-accent"><option value="en-GB">English (UK) · JARVIS standard</option><option value="en-IN">English (India)</option></select><div class="jarvis-voice-note"></div>';
     card.appendChild(accent);
     const select = accent.querySelector('#jarvisSpeechAccent');
-    select.value = getAccent();
+    const note = accent.querySelector('.jarvis-voice-note');
+    if (isAndroid) {
+      select.value = DEFAULT_ACCENT;
+      select.querySelector('option[value="en-IN"]')?.remove();
+      note.textContent = 'Android uses the standard JARVIS English (UK) voice so Samsung/Chrome cannot switch the speaker locale.';
+    } else {
+      select.value = getAccent();
+      note.textContent = 'The standard JARVIS accent is English (UK). Exact voice timbre depends on the voices installed by the device/browser.';
+    }
     select.addEventListener('change', () => {
       const value = setAccent(select.value);
+      select.value = value;
       window.dispatchEvent(new CustomEvent('jarvis:speech-accent-changed', { detail: { accent: value } }));
     });
   };
