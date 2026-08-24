@@ -59,27 +59,13 @@
   <script src="./jarvis-map-pagination-v1.js?v=20260823-map-pagination-v4"></script>
   <script src="./jarvis-map-mobile-layout-v1.js?v=20260823-map-mobile-layout-v1"></script>
   <script src="./jarvis-map-absolute-authority-v25.js?v=20260823-map-places-gateway-v3"></script>
-  <script>
-    (() => {
-      if (window.__jarvisNewsCategorySwitch) return;
-      window.__jarvisNewsCategorySwitch = true;
-      document.addEventListener('change', event => {
-        const target = event.target;
-        if (!(target instanceof HTMLSelectElement) || target.id !== 'newsGenre') return;
-        window.requestAnimationFrame(() => {
-          const refresh = document.querySelector('#refreshNews');
-          if (refresh instanceof HTMLButtonElement && !refresh.disabled) refresh.click();
-        });
-      });
-    })();
-  </script>
   <script src="./jarvis-ebook-library-v2.js?v=20260824-ebooks-v9" defer></script>
   <script src="./jarvis-ebook-search-authority-v2.js?v=20260824-ebook-search-v2" defer></script>
   <script src="./jarvis-ebook-command-authority-v1.js?v=20260824-ebook-command-v4" defer></script>
   <script src="./jarvis-ebook-reader-v7.js?v=20260824-ebook-reader-v7" defer></script>
   <script src="./jarvis-final-mic-release-v1.js?v=20260824-mic-release-v4"></script>
   <script src="./jarvis-stop-voice-button-fix-v1.js?v=20260823-stop-voice-v9"></script>
-  <script src="./jarvis-ios-speech-handoff-v1.js?v=20260824-ios-speech-handoff-v2"></script>
-  <script src="./jarvis-ios-audio-unlock-v3.js?v=20260824-ios-audio-unlock-v5"></script>
+  <script src="./jarvis-ios-speech-handoff-v1.js?v=20260824-ios-speech-handoff-v3"></script>
+  <script src="./jarvis-ios-audio-unlock-v3.js?v=20260824-ios-audio-unlock-v6"></script>
 </body>
 </html>
