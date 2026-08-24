@@ -8,7 +8,7 @@
   const features = {
     web: { scripts: ['jarvis-web-search.js'], css: ['jarvis-web-polish.css'] },
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
-    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'], css: [] },
+    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js', 'jarvis-android-voice-fix-v1.js'], css: [] },
     mobile: { scripts: ['jarvis-mobile-unified.js'], css: [] },
     engineering: { scripts: ['jarvis-engineering.js'], css: [] },
     notes: { scripts: ['jarvis-notes.js'], css: [] },
@@ -19,7 +19,7 @@
   const pending = new Map();
   const scriptPromises = new Map();
   const cssPromises = new Map();
-  const assetUrl = name => `./${name}?v=20260824-media-play-v2-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260824-android-voice-v1-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const findExistingScript = src => {
     const exact = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
