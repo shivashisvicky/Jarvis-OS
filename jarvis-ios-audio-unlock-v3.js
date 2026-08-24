@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_IOS_AUDIO_UNLOCK_V8__)return;
-window.__JARVIS_IOS_AUDIO_UNLOCK_V8__=true;
+if(window.__JARVIS_IOS_AUDIO_UNLOCK_V9__)return;
+window.__JARVIS_IOS_AUDIO_UNLOCK_V9__=true;
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(!isIOS||!('speechSynthesis'in window))return;
 const synth=window.speechSynthesis;
@@ -28,14 +28,14 @@ const showUnlock=()=>{
   if(b instanceof HTMLElement)return b;
   b=document.createElement('button');b.id='jarvisAudioUnlock';b.type='button';b.textContent='🔊';
   b.setAttribute('aria-label','Activate JARVIS voice');b.title='Activate JARVIS voice';
-  b.style.cssText='position:fixed;right:18px;bottom:154px;z-index:2147483000;width:46px;height:46px;border:1px solid rgba(91,214,244,.72);border-radius:50%;background:rgba(4,16,22,.96);color:#bfefff;font-size:20px;box-shadow:0 0 20px rgba(71,201,236,.22);touch-action:manipulation;pointer-events:auto';
+  b.style.cssText='position:fixed;right:18px;bottom:230px;z-index:2147483000;width:46px;height:46px;border:1px solid rgba(91,214,244,.72);border-radius:50%;background:rgba(4,16,22,.96);color:#bfefff;font-size:20px;box-shadow:0 0 20px rgba(71,201,236,.22);touch-action:manipulation;pointer-events:auto;cursor:pointer';
   b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();prime();},true);
   document.body.appendChild(b);return b;
 };
 const bindMic=()=>{
   const b=document.querySelector('#voiceBtn');
-  if(!(b instanceof HTMLElement)||b.dataset.jarvisAudioPrimed==='v8')return;
-  b.dataset.jarvisAudioPrimed='v8';
+  if(!(b instanceof HTMLElement)||b.dataset.jarvisAudioPrimed==='v9')return;
+  b.dataset.jarvisAudioPrimed='v9';
   b.addEventListener('pointerdown',()=>{try{synth.resume()}catch{}},true);
   b.addEventListener('touchstart',()=>{try{synth.resume()}catch{}},true);
   b.addEventListener('click',()=>{try{prime()}catch{}},true);
