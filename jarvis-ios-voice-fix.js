@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_IOS_VOICE_FIX_V4__) return;
-  window.__JARVIS_IOS_VOICE_FIX_V4__ = true;
+  if (window.__JARVIS_IOS_VOICE_FIX_V5__) return;
+  window.__JARVIS_IOS_VOICE_FIX_V5__ = true;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!isIOS || !('speechSynthesis' in window)) return;
@@ -32,7 +32,7 @@
     b.textContent = 'STOP VOICE';
     b.hidden = true;
     b.setAttribute('aria-label', 'Stop JARVIS voice response');
-    b.style.cssText = 'position:fixed;right:18px;bottom:86px;z-index:10001;min-height:42px;padding:10px 16px;border:1px solid rgba(91,214,244,.72);border-radius:10px;background:rgba(4,16,22,.97);color:#bfefff;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;box-shadow:0 0 24px rgba(71,201,236,.18);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);touch-action:manipulation;pointer-events:auto;cursor:pointer';
+    b.style.cssText = 'position:fixed !important;left:auto !important;right:16px !important;bottom:104px !important;z-index:2147483000 !important;display:block;min-height:42px;max-width:calc(100vw - 32px);padding:10px 16px;border:1px solid rgba(91,214,244,.72);border-radius:10px;background:rgba(4,16,22,.97);color:#bfefff;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;box-shadow:0 0 24px rgba(71,201,236,.18);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);touch-action:manipulation;pointer-events:auto;cursor:pointer;box-sizing:border-box;transform:none !important;margin:0 !important';
     const stopHandler = event => { event.preventDefault(); event.stopPropagation(); hardStop(); };
     b.addEventListener('pointerdown', stopHandler, {capture:true, passive:false});
     b.addEventListener('touchstart', stopHandler, {capture:true, passive:false});
@@ -77,9 +77,6 @@
     window.jarvisSpeak = speakNative;
   };
 
-  // Do not wrap speechSynthesis.speak(), resume it on every touch, or reinstall
-  // the voice engine while speech is playing. Those operations can cause iOS
-  // WebKit to duck/attenuate an active utterance over time.
   install();
   window.addEventListener('jarvis:force-stop-voice', hardStop, true);
   document.addEventListener('visibilitychange', () => {
