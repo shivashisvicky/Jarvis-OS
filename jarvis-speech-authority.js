@@ -6,7 +6,7 @@
 
   const MIN = 0.80;
   const MAX = 1.20;
-  const DEFAULT = 1.05;
+  const DEFAULT = 1.08;
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
@@ -27,27 +27,35 @@
     return DEFAULT;
   };
 
-  // JARVIS has one Android accent. Do not allow a Samsung/Chrome locale choice
-  // to silently switch the actual speaker to an Indian, Russian, or system voice.
   const getAccent = () => {
-    if (isAndroid) return 'en-GB';
     try {
       const value = window.localStorage?.getItem('jarvisSpeechAccent');
-      return /^en-(GB|IN)$/i.test(value || '') ? value : 'en-GB';
+      return /^en-(GB|IN)$/i.test(value || '') ? String(value) : 'en-GB';
     } catch { return 'en-GB'; }
   };
 
   const badVoice = name => /russian|рус|русский|ru[-_ ]?ru/i.test(String(name || ''));
+  const maleVoice = name => /male|man|guy|daniel|arthur|george|oliver|james|thomas|alex|fred|google uk english male|english united kingdom male/i.test(String(name || ''));
+  const premiumVoice = name => /natural|enhanced|premium|neural|google/i.test(String(name || ''));
   const selectVoice = voices => {
     const accent = getAccent().toLowerCase();
-    const exact = voices.filter(v => String(v.lang || '').toLowerCase() === accent && !badVoice(v.name));
-    const preferred = /en-gb/i.test(accent)
-      ? /Google UK English Male|English United Kingdom Male|Daniel|Arthur|George|Oliver|James|Thomas|Natural|Enhanced|Premium/i
-      : /Google|Natural|Enhanced|Premium|India|English India/i;
-    return exact.find(v => preferred.test(String(v.name || '')))
-      || exact.find(v => /male|natural|enhanced|premium|google/i.test(String(v.name || '')))
-      || exact[0]
-      || voices.find(v => /^en-GB/i.test(String(v.lang || '')) && !badVoice(v.name))
+    const usable = voices.filter(v => !badVoice(v.name));
+    const exact = usable.filter(v => String(v.lang || '').toLowerCase() === accent);
+    const exactMale = exact.filter(v => maleVoice(v.name));
+    const exactPremiumMale = exactMale.filter(v => premiumVoice(v.name));
+    if (exactPremiumMale[0]) return exactPremiumMale[0];
+    if (exactMale[0]) return exactMale[0];
+    const exactPremium = exact.filter(v => premiumVoice(v.name));
+    if (exactPremium[0]) return exactPremium[0];
+    if (exact[0]) return exact[0];
+
+    // Samsung/Android devices may expose only a female UK voice. Prefer a
+    // clearly male English voice over silently accepting the wrong timbre.
+    const englishMale = usable.find(v => /^en-(GB|IN|US)/i.test(String(v.lang || '')) && maleVoice(v.name));
+    if (englishMale) return englishMale;
+    return usable.find(v => /^en-GB/i.test(String(v.lang || '')))
+      || usable.find(v => /^en-IN/i.test(String(v.lang || '')))
+      || usable.find(v => /^en-US/i.test(String(v.lang || '')))
       || null;
   };
 
@@ -73,10 +81,8 @@
       const selected = selectVoice(voices);
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = getRate();
-      utterance.pitch = isAndroid ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
+      utterance.pitch = isAndroid ? 0.92 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
-      // Android is deliberately pinned to JARVIS English UK. If Chrome's voice
-      // registry is temporarily empty, language still remains en-GB.
       utterance.lang = selected?.lang || getAccent();
       if (selected) utterance.voice = selected;
       nativeSpeak(utterance);
