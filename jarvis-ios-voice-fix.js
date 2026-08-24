@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_IOS_VOICE_FIX_V5__) return;
-  window.__JARVIS_IOS_VOICE_FIX_V5__ = true;
+  if (window.__JARVIS_IOS_VOICE_FIX_V6__) return;
+  window.__JARVIS_IOS_VOICE_FIX_V6__ = true;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!isIOS || !('speechSynthesis' in window)) return;
@@ -9,7 +9,6 @@
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
-  let speaking = false;
 
   const hardStop = () => {
     try { window.jarvisArmVoiceRelease?.(6000); } catch {}
@@ -19,6 +18,7 @@
     try { window.jarvisForceStopVoice?.(); } catch {}
     try { nativeCancel(); } catch {}
     try { synth.cancel(); } catch {}
+    try { synth.resume(); } catch {}
     try { document.querySelector('#voiceBtn')?.classList.remove('listening'); } catch {}
     try { const b = document.querySelector('#jarvisIOSStopVoice'); if (b instanceof HTMLElement) b.hidden = true; } catch {}
   };
@@ -42,9 +42,8 @@
   };
 
   const setSpeaking = value => {
-    speaking = Boolean(value);
     const b = ensureStop();
-    b.hidden = !speaking;
+    b.hidden = !Boolean(value);
   };
 
   const speakNative = (text, options = {}) => {
@@ -53,6 +52,9 @@
     try {
       ensureStop().hidden = false;
       nativeCancel();
+      // Critical iOS handoff: recognition can leave WebKit speech synthesis
+      // paused. Always resume immediately before queuing the response.
+      try { synth.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.rate = Math.min(1.05, Math.max(.85, Number(options.rate) || .95));
       utterance.pitch = 1;
@@ -70,6 +72,22 @@
     }
   };
 
+  // Keep the native speech engine warm across the recognition -> response
+  // boundary. This was the missing piece in the regression where voice
+  // commands became silent until a later text command reactivated speech.
+  const originalSpeak = synth.speak.bind(synth);
+  try {
+    synth.speak = utterance => {
+      try { synth.resume(); } catch {}
+      if (utterance) {
+        utterance.onstart = () => setSpeaking(true);
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = error => { console.warn('[JARVIS iOS voice] speech error', error); setSpeaking(false); };
+      }
+      return originalSpeak(utterance);
+    };
+  } catch {}
+
   const install = () => {
     ensureStop();
     window.jarvisVoiceAuthoritySpeak = speakNative;
@@ -77,10 +95,27 @@
     window.jarvisSpeak = speakNative;
   };
 
+  // Restore the gesture-time warm-up that previously kept iOS Safari's audio
+  // session alive after speech recognition. Do not cancel an actual response.
+  const warm = event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('#jarvisIOSStopVoice')) return;
+    if (!target.closest('#commandInput, #commandForm, #voiceBtn, #testVoice, #jhcActions, [data-jhc]')) return;
+    try { synth.resume(); } catch {}
+    install();
+  };
+
+  ensureStop();
   install();
-  window.addEventListener('jarvis:force-stop-voice', hardStop, true);
+  document.addEventListener('pointerdown', warm, true);
+  document.addEventListener('touchstart', warm, true);
+  const timer = window.setInterval(() => install(), 250);
+  window.setTimeout(() => window.clearInterval(timer), 15000);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) hardStop();
-    else install();
+    if (!document.hidden) {
+      try { synth.resume(); } catch {}
+      install();
+    }
   });
 })();
