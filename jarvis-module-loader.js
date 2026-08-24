@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260824-voice-baseline-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260825-search-v3-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
