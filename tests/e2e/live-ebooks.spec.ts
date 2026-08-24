@@ -24,7 +24,7 @@ test('deployed Gutenberg ebook reader searches, renders, and navigates', async (
   await expect(page.locator('#jbe8Page')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe8Page')).not.toBeEmpty({ timeout: 25_000 });
   await expect(page.locator('#jbe8Page')).toContainText(/Beowulf|Hw[aæ]t|Scyld/i, { timeout: 25_000 });
-  await expect(page.locator('#jbe8Counter')).toMatchText(/1 \/ \d+/);
+  await expect(page.locator('#jbe8Counter')).toHaveText(/1 \/ \d+/);
 
   const jump = page.locator('#jbe8Jump');
   await jump.fill('2');
