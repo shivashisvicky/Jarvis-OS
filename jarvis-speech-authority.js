@@ -40,10 +40,28 @@
       || null;
   };
 
+  // iOS/Safari requires speech synthesis to be activated from the same user
+  // gesture that starts recognition. A plain resume() is not sufficient on
+  // some WebKit builds. The previous known-good iOS command fix primed the
+  // engine with a zero-volume utterance, then cancelled it immediately.
   const prime = () => {
-    if (warmed) return;
-    warmed = true;
-    try { nativeCancel(); synth.resume(); } catch {}
+    try {
+      if (warmed) return;
+      warmed = true;
+      nativeCancel();
+      synth.resume();
+      if (isIOS) {
+        const unlock = new SpeechSynthesisUtterance('.');
+        unlock.volume = 0;
+        unlock.rate = 1;
+        unlock.pitch = 1;
+        unlock.lang = 'en-GB';
+        nativeSpeak(unlock);
+        window.setTimeout(() => {
+          try { nativeCancel(); synth.resume(); } catch {}
+        }, 120);
+      }
+    } catch {}
   };
 
   window.jarvisPrimeSpeech = prime;
@@ -70,18 +88,15 @@
     } catch { return false; }
   };
 
-  // iOS has a dedicated native authority loaded before this lazy module.
-  // Never replace that authority after the recognition -> response handoff.
-  // Text and voice commands must resolve through the same final speaker.
+  // The dedicated iOS authority is installed by the non-deferred iOS fix.
+  // Never replace it with this lazy module after page startup.
   const existingIOSAuthority = isIOS && typeof window.jarvisSpeak === 'function';
   if (!existingIOSAuthority) {
     window.jarvisVoiceAuthoritySpeak = speak;
     window.jarvisCinematicSpeak = speak;
     window.jarvisSpeak = speak;
   }
-  window.jarvisVoiceAuthorityStop = () => {
-    try { nativeCancel(); } catch {}
-  };
+  window.jarvisVoiceAuthorityStop = () => { try { nativeCancel(); } catch {} };
 
   if (isAndroid && !isIOS) synth.speak = utterance => speak(utterance?.text || '', utterance || {});
   synth.addEventListener?.('voiceschanged', () => {});
