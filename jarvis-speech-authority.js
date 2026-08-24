@@ -6,7 +6,7 @@
 
   const MIN = 0.80;
   const MAX = 1.20;
-  const DEFAULT = 0.92;
+  const DEFAULT = 1.05;
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
@@ -25,6 +25,27 @@
       if (Number.isFinite(stored)) return Math.min(MAX, Math.max(MIN, stored));
     } catch {}
     return DEFAULT;
+  };
+
+  const getAccent = () => {
+    try {
+      const getter = window.jarvisGetSpeechAccent;
+      if (typeof getter === 'function') return getter();
+      return window.localStorage?.getItem('jarvisSpeechAccent') || 'en-GB';
+    } catch { return 'en-GB'; }
+  };
+
+  const selectVoice = (voices, requested) => {
+    const accent = requested || getAccent();
+    const preferred = /en-GB/i.test(accent)
+      ? /Daniel|Arthur|George|Oliver|James|Thomas/i
+      : /Google|Natural|Enhanced|Premium|India/i;
+    return voices.find(v => v.lang?.toLowerCase() === accent.toLowerCase() && preferred.test(v.name))
+      || voices.find(v => v.lang?.toLowerCase() === accent.toLowerCase())
+      || voices.find(v => v.lang?.toLowerCase().startsWith(accent.toLowerCase().split('-')[0] + '-'))
+      || voices.find(v => /^en-GB/i.test(v.lang))
+      || voices.find(v => /^en-IN/i.test(v.lang))
+      || voices[0];
   };
 
   const setSpeaking = value => {
@@ -46,17 +67,10 @@
     button.setAttribute('aria-label', 'Stop JARVIS voice response');
     button.textContent = '■ STOP VOICE';
     button.style.cssText = 'position:fixed;right:18px;bottom:26px;z-index:9999;min-height:42px;padding:10px 15px;border:1px solid rgba(91,214,244,.72);border-radius:10px;background:rgba(4,16,22,.96);color:#bfefff;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;box-shadow:0 0 24px rgba(71,201,236,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)';
-    button.addEventListener('click', () => {
-      nativeCancel();
-      setSpeaking(false);
-    });
+    button.addEventListener('click', () => { nativeCancel(); setSpeaking(false); });
     document.body.appendChild(button);
   };
 
-  // iOS Safari needs a speech gesture unlock, but it is important that only
-  // one layer owns speech. On iOS we therefore keep the browser's native
-  // speechSynthesis.speak untouched. The separate voice authority captures
-  // the original native function and uses it for the actual response.
   const prime = () => {
     if (warmed) return;
     warmed = true;
@@ -67,7 +81,7 @@
       unlock.volume = 0;
       unlock.rate = 1;
       unlock.pitch = 1;
-      unlock.lang = 'en-GB';
+      unlock.lang = getAccent();
       unlock.onend = () => { try { nativeCancel(); synth.resume(); } catch {} };
       unlock.onerror = () => { try { nativeCancel(); synth.resume(); } catch {} };
       nativeSpeak(unlock);
@@ -79,15 +93,19 @@
   window.jarvisStopSpeaking = () => { nativeCancel(); setSpeaking(false); };
   window.jarvisGetEffectiveSpeechRate = getRate;
 
-  // Desktop browsers keep the wrapper because other desktop voice paths use
-  // it for consistent rate/state handling. iOS deliberately bypasses it to
-  // avoid Safari receiving multiple speech-control layers.
   if (!isIOS) {
     synth.speak = utterance => {
       try {
         synth.resume();
         if (utterance && typeof utterance === 'object' && 'rate' in utterance) utterance.rate = getRate();
         if (utterance && typeof utterance === 'object') {
+          const voices = synth.getVoices();
+          const requestedAccent = getAccent();
+          const selected = selectVoice(voices, requestedAccent);
+          if (selected && (!utterance.voice || !new RegExp(`^${requestedAccent.replace('-', '[-_]')}$`, 'i').test(utterance.voice.lang || ''))) {
+            utterance.voice = selected;
+            utterance.lang = selected.lang;
+          }
           utterance.onstart = () => setSpeaking(true);
           utterance.onend = () => setSpeaking(false);
           utterance.onerror = () => setSpeaking(false);
@@ -109,20 +127,15 @@
       utterance.rate = getRate();
       utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : 0.54;
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : 0.96;
-      utterance.lang = options.language || 'en-GB';
-      if (options.voiceName) {
-        const voice = voices.find(v => v.name === options.voiceName);
-        if (voice) utterance.voice = voice;
-      }
+      const selected = selectVoice(voices, options.language || getAccent());
+      utterance.lang = selected?.lang || options.language || getAccent();
+      if (selected) utterance.voice = selected;
       utterance.onstart = () => setSpeaking(true);
       utterance.onend = () => setSpeaking(false);
       utterance.onerror = () => setSpeaking(false);
       nativeSpeak(utterance);
       return true;
-    } catch {
-      setSpeaking(false);
-      return false;
-    }
+    } catch { setSpeaking(false); return false; }
   };
 
   synth.addEventListener?.('voiceschanged', () => {});
