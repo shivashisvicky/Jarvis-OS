@@ -1,0 +1,3 @@
+Phase 1 baseline freeze.
+Known-good build reference: f6b43298ff823dc0420ba6cbdce9274afba7baab
+No runtime/UI behavior changes. Preserve current working voice, maps, media, books and command behavior while Phase 2 is prepared.
