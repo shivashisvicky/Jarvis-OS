@@ -1,7 +1,7 @@
 /* J.A.R.V.I.S. Voice Authority
- * Desktop: remote TTS. iOS/Safari: native browser speech, deliberately kept
- * synchronous with the command response path so Safari cannot lose audio after
- * microphone recognition or an asynchronous TTS fetch.
+ * Desktop: remote TTS. iOS/Safari/Android: native browser speech, deliberately kept
+ * synchronous with the command response path so mobile browsers cannot lose audio
+ * after microphone recognition or an asynchronous TTS fetch.
  */
 (() => {
   'use strict';
@@ -15,8 +15,9 @@
   const nativeSpeak = nativeSpeech ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
   const nativeCancel = nativeSpeech ? window.speechSynthesis.cancel.bind(window.speechSynthesis) : null;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const useNative = isIOS || isSafari;
+  const useNative = isIOS || isSafari || isAndroid;
   const requestId = { value: 0 };
   let playing = false;
   let audioContext = null;
@@ -66,8 +67,8 @@
       nativeCancel?.();
       try { window.speechSynthesis.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(String(text));
-      // iOS is noticeably more reliable with its default voice and a normal
-      // pitch. Do not depend on getVoices(), which can be empty on first load.
+      // Mobile browsers are more reliable with their default speech voice and
+      // a normal pitch. Do not depend on getVoices(), which can be empty early.
       utterance.rate = useNative ? Math.min(1.05, Math.max(.85, rate())) : rate();
       utterance.pitch = useNative ? 1 : (Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54);
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
@@ -217,7 +218,7 @@
     } catch (error) {
       if (id === requestId.value) {
         const fallbackWorked = nativeFallback(item.text, item.options);
-        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked, mobileWav: isIOS || isSafari } }));
+        window.dispatchEvent(new CustomEvent('jarvis:voice-error', { detail: { error: String(error?.message || error), fallback: fallbackWorked, mobileWav: isIOS || isSafari || isAndroid } }));
       }
     } finally {
       playing = false;
@@ -253,9 +254,9 @@
   document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { window.speechSynthesis?.resume(); } catch {} } });
 
-  // Do not wrap speechSynthesis on iOS/Safari. The native engine is the final
-  // authority there, and wrapping it can create a silent speaking state without
-  // actual audio on mobile Safari.
+  // Do not wrap speechSynthesis on iOS/Safari/Android. Native browser speech is
+  // the final authority on mobile, avoiding the Web Audio autoplay/streaming
+  // path that can become silent when recognition hands control back to Chrome.
   if (nativeSpeech && !useNative) {
     window.speechSynthesis.speak = utterance => {
       const text = utterance?.text || '';
