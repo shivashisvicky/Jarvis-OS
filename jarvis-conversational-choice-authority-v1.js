@@ -1,10 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V1__)return;
-window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V1__=true;
-
-// Conversational intent must beat the web-search fallback. This deliberately
-// does not know about colours, foods, brands, etc. The two options are data.
+if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V2__)return;
+window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V2__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const cleanOption=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').trim();
 const parseChoice=text=>{
@@ -17,39 +14,23 @@ const parseChoice=text=>{
  return {a,b};
 };
 let lastChoice=null;
-const stopVoice=()=>{try{window.jarvisStopIOSVoice?.()}catch{}try{window.jarvisStopSpeaking?.()}catch{}try{window.dispatchEvent(new Event('jarvis:force-stop-voice'))}catch{}};
+const cancelCurrentSpeech=()=>{try{window.speechSynthesis?.cancel()}catch{}};
 const reply=text=>{
  const el=document.querySelector('#jarvisReply');
  if(el){el.textContent=text;el.classList.add('visible')}
- try{window.jarvisSpeak?.(text)}catch{}
+ try{window.jarvisMarkSpokenResponse?.(text)}catch{}
+ try{if(typeof window.jarvisSpeak==='function')window.jarvisSpeak(text);else if(typeof window.jarvisCinematicSpeak==='function')window.jarvisCinematicSpeak(text)}catch{}
 };
 const choose=({a,b})=>Math.random()<0.5?a:b;
 const handle=raw=>{
- const q=normalize(raw);
- if(!q)return false;
+ const q=normalize(raw);if(!q)return false;
  const options=parseChoice(q);
- if(options){
-   const picked=choose(options);
-   lastChoice={picked,other:picked===options.a?options.b:options.a};
-   stopVoice();
-   reply(`I choose ${picked}.`);
-   return true;
- }
+ if(options){cancelCurrentSpeech();const picked=choose(options);lastChoice={picked,other:picked===options.a?options.b:options.a};reply(`I choose ${picked}.`);return true}
  const why=q.match(/^\s*(?:why|why did you choose|why did you pick)\s+(.+?)[.!?]*$/i);
- if(why&&lastChoice){
-   stopVoice();
-   reply(`I chose ${lastChoice.picked}. There is no special reason, I simply picked it this time.`);
-   return true;
- }
+ if(why&&lastChoice){reply(`I chose ${lastChoice.picked}. There is no special reason, I simply picked it this time.`);return true}
  return false;
 };
-const submit=e=>{
- const form=e.target;
- if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;
- const input=form.querySelector('#commandInput');
- const raw=input instanceof HTMLInputElement?input.value:'';
- if(handle(raw)){e.preventDefault();e.stopImmediatePropagation()}
-};
+const submit=e=>{const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;const input=form.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(handle(raw)){e.preventDefault();e.stopImmediatePropagation()}};
 const voice=e=>{if(handle(e.detail?.text)){e.preventDefault?.();e.stopImmediatePropagation?.()}};
 document.addEventListener('submit',submit,true);
 window.addEventListener('jarvis:voice-command',voice,true);
