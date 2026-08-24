@@ -27,10 +27,7 @@
     return DEFAULT;
   };
 
-  // One global JARVIS accent. Do not let stale local/device settings switch
-  // Samsung into another language or accent.
   const getAccent = () => 'en-GB';
-
   const badVoice = name => /russian|рус|русский|ru[-_ ]?ru/i.test(String(name || ''));
   const preferredVoice = name => /daniel|arthur|george|oliver|james|thomas|alex|fred|google uk english|english united kingdom|natural|enhanced|premium|neural/i.test(String(name || ''));
   const selectVoice = voices => {
@@ -73,7 +70,19 @@
     } catch { return false; }
   };
 
-  window.jarvisSpeak = speak;
+  // iOS has a dedicated native authority loaded before this lazy module.
+  // Never replace that authority after the recognition -> response handoff.
+  // Text and voice commands must resolve through the same final speaker.
+  const existingIOSAuthority = isIOS && typeof window.jarvisSpeak === 'function';
+  if (!existingIOSAuthority) {
+    window.jarvisVoiceAuthoritySpeak = speak;
+    window.jarvisCinematicSpeak = speak;
+    window.jarvisSpeak = speak;
+  }
+  window.jarvisVoiceAuthorityStop = () => {
+    try { nativeCancel(); } catch {}
+  };
+
   if (isAndroid && !isIOS) synth.speak = utterance => speak(utterance?.text || '', utterance || {});
   synth.addEventListener?.('voiceschanged', () => {});
   document.addEventListener('pointerdown', prime, { capture: true, passive: true });
