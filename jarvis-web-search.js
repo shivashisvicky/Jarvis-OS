@@ -9,10 +9,12 @@
 
   function normalizeSearchQuery(raw){
     let q = String(raw || '').replace(/\s+/g, ' ').trim();
+    q = q.replace(/^(?:open|search|find|show|lookup|look\s+up)\s+(?:for\s+)?/i, '');
+    q = q.replace(/^search\s+for\s+/i, '');
     q = q.replace(/\b1st\b/gi,'first').replace(/\b2nd\b/gi,'second').replace(/\b3rd\b/gi,'third').replace(/\b4th\b/gi,'fourth').replace(/\b5th\b/gi,'fifth');
     q = q.replace(/\bUS\b/gi,'United States');
     q = q.replace(/\bUSA\b/gi,'United States');
-    return q;
+    return q.trim();
   }
 
   function needsRewrite(q){
@@ -37,16 +39,11 @@
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch(`${endpoint()}?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(query)}`, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-        signal: controller.signal
+        headers: { Accept: 'application/json' }, cache: 'no-store', signal: controller.signal
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      return {
-        results: Array.isArray(data?.results) ? data.results : [],
-        provider: String(data?.provider || provider).toLowerCase(),
-      };
+      return { results: Array.isArray(data?.results) ? data.results : [], provider: String(data?.provider || provider).toLowerCase() };
     } finally { clearTimeout(timer); }
   }
 
@@ -58,8 +55,7 @@
     const label = String(provider || 'web').toUpperCase();
     if (!items.length) {
       results.innerHTML = `<div class="empty">No web results found. <button class="secondary" id="webExternal">OPEN ${esc(label)} ↗</button></div>`;
-      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
-      return;
+      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true }); return;
     }
     const badge = rewritten ? '<span style="display:block;margin-bottom:8px;color:#79d9ef;font-size:10px;letter-spacing:.12em">QUERY REFINED FOR RELEVANCE</span>' : '';
     results.innerHTML = badge + items.slice(0, 8).map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
@@ -72,45 +68,21 @@
     if(needsRewrite(firstQuery) && firstScore<0.85){
       const secondQuery='Who was the ' + firstQuery.replace(/\b(?:who\s+is\s+)?/i,'').replace(/\bUnited States\b/i,'United States').trim();
       const refined=await search(provider,secondQuery);
-      if(refined.results.length && relevanceScore(secondQuery,refined.results)>=firstScore){
-        return {...refined, query:secondQuery, rewritten:true};
-      }
+      if(refined.results.length && relevanceScore(secondQuery,refined.results)>=firstScore) return {...refined, query:secondQuery, rewritten:true};
     }
     return {...first, query:firstQuery, rewritten:false};
   }
 
   document.addEventListener('click', event => {
-    const button = event.target?.closest?.('#webSearch');
-    if (!button) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const input = document.querySelector('#webQuery');
-    const providerEl = document.querySelector('#webProvider');
-    const status = document.querySelector('#jwsStatus');
-    const results = document.querySelector('#jwsResults');
-    const rawQuery = input?.value?.trim() || '';
-    const provider = providerEl?.value === 'brave' ? 'brave' : 'bing';
+    const button = event.target?.closest?.('#webSearch'); if (!button) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const input = document.querySelector('#webQuery'), providerEl = document.querySelector('#webProvider'), status = document.querySelector('#jwsStatus'), results = document.querySelector('#jwsResults');
+    const rawQuery = input?.value?.trim() || '', provider = providerEl?.value === 'brave' ? 'brave' : 'bing';
     if (!status || !results) return;
     if (!rawQuery) { status.textContent = 'READY'; results.innerHTML = '<div class="empty">Enter a search query.</div>'; return; }
-    status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
-    results.innerHTML = '<div class="empty">Searching…</div>';
-    runSearch(provider, rawQuery)
-      .then(payload => {
-        const actualProvider = payload.provider || provider;
-        status.textContent = `${payload.results.length} RESULTS · ${actualProvider.toUpperCase()}`;
-        render(payload.results, actualProvider, payload.query, results, payload.rewritten);
-      })
-      .catch(() => {
-        status.textContent = 'DEGRADED';
-        results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
-        results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, rawQuery), { once: true });
-      });
+    status.textContent = `SEARCHING ${provider.toUpperCase()}…`; results.innerHTML = '<div class="empty">Searching…</div>';
+    runSearch(provider, rawQuery).then(payload => { const actualProvider = payload.provider || provider; status.textContent = `${payload.results.length} RESULTS · ${actualProvider.toUpperCase()}`; render(payload.results, actualProvider, payload.query, results, payload.rewritten); }).catch(() => { status.textContent = 'DEGRADED'; results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`; results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, rawQuery), { once: true }); });
   }, true);
 
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && event.target?.matches?.('#webQuery')) {
-      event.preventDefault();
-      document.querySelector('#webSearch')?.click();
-    }
-  }, true);
+  document.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target?.matches?.('#webQuery')) { event.preventDefault(); document.querySelector('#webSearch')?.click(); } }, true);
 })();
