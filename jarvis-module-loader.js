@@ -20,7 +20,7 @@
   const scriptPromises = new Map();
   const cssPromises = new Map();
   const assetUrl = name => {
-    const version = /voice/i.test(name) ? '20260824-ios-voice-authority-v4' : /mobile/i.test(name) ? '20260824-android-mobile-v2' : '20260824-media-play-v2';
+    const version = /voice/i.test(name) ? '20260824-ios-voice-authority-v5' : /mobile/i.test(name) ? '20260824-android-mobile-v2' : '20260824-media-play-v2';
     return `./${name}?v=${version}-${name.replace(/[^a-z0-9]/gi, '')}`;
   };
 
@@ -92,6 +92,5 @@
   };
 
   window.jarvisLoadFeature = loadFeature;
-
   void loadFeature('voice').catch(error => console.warn('JARVIS voice feature preload failed', error));
 })();
