@@ -1,13 +1,11 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V4__)return;
-window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V4__=true;
+if(window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V5__)return;
+window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V5__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isNearest=q=>{
  const s=clean(q).replace(/[?.!]+$/,'').trim();
- return /^(?:(?:what(?:'s|s| is)\s+)?(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|(?:which|what)(?:\s+is)?\s+(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|(?:which|what)\s+(?:one|restaurant|place|option)(?:\s+of\s+(?:these|them))?\s+(?:is\s+)?(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|(?:which|what)\s+(?:restaurant|place|option)\s+(?:is\s+)?(?:the\s+)?(?:nearest|closest)|(?:which|what)\s+(?:one|restaurant|place|option)\s+is\s+(?:the\s+)?(?:nearest|closest))$/i.test(s)
-   || /^(?:which|what)\s+(?:of\s+(?:these|them)\s+)?(?:the\s+)?(?:nearest|closest)\s+(?:one|restaurant|place|option)?$/i.test(s)
-   || /^(?:what(?:'s|s| is)\s+)?(?:the\s+)?(?:nearest|closest)\s+(?:one|restaurant|place|option)\s+to\s+(?:me|here)$/i.test(s);
+ return /^(?:what(?:'s|s| is)\s+(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|which\s+is\s+(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|what\s+is\s+(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|(?:which|what)\s+(?:one|restaurant|place|option)(?:\s+of\s+(?:these|them))?\s+(?:is\s+)?(?:the\s+)?(?:nearest|closest)(?:\s+(?:one|restaurant|place|option))?|(?:which|what)\s+(?:restaurant|place|option)\s+(?:is\s+)?(?:the\s+)?(?:nearest|closest)|(?:which|what)\s+(?:one|restaurant|place|option)\s+is\s+(?:the\s+)?(?:nearest|closest)|(?:which|what)\s+(?:of\s+(?:these|them)\s+)?(?:the\s+)?(?:nearest|closest)\s+(?:one|restaurant|place|option)?|(?:the\s+)?(?:nearest|closest)\s+(?:one|restaurant|place|option)\s+to\s+(?:me|here))$/i.test(s);
 };
 const isThere=q=>/^(?:take|bring)\s+me\s+(?:there|to\s+that\s+one|to\s+the\s+(?:nearest|closest)\s+one)|^(?:navigate|go)\s+(?:there|to\s+that\s+one)|^(?:show|open)\s+(?:that\s+one|the\s+(?:nearest|closest)\s+one)\s+(?:on\s+maps?|in\s+maps?)?$/i.test(clean(q).replace(/[?.!]+$/,'').trim()) || /^(?:there|that one|that)$/i.test(clean(q).replace(/[?.!]+$/,'').trim());
 const context=()=>{try{return window.jarvisContextEngine?.get?.()||null}catch{return null}};
