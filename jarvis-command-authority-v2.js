@@ -7,7 +7,7 @@ const route=q=>{
  const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();
  const entity=window.__JARVIS_ENTITY__;
  const ctx=window.jarvisContextEngine?.get?.();
- const ref=window.jarvisContextEngine?.resolveReference?.(s);
+ const ref=(()=>{try{const direct=window.jarvisContextEngine?.resolveReference?.(s);if(direct?.matched)return direct;const stripped=s.replace(/^(?:open|read|show|select|choose)\s+/,'').trim();return stripped!==s?window.jarvisContextEngine?.resolveReference?.(stripped):direct}catch{return null}})();
  if(!s)return {type:'EMPTY',owner:null};
  if(/^(?:please\s+)?(?:search|look\s*up|lookup|google|bing|web\s+search)\b[\s\S]*/.test(s)||/\b(?:search|look\s+up|browse|google|bing|internet|web|search\s+for)\b[\s\S]*\b(?:internet|web|online)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
@@ -40,7 +40,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'9.2.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'9.3.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
