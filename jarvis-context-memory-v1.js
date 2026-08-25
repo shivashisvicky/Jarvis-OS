@@ -9,11 +9,11 @@ const canon=v=>clean(String(v??'').split('|')[0]);
 const clone=v=>{try{return structuredClone(v)}catch{return v}};
 const load=()=>{try{return JSON.parse(sessionStorage.getItem(KEY)||'{}')}catch{return {}}};
 const save=x=>{try{sessionStorage.setItem(KEY,JSON.stringify(x))}catch{}};
+const state=load();
 const expired=x=>!x?.savedAt||Date.now()-Number(x.savedAt)>TTL;
+if(expired(state)){Object.keys(state).forEach(k=>delete state[k]);save(state)}
 const normalizeResult=r=>{if(!r)return null;const name=canon(r.name||r.title||r.display_name);if(!name)return null;return {...clone(r),name,type:clean(r.type||r.category||''),address:clean(r.address||r.display||r.display_name||'')};};
 const normalizeEntity=e=>{if(!e)return null;const name=canon(e.name||e.title||e.display_name);return name?{...clone(e),name,type:clean(e.type||e.category||''),address:clean(e.address||e.display||e.display_name||'')}:null};
-const state=load();
-if(expired(state)){Object.keys(state).forEach(k=>delete state[k]);save(state)}
 const snapshot=()=>({...clone(state),selected:normalizeResult(state.selected),results:Array.isArray(state.results)?state.results.map(normalizeResult).filter(Boolean):[]});
 const emit=()=>window.dispatchEvent(new CustomEvent('jarvis:context-memory-updated',{detail:snapshot()}));
 const persistContext=ctx=>{if(!ctx||!ctx.domain)return snapshot();state.domain=clean(ctx.domain);state.intent=clean(ctx.intent||'');state.entity=normalizeEntity(ctx.entity);state.query=clean(ctx.query||'');state.location=clone(ctx.location||null);state.results=Array.isArray(ctx.results)?ctx.results.map(normalizeResult).filter(Boolean):[];state.selected=normalizeResult(ctx.selected);state.savedAt=Date.now();save(state);emit();return snapshot()};
@@ -31,14 +31,13 @@ const engine=window.jarvisContextEngine;
 if(engine&&!engine.__JARVIS_CONTEXT_MEMORY_BRIDGED__){
  engine.__JARVIS_CONTEXT_MEMORY_BRIDGED__=true;
  const originalSet=engine.set,originalClear=engine.clear;
- engine.set=(patch,mode='merge')=>{const out=originalSet.call(engine,patch,mode);persistContext(out);return out};
- engine.clear=()=>{const out=originalClear.call(engine);api.clear();return out};
- if(!engine.isActive?.()&&state.domain&&!expired(state)){try{engine.set({domain:state.domain,intent:state.intent||null,entity:state.entity,query:state.query||null,location:state.location||null,results:state.results||null,selected:state.selected||null},'replace')}catch{}}
+ engine.set=(patch,mode='merge')=>{const result=originalSet.call(engine,patch,mode);persistContext(engine.get());return result};
+ engine.clear=()=>{const result=originalClear.call(engine);api.clear();return result};
+ if(!engine.isActive?.()&&state.domain&&!expired(state)){try{originalSet.call(engine,{domain:state.domain,intent:state.intent||null,entity:state.entity,query:state.query||null,location:state.location||null,results:state.results||null,selected:state.selected||null},'replace')}catch{}}
 }
 window.addEventListener('jarvis:map-context',e=>{const d=e.detail||{};persistContext({domain:'MAPS',query:d.query||'',location:d.location||d.place||'',results:d.results||[],selected:d.selected||null})});
 window.addEventListener('jarvis:search-context',e=>{const d=e.detail||{};persistContext({domain:'SEARCH',query:d.query||'',results:d.results||[],selected:d.selected||null})});
 window.addEventListener('jarvis:ebook-context',e=>{const d=e.detail||{};persistContext({domain:'BOOKS',entity:d.entity||null,query:d.query||'',results:d.results||[],selected:d.selected||null})});
 window.addEventListener('jarvis:entity-resolved',e=>{const d=e.detail||{};persistContext({domain:d.type||d.domain||state.domain,entity:d.entity||null,query:d.query||state.query,results:state.results||[],selected:state.selected||null,location:state.location||null})});
 window.addEventListener('jarvis:assistant-response',e=>api.rememberSpeech(e.detail?.text||e.detail?.response||''));
-window.jarvisContextMemory=api;
 })();
