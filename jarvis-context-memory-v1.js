@@ -1,24 +1,44 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONTEXT_MEMORY_V1__)return;
-window.__JARVIS_CONTEXT_MEMORY_V1__=true;
+if(window.__JARVIS_CONTEXT_MEMORY_V2__)return;
+window.__JARVIS_CONTEXT_MEMORY_V2__=true;
 const KEY='JARVIS_CONTEXT_MEMORY_V1';
+const TTL=30*60*1000;
 const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
 const canon=v=>clean(String(v??'').split('|')[0]);
+const clone=v=>{try{return structuredClone(v)}catch{return v}};
 const load=()=>{try{return JSON.parse(sessionStorage.getItem(KEY)||'{}')}catch{return {}}};
 const save=x=>{try{sessionStorage.setItem(KEY,JSON.stringify(x))}catch{}};
+const expired=x=>!x?.savedAt||Date.now()-Number(x.savedAt)>TTL;
+const normalizeResult=r=>{if(!r)return null;const name=canon(r.name||r.title||r.display_name);if(!name)return null;return {...clone(r),name,type:clean(r.type||r.category||''),address:clean(r.address||r.display||r.display_name||'')};};
+const normalizeEntity=e=>{if(!e)return null;const name=canon(e.name||e.title||e.display_name);return name?{...clone(e),name,type:clean(e.type||e.category||''),address:clean(e.address||e.display||e.display_name||'')}:null};
 const state=load();
+if(expired(state)){Object.keys(state).forEach(k=>delete state[k]);save(state)}
+const snapshot=()=>({...clone(state),selected:normalizeResult(state.selected),results:Array.isArray(state.results)?state.results.map(normalizeResult).filter(Boolean):[]});
+const emit=()=>window.dispatchEvent(new CustomEvent('jarvis:context-memory-updated',{detail:snapshot()}));
+const persistContext=ctx=>{if(!ctx||!ctx.domain)return snapshot();state.domain=clean(ctx.domain);state.intent=clean(ctx.intent||'');state.entity=normalizeEntity(ctx.entity);state.query=clean(ctx.query||'');state.location=clone(ctx.location||null);state.results=Array.isArray(ctx.results)?ctx.results.map(normalizeResult).filter(Boolean):[];state.selected=normalizeResult(ctx.selected);state.savedAt=Date.now();save(state);emit();return snapshot()};
 const api={
- get:()=>({...state,selected:state.selected?{...state.selected}:null,results:Array.isArray(state.results)?state.results.slice():[]}),
- clear:()=>{Object.keys(state).forEach(k=>delete state[k]);save(state)},
- set:(patch,mode='replace')=>{const next=mode==='merge'?{...state,...patch}:{...patch};Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,next);save(state);window.dispatchEvent(new CustomEvent('jarvis:context-updated',{detail:api.get()}));return api.get()},
- rememberResult:(result)=>{if(!result)return api.get();const entity={name:canon(result.name||result.title||result.display_name),type:clean(result.type||result.category||''),address:clean(result.address||result.display_name||'')};if(!entity.name)return api.get();state.selected=entity;save(state);window.dispatchEvent(new CustomEvent('jarvis:context-updated',{detail:api.get()}));return api.get()},
- rememberResults:(results,meta={})=>{const list=(Array.isArray(results)?results:[]).map(r=>({name:canon(r?.name||r?.title||r?.display_name),type:clean(r?.type||r?.category||''),address:clean(r?.address||r?.display_name||''),lat:r?.lat??r?.latitude??null,lon:r?.lon??r?.lng??r?.longitude??null})).filter(r=>r.name);state.domain=clean(meta.domain||state.domain||'');state.query=clean(meta.query||state.query||'');state.location=clean(meta.location||state.location||'');state.results=list;state.selected=list[0]||state.selected||null;save(state);window.dispatchEvent(new CustomEvent('jarvis:context-updated',{detail:api.get()}));return api.get()},
- rememberSpeech:(text)=>{const t=clean(text);if(t)state.lastSpeech=t;save(state);return api.get()}
+ get:snapshot,
+ clear:()=>{Object.keys(state).forEach(k=>delete state[k]);save(state);emit()},
+ set:(patch,mode='replace')=>{const next=mode==='merge'?{...state,...patch}:{...patch};Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,next,{savedAt:Date.now()});save(state);emit();return snapshot()},
+ rememberResult:r=>{const x=normalizeResult(r);if(!x)return snapshot();state.selected=x;state.savedAt=Date.now();save(state);emit();return snapshot()},
+ rememberResults:(results,meta={})=>persistContext({domain:meta.domain||state.domain,query:meta.query||state.query,location:meta.location||state.location,results,selected:Array.isArray(results)?results[0]:null}),
+ rememberSpeech:text=>{const t=clean(text);if(t){state.lastSpeech=t;state.savedAt=Date.now();save(state)}return snapshot()},
+ resolveReference:text=>{const q=clean(text).toLowerCase().replace(/[?.!]+$/,'');if(expired(state))return {matched:false,reason:'expired'};const list=Array.isArray(state.results)?state.results:[];const idx=/^(?:the\s+)?(?:first|1(?:st)?|one)(?:\s+(?:one|result))?$/.test(q)?0:/^(?:the\s+)?(?:second|2(?:nd)?|two)(?:\s+(?:one|result))?$/.test(q)?1:/^(?:the\s+)?(?:third|3(?:rd)?|three)(?:\s+(?:one|result))?$/.test(q)?2:null;if(idx!==null)return {matched:!!list[idx],type:'RESULT',index:idx,value:list[idx]||null,domain:state.domain};if(/^(?:there|here|that place|that location)$/.test(q)&&state.location)return {matched:true,type:'LOCATION',value:clone(state.location),domain:state.domain};if(/^(?:it|that|this|that one|this one)$/.test(q)&&state.selected)return {matched:true,type:'ENTITY',value:normalizeResult(state.selected),domain:state.domain};return {matched:false,reason:'unresolved'};}
 };
 window.jarvisContextMemory=api;
-window.jarvisContextEngine=window.jarvisContextEngine||api;
-window.addEventListener('jarvis:map-results',e=>{const d=e.detail||{};api.rememberResults(d.results||[],{domain:'MAPS',query:d.query||d.keyword||'',location:d.location||''})});
-window.addEventListener('jarvis:map-selected',e=>{api.rememberResult(e.detail?.result||e.detail)});
-window.addEventListener('jarvis:assistant-response',e=>{api.rememberSpeech(e.detail?.text||e.detail?.response||'')});
+const engine=window.jarvisContextEngine;
+if(engine&&!engine.__JARVIS_CONTEXT_MEMORY_BRIDGED__){
+ engine.__JARVIS_CONTEXT_MEMORY_BRIDGED__=true;
+ const originalSet=engine.set,originalClear=engine.clear;
+ engine.set=(patch,mode='merge')=>{const out=originalSet.call(engine,patch,mode);persistContext(out);return out};
+ engine.clear=()=>{const out=originalClear.call(engine);api.clear();return out};
+ if(!engine.isActive?.()&&state.domain&&!expired(state)){try{engine.set({domain:state.domain,intent:state.intent||null,entity:state.entity,query:state.query||null,location:state.location||null,results:state.results||null,selected:state.selected||null},'replace')}catch{}}
+}
+window.addEventListener('jarvis:map-context',e=>{const d=e.detail||{};persistContext({domain:'MAPS',query:d.query||'',location:d.location||d.place||'',results:d.results||[],selected:d.selected||null})});
+window.addEventListener('jarvis:search-context',e=>{const d=e.detail||{};persistContext({domain:'SEARCH',query:d.query||'',results:d.results||[],selected:d.selected||null})});
+window.addEventListener('jarvis:ebook-context',e=>{const d=e.detail||{};persistContext({domain:'BOOKS',entity:d.entity||null,query:d.query||'',results:d.results||[],selected:d.selected||null})});
+window.addEventListener('jarvis:entity-resolved',e=>{const d=e.detail||{};persistContext({domain:d.type||d.domain||state.domain,entity:d.entity||null,query:d.query||state.query,results:state.results||[],selected:state.selected||null,location:state.location||null})});
+window.addEventListener('jarvis:assistant-response',e=>api.rememberSpeech(e.detail?.text||e.detail?.response||''));
+window.jarvisContextMemory=api;
 })();
