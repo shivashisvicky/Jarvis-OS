@@ -55,7 +55,7 @@
   const isFiles = () => document.querySelector('.workspace h1')?.textContent?.trim() === 'Files';
   const root = () => document.querySelector('#jarvisFilesV4');
   const activeTab = () => root()?.querySelector('.jf4-opt.active')?.dataset.tab || '';
-  const repairedEntries = new WeakSet();
+  const retryState = new WeakMap();
   let repairInFlight = false;
 
   const repairMissingPanel = () => {
@@ -68,21 +68,44 @@
     if (!ebooks || !other) return;
     repairInFlight = true;
     other.click();
-    window.setTimeout(() => ebooks.click(), 60);
-    window.setTimeout(() => { repairInFlight = false; }, 350);
+    window.setTimeout(() => ebooks.click(), 80);
+    window.setTimeout(() => { repairInFlight = false; }, 400);
   };
 
   const retryFailedPanel = () => {
     if (!isFiles() || activeTab() !== 'ebooks') return;
     const panel = document.querySelector('#jbe6Panel');
-    if (!panel || repairedEntries.has(panel)) return;
+    if (!panel) return;
     const status = panel.querySelector('#jbe6StatusLine')?.textContent?.trim().toUpperCase() || '';
     const results = panel.querySelector('#jbe6Results');
-    if (!/^(OFFLINE|SEARCH ERROR)$/.test(status) || results?.children.length) return;
+    const query = panel.querySelector('#jbe6Query')?.value?.trim() || '';
+    if (!query || results?.children.length) return;
+
+    const searching = status === 'SEARCHING';
+    const failed = /^(OFFLINE|SEARCH ERROR)$/.test(status);
+    if (!searching && !failed) return;
+
+    let state = retryState.get(panel);
+    if (!state) {
+      state = { attempts: 0, startedAt: Date.now(), lastRetryAt: 0 };
+      retryState.set(panel, state);
+    }
+
+    const elapsed = Date.now() - state.startedAt;
+    const stale = searching && elapsed >= 5000;
+    if (!failed && !stale) return;
+    if (state.attempts >= 3 || Date.now() - state.lastRetryAt < 1800) return;
+
     const button = panel.querySelector('#jbe6Search');
     if (!button) return;
-    repairedEntries.add(panel);
-    window.setTimeout(() => button.click(), 700);
+    state.attempts += 1;
+    state.lastRetryAt = Date.now();
+    window.setTimeout(() => {
+      if (!document.body.contains(panel)) return;
+      const currentResults = panel.querySelector('#jbe6Results');
+      if (currentResults?.children.length) return;
+      panel.querySelector('#jbe6Search')?.click();
+    }, 120);
   };
 
   const scan = () => {
