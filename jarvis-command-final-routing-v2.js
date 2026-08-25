@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_FINAL_ROUTING_V6__)return;
-window.__JARVIS_COMMAND_FINAL_ROUTING_V6__=true;
+if(window.__JARVIS_COMMAND_FINAL_ROUTING_V7__)return;
+window.__JARVIS_COMMAND_FINAL_ROUTING_V7__=true;
 
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isPoi=/\b(?:show\s+me|show|find|locate|where\s+are|look\s+for)\b[\s\S]*\b(?:restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|resturents?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\s+stations?)?|fuel|gyms?|supermarkets?|temples?)\b[\s\S]*\b(?:in|near|around|at|to)\b/i;
@@ -46,13 +46,29 @@ const openJarvisMaps=query=>{
  const nav=document.querySelector('.nav[data-app="maps"]');
  if(nav instanceof HTMLElement&&!nav.classList.contains('selected'))nav.click();
  const dispatch=()=>{try{window.dispatchEvent(new CustomEvent('jarvis:map-intent',{detail:{place:query,query,source:'poi-command'},cancelable:true}))}catch{}};
- // Navigation is async. Retry briefly so the map authority receives the intent
- // after #mapQuery exists, eliminating the Search Hub race seen in CI/mobile.
  let attempts=0;
  const wait=()=>{if(document.querySelector('#mapQuery')){dispatch();return}if(++attempts<80)window.setTimeout(wait,25)};
  window.setTimeout(wait,0);
 };
+const ttsGuardActive=()=>{
+ const until=Number(window.__JARVIS_VOICE_TTS_GUARD_UNTIL__||0);
+ const speaking=typeof speechSynthesis!=='undefined'&&speechSynthesis.speaking;
+ return Boolean(window.__JARVIS_VOICE_TTS_GUARD_ACTIVE__)&&(speaking||Date.now()<until);
+};
 const interceptSubmit=e=>{const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;const input=form.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';if(!raw)return;if(handleChoice(raw)){e.preventDefault();e.stopImmediatePropagation();return}if(!isPoi.test(raw))return;e.preventDefault();e.stopImmediatePropagation();openJarvisMaps(extract(raw))};
-const interceptVoice=e=>{const raw=normalize(e.detail?.text);if(!raw)return;if(handleChoice(raw)){e.preventDefault();e.stopImmediatePropagation();return}if(!isPoi.test(raw))return;e.preventDefault();e.stopImmediatePropagation();openJarvisMaps(extract(raw))};
+const interceptVoice=e=>{
+ const raw=normalize(e.detail?.text);
+ if(!raw)return;
+ // A final recognition result can arrive on iOS after stop() and during the
+ // JARVIS TTS tail. It is not a new user command and must never reach routing.
+ if(ttsGuardActive()){
+   e.preventDefault();
+   e.stopImmediatePropagation();
+   stopVoice();
+   return;
+ }
+ if(handleChoice(raw)){e.preventDefault();e.stopImmediatePropagation();return}
+ if(!isPoi.test(raw))return;e.preventDefault();e.stopImmediatePropagation();openJarvisMaps(extract(raw))
+};
 document.addEventListener('submit',interceptSubmit,true);window.addEventListener('jarvis:voice-command',interceptVoice,true);
 })();
