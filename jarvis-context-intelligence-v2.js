@@ -1,11 +1,8 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONTEXT_INTELLIGENCE_V4__)return;
-window.__JARVIS_CONTEXT_INTELLIGENCE_V4__=true;
+if(window.__JARVIS_CONTEXT_INTELLIGENCE_V5__)return;
+window.__JARVIS_CONTEXT_INTELLIGENCE_V5__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
-// Speech recognition on iOS may return laughter with spaces, e.g. "ha ha".
-// Canonicalize those variants before intent classification so conversational
-// acknowledgements can never fall through into the generic Search Hub router.
 const canonical=s=>normalize(s).toLowerCase().replace(/\b(?:ha\s+){1,}ha\b/g,'haha').replace(/\b(?:lol\s+){1,}lol\b/g,'lol');
 const lower=s=>canonical(s).replace(/[.!?]+$/,'').trim();
 const now=()=>Date.now();
@@ -15,7 +12,8 @@ const patterns={
  ack:/^(?:nice|good|great|awesome|cool|perfect|brilliant)(?:\s+one)?$|^(?:that|that was)\s+(?:funny|good|great|awesome|perfect)$|^(?:haha+|lol+|lmao+)$|^i\s+(?:like|liked)\s+(?:that|it)$|^(?:thanks|thank you|thx)$/i,
  cancel:/^(?:cancel|never mind|nevermind|forget it|stop|that's enough|thats enough)$/i,
  repeat:/^(?:say that again|repeat that|repeat|say it again)$/i,
- continue:/^(?:show me )?(?:more|next|the next one|another one|different one|a different one|one more|another one)$/i,
+ continue:/^(?:show me )?(?:more|next|the next one|another one|different one|a different one|one more|another one|more like that|something else|another|different)$/i,
+ refine:/^(?:what about|how about|same but|same with|instead|instead of)\b/i,
  confirm:/^(?:yes|yeah|yep|yup|sure|do it|go ahead|okay|ok|please do)$/i,
  reject:/^(?:no|nope|not that|not this one)$/i,
  correction:/^(?:no,?\s+)?(?:i meant|i mean|i said|what i meant was)\s+(.+)$/i,
@@ -25,15 +23,18 @@ const patterns={
 const explicit=q=>/\b(?:search|look up|find|browse|google|bing|play|open|show me|take me|navigate|go to|directions|map|calculate|what time|weather|news|read|book|books|restaurant|restaurants|hotel|hospital|youtube|video|music|game|games)\b/i.test(q);
 const joke=q=>/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/i.test(q)||/\bmake\s+me\s+laugh\b/i.test(q);
 const valid=()=>state.updatedAt&&now()-state.updatedAt<TTL;
-const classify=q=>{if(patterns.ack.test(q))return 'ACK';if(patterns.cancel.test(q))return 'CANCEL';if(patterns.repeat.test(q))return 'REPEAT';if(patterns.confirm.test(q))return 'CONFIRM';if(patterns.reject.test(q))return 'REJECT';if(patterns.correction.test(q))return 'CORRECT';if(patterns.select.test(q))return 'SELECT';if(patterns.continue.test(q))return 'CONTINUE';if(patterns.explain.test(q))return 'EXPLAIN';if(explicit(q))return 'NEW_COMMAND';return 'UNKNOWN'};
+const classify=q=>{if(patterns.ack.test(q))return 'ACK';if(patterns.cancel.test(q))return 'CANCEL';if(patterns.repeat.test(q))return 'REPEAT';if(patterns.confirm.test(q))return 'CONFIRM';if(patterns.reject.test(q))return 'REJECT';if(patterns.correction.test(q))return 'CORRECT';if(patterns.select.test(q))return 'SELECT';if(patterns.continue.test(q))return 'CONTINUE';if(patterns.refine.test(q))return 'REFINE';if(patterns.explain.test(q))return 'EXPLAIN';if(explicit(q))return 'NEW_COMMAND';return 'UNKNOWN'};
 const publish=(type,text,extra={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:conversation-intent',{detail:{type,text,context:{...state},...extra}}))}catch{}};
 const remember=(raw,classification)=>{state.lastUserText=raw;state.updatedAt=now();if(joke(raw)){state.intent='JOKE';state.topic='joke';state.query=raw;state.pending=null}else if(classification==='NEW_COMMAND'){state.intent='COMMAND';state.topic=null;state.query=raw;state.pending=null}};
 const clear=()=>{state.intent=null;state.topic=null;state.query=null;state.entity=null;state.results=null;state.selected=null;state.pending=null;state.updatedAt=now()};
-const handle=e=>{const raw=normalize(e.detail?.text);if(!raw)return;const q=lower(raw);const type=classify(q);const inContext=valid();if(type==='NEW_COMMAND'){remember(raw,type);publish(type,raw);return}if(!inContext){if(type==='UNKNOWN'||type==='CONTINUE'||type==='SELECT'||type==='EXPLAIN'||type==='CONFIRM'||type==='REJECT'||type==='CORRECT')publish('AMBIGUOUS',raw,{reason:'no_recent_context'});remember(raw,type);return}
- if(state.topic==='joke'&&type==='ACK'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('ACK',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-acknowledgement',{detail:{text:raw,context:{...state}}}));state.lastAssistantText='Glad you liked it.';return}
- if(state.topic==='joke'&&type==='CONTINUE'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('CONTINUE',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-followup',{detail:{text:raw,context:{...state}}}));state.pending='CONTINUE';state.updatedAt=now();return}
- if(type==='CANCEL'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('CANCEL',raw);clear();return}
- if(['CONTINUE','REPEAT','CONFIRM','REJECT','CORRECT','SELECT','EXPLAIN'].includes(type)){publish(type,raw);state.pending=type;state.updatedAt=now();return}
+const consume=(e,type,raw)=>{e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{};publish(type,raw);try{window.dispatchEvent(new CustomEvent('jarvis:context-followup',{detail:{type,text:raw,context:{...state}}}))}catch{};state.pending=type;state.updatedAt=now()};
+const handle=e=>{const raw=normalize(e.detail?.text);if(!raw)return;const q=lower(raw);const type=classify(q);const inContext=valid();
+ if(type==='NEW_COMMAND'){remember(raw,type);publish(type,raw);return}
+ if(!inContext){if(type==='UNKNOWN'||type==='CONTINUE'||type==='REFINE'||type==='SELECT'||type==='EXPLAIN'||type==='CONFIRM'||type==='REJECT'||type==='CORRECT')publish('AMBIGUOUS',raw,{reason:'no_recent_context'});remember(raw,type);return}
+ if(state.topic==='joke'&&type==='ACK'){consume(e,'ACK',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-acknowledgement',{detail:{text:raw,context:{...state}}}));state.lastAssistantText='Glad you liked it.';return}
+ if(state.topic==='joke'&&type==='CONTINUE'){consume(e,'CONTINUE',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-followup',{detail:{text:raw,context:{...state}}}));return}
+ if(type==='CANCEL'){consume(e,'CANCEL',raw);clear();return}
+ if(['CONTINUE','REFINE','REPEAT','CONFIRM','REJECT','CORRECT','SELECT','EXPLAIN'].includes(type)){consume(e,type,raw);return}
  remember(raw,type)};
 window.addEventListener('jarvis:voice-command',handle,true);
 document.addEventListener('submit',e=>{const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;const input=form.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';if(!raw)return;const fake={detail:{text:raw},preventDefault:()=>e.preventDefault(),stopImmediatePropagation:()=>e.stopImmediatePropagation()};handle(fake)},true);
