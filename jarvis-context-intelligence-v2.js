@@ -1,9 +1,13 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONTEXT_INTELLIGENCE_V3__)return;
-window.__JARVIS_CONTEXT_INTELLIGENCE_V3__=true;
+if(window.__JARVIS_CONTEXT_INTELLIGENCE_V4__)return;
+window.__JARVIS_CONTEXT_INTELLIGENCE_V4__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
-const lower=s=>normalize(s).toLowerCase().replace(/[.!?]+$/,'').trim();
+// Speech recognition on iOS may return laughter with spaces, e.g. "ha ha".
+// Canonicalize those variants before intent classification so conversational
+// acknowledgements can never fall through into the generic Search Hub router.
+const canonical=s=>normalize(s).toLowerCase().replace(/\b(?:ha\s+){1,}ha\b/g,'haha').replace(/\b(?:lol\s+){1,}lol\b/g,'lol');
+const lower=s=>canonical(s).replace(/[.!?]+$/,'').trim();
 const now=()=>Date.now();
 const TTL=5*60*1000;
 const state={intent:null,topic:null,query:null,entity:null,results:null,selected:null,pending:null,lastUserText:null,lastAssistantText:null,updatedAt:0};
@@ -26,10 +30,6 @@ const publish=(type,text,extra={})=>{try{window.dispatchEvent(new CustomEvent('j
 const remember=(raw,classification)=>{state.lastUserText=raw;state.updatedAt=now();if(joke(raw)){state.intent='JOKE';state.topic='joke';state.query=raw;state.pending=null}else if(classification==='NEW_COMMAND'){state.intent='COMMAND';state.topic=null;state.query=raw;state.pending=null}};
 const clear=()=>{state.intent=null;state.topic=null;state.query=null;state.entity=null;state.results=null;state.selected=null;state.pending=null;state.updatedAt=now()};
 const handle=e=>{const raw=normalize(e.detail?.text);if(!raw)return;const q=lower(raw);const type=classify(q);const inContext=valid();if(type==='NEW_COMMAND'){remember(raw,type);publish(type,raw);return}if(!inContext){if(type==='UNKNOWN'||type==='CONTINUE'||type==='SELECT'||type==='EXPLAIN'||type==='CONFIRM'||type==='REJECT'||type==='CORRECT')publish('AMBIGUOUS',raw,{reason:'no_recent_context'});remember(raw,type);return}
- // A joke acknowledgement/follow-up is conversational, even when iOS
- // transcription changes "nice one" into "one more". Stop it here so the
- // generic Search Hub router never gets the utterance. The joke authority
- // receives a dedicated event and uses the normal JARVIS production voice.
  if(state.topic==='joke'&&type==='ACK'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('ACK',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-acknowledgement',{detail:{text:raw,context:{...state}}}));state.lastAssistantText='Glad you liked it.';return}
  if(state.topic==='joke'&&type==='CONTINUE'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('CONTINUE',raw);window.dispatchEvent(new CustomEvent('jarvis:joke-followup',{detail:{text:raw,context:{...state}}}));state.pending='CONTINUE';state.updatedAt=now();return}
  if(type==='CANCEL'){e.preventDefault?.();e.stopImmediatePropagation?.();try{window.jarvisStopAllVoiceSessions?.()}catch{}publish('CANCEL',raw);clear();return}
