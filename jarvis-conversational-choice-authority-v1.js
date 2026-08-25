@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V5__)return;
-window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V5__=true;
+if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V6__)return;
+window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V6__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const cleanOption=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').replace(/[.!?]+$/,'').trim();
 const jokes=[
@@ -28,46 +28,50 @@ const releaseRecognitionOnly=()=>{
  try{window.jarvisStopIOSVoice?.()}catch{}
  try{window.jarvisStopVoiceRecognitionOnly?.()}catch{}
 };
-const speakReply=text=>{
- window.setTimeout(()=>{
-   try{window.jarvisMarkSpokenResponse?.(text)}catch{}
-   try{(window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak)?.(text)}catch{}
- },140);
-};
-const reply=text=>{
- const el=document.querySelector('#jarvisReply');
- if(el){el.textContent=text;el.classList.add('visible')}
- speakReply(text);
-};
-const choose=({a,b})=>Math.random()<0.5?a:b;
-const differentJoke=()=>{
- let i=Math.floor(Math.random()*jokes.length);
- if(jokes.length>1&&i===lastJokeIndex)i=(i+1)%jokes.length;
- lastJokeIndex=i;
- return jokes[i];
-};
 const isJokeRequest=q=>/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/i.test(q)||/\bmake\s+me\s+laugh\b/i.test(q);
 const isDifferentFollowup=q=>/^(?:please\s+)?(?:tell|give|show)\s+me\s+(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q)||/^(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q);
+const rememberLastJoke=()=>{
+ const text=normalize(document.querySelector('#jarvisReply')?.textContent||'');
+ lastJokeIndex=jokes.findIndex(j=>normalize(j)===text);
+};
+const submitNormalJoke=(previousIndex)=>{
+ const input=document.querySelector('#commandInput');
+ const form=document.querySelector('#commandForm');
+ if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return false;
+ // Re-enter through the real Command Center submit path. This is important:
+ // it preserves the production voice authority, accent, timing and mic cleanup.
+ input.value='Tell me a joke';
+ input.dispatchEvent(new Event('input',{bubbles:true}));
+ const originalRandom=Math.random;
+ Math.random=()=>{
+   const choices=jokes.map((_,i)=>i).filter(i=>i!==previousIndex);
+   const selected=choices.length?choices[0]:0;
+   return (selected+0.01)/jokes.length;
+ };
+ try{form.requestSubmit()}finally{Math.random=originalRandom}
+ return true;
+};
 const handle=raw=>{
  const q=normalize(raw);if(!q)return false;
  if(isDifferentFollowup(q)&&lastTopic==='joke'){
+   rememberLastJoke();
+   const previousIndex=lastJokeIndex;
    releaseRecognitionOnly();
-   const joke=differentJoke();
-   lastTopic='joke';
-   reply(joke);
-   return true;
+   if(submitNormalJoke(previousIndex))return true;
+   return false;
  }
  const options=parseChoice(q);
  if(options){
-   const picked=choose(options);
+   const picked=Math.random()<0.5?options.a:options.b;
    lastChoice={picked,other:picked===options.a?options.b:options.a};
    lastTopic=null;
    releaseRecognitionOnly();
-   reply(`I choose ${picked}.`);
-   return true;
+   const input=document.querySelector('#commandInput');
+   if(input instanceof HTMLInputElement){input.value=q;input.dispatchEvent(new Event('input',{bubbles:true}))}
+   return false;
  }
  const why=q.match(/^\s*(?:why|why did you choose|why did you pick)\s+(.+?)[.!?]*$/i);
- if(why&&lastChoice){releaseRecognitionOnly();reply(`I chose ${lastChoice.picked}. There is no special reason, I simply picked it this time.`);return true}
+ if(why&&lastChoice)return false;
  return false;
 };
 const observeTopic=raw=>{
@@ -76,9 +80,10 @@ const observeTopic=raw=>{
  if(!isDifferentFollowup(q)&&!/^\s*(?:please\s+)?(?:pick|choose|select)\b/i.test(q))lastTopic=null;
 };
 
-// Capture phase is required because another voice router can stop propagation
-// before a bubble listener sees the command. Record the first joke request at
-// capture time, and intercept its conversational follow-up before web routing.
+// Capture phase records the first joke request before another voice router can
+// consume it. On the follow-up we stop the original voice event and re-enter
+// through the normal Command Center form, rather than creating a second speech
+// implementation with a different voice/accent.
 const voiceCapture=e=>{
  const raw=e.detail?.text||'';
  if(handle(raw)){
