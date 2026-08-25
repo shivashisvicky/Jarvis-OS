@@ -10,6 +10,12 @@ test.describe('deployed in-shell search', () => {
     await page.goto(new URL(LIVE_URL!).toString(), { waitUntil: 'domcontentloaded' });
     await page.locator('.nav[data-app="web"]').click();
     await expect(page.locator('#webQuery')).toBeVisible({ timeout: 30_000 });
+
+    // The web-search authority is a deliberately late static runtime. Wait for
+    // its readiness marker before clicking so this live gate tests the product,
+    // not a race between the shell boot and delegated event registration.
+    await page.waitForFunction(() => Boolean((window as Window & { __JARVIS_WEB_SEARCH_V3__?: boolean }).__JARVIS_WEB_SEARCH_V3__), null, { timeout: 30_000 });
+
     const before = page.url();
     await page.locator('#webQuery').fill('latest AI news');
     await page.locator('#webSearch').click();
