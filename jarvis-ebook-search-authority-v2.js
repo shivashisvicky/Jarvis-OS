@@ -1,66 +1,105 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V2__) return;
-  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V2__ = true;
+  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V3__) return;
+  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V3__ = true;
 
   const API = 'https://gutendex.com/books/';
+  const CACHE_PREFIX = 'jarvis:gutenberg:v3:';
+  const TIMEOUT_MS = 4500;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
   const cover = (b) => b.formats?.['image/jpeg'] || '';
   const epub = (b) => b.formats?.['application/epub+zip'] || '';
 
-  const request = async (url, ms = 9000) => {
+  const request = async (url, ms = TIMEOUT_MS) => {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), ms);
     try {
-      const r = await fetch(url, { signal: c.signal, cache: 'no-store', headers: { Accept: 'application/json,text/plain;q=.8,*/*;q=.1' } });
+      const r = await fetch(url, {
+        signal: c.signal,
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const text = await r.text();
-      const data = JSON.parse(text);
+      const data = await r.json();
       if (!data || !Array.isArray(data.results)) throw new Error('Invalid Gutenberg response');
       return data.results;
-    } finally { clearTimeout(t); }
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  const cacheKey = (query) => CACHE_PREFIX + query.toLowerCase();
+  const readCache = (query) => {
+    try {
+      const raw = sessionStorage.getItem(cacheKey(query));
+      if (!raw) return null;
+      const item = JSON.parse(raw);
+      if (!item || !Array.isArray(item.results)) return null;
+      if (Date.now() - item.savedAt > 30 * 60 * 1000) return null;
+      return item.results;
+    } catch { return null; }
+  };
+  const writeCache = (query, results) => {
+    try {
+      sessionStorage.setItem(cacheKey(query), JSON.stringify({ savedAt: Date.now(), results }));
+    } catch {}
+  };
+
+  const searchRemote = async (query) => {
+    // Keep the primary request simple. The previous text/plain MIME filter could
+    // unnecessarily exclude valid Gutenberg records and add another fallback hop.
+    const direct = `${API}?search=${encodeURIComponent(query)}&languages=en`;
+    const jina = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}&languages=en`;
+
+    // Race one direct request against one controlled fallback. Do not stack
+    // multiple 9-second retries: a search UI should fail fast and predictably.
+    try {
+      return await Promise.any([
+        request(direct),
+        request(jina)
+      ]);
+    } catch {
+      return [];
+    }
+  };
+
+  const render = (results, status, query) => {
+    if (!results.length) {
+      status.results.innerHTML = '<div class="jbe6-status">GUTENBERG SEARCH TEMPORARILY UNAVAILABLE. <button class="jbe6-link" id="jbe6RetrySearch">RETRY</button></div>';
+      if (status.line) status.line.textContent = 'SEARCH ERROR';
+      status.results.querySelector('#jbe6RetrySearch')?.addEventListener('click', () => search(query));
+      return;
+    }
+
+    status.results.innerHTML = results.slice(0, 20).map((b, i) => {
+      const img = cover(b) ? `<img class="jbe6-cover" src="${esc(cover(b))}" alt="">` : '<div class="jbe6-cover"></div>';
+      const e = epub(b);
+      return `<article class="jbe6-book"><div>${img}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
+    }).join('');
+    if (status.line) status.line.textContent = `${Math.min(20, results.length)} RESULTS · GUTENBERG`;
   };
 
   const search = async (q) => {
     const query = String(q || '').trim();
     if (!query) return;
     const results = document.querySelector('#jbe6Results');
-    const status = document.querySelector('#jbe6StatusLine');
+    const line = document.querySelector('#jbe6StatusLine');
     if (!results) return;
-    results.innerHTML = '<div class="jbe6-status">SEARCHING GUTENBERG…</div>';
-    if (status) status.textContent = 'SEARCHING';
 
-    const direct = `${API}?search=${encodeURIComponent(query)}&languages=en&mime_type=text%2Fplain`;
-    const plain = `${API}?search=${encodeURIComponent(query)}`;
-    const jina = `https://r.jina.ai/${direct}`;
-    const jinaHttp = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}`;
-    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(direct)}`;
-
-    let books = [];
-    for (let round = 0; round < 3 && !books.length; round++) {
-      try {
-        books = await Promise.any([direct, jina, jinaHttp, proxy].map(u => request(u, 9000)));
-      } catch {}
-      if (!books.length) {
-        try { books = await request(plain, 9000); } catch {}
-      }
-      if (!books.length && round < 2) await new Promise(r => setTimeout(r, 600));
-    }
-
-    if (!books.length) {
-      results.innerHTML = '<div class="jbe6-status">GUTENBERG SEARCH TEMPORARILY UNAVAILABLE. <button class="jbe6-link" id="jbe6RetrySearch">RETRY</button></div>';
-      if (status) status.textContent = 'SEARCH ERROR';
-      results.querySelector('#jbe6RetrySearch')?.addEventListener('click', () => search(query));
+    const status = { results, line };
+    const cached = readCache(query);
+    if (cached?.length) {
+      render(cached, status, query);
       return;
     }
 
-    results.innerHTML = books.slice(0, 20).map((b, i) => {
-      const img = cover(b) ? `<img class="jbe6-cover" src="${esc(cover(b))}" alt="">` : '<div class="jbe6-cover"></div>';
-      const e = epub(b);
-      return `<article class="jbe6-book"><div>${img}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
-    }).join('');
-    if (status) status.textContent = `${Math.min(20, books.length)} RESULTS · GUTENBERG`;
+    results.innerHTML = '<div class="jbe6-status">SEARCHING GUTENBERG…</div>';
+    if (line) line.textContent = 'SEARCHING';
+
+    const books = await searchRemote(query);
+    if (books.length) writeCache(query, books);
+    render(books, status, query);
   };
 
   const intercept = (e) => {
@@ -68,13 +107,18 @@
     if (!btn) return;
     const input = document.querySelector('#jbe6Query');
     if (!input) return;
-    e.preventDefault(); e.stopImmediatePropagation(); search(input.value);
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    search(input.value);
   };
+
   document.addEventListener('click', intercept, true);
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     const input = e.target?.closest?.('#jbe6Query');
     if (!input) return;
-    e.preventDefault(); e.stopImmediatePropagation(); search(input.value);
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    search(input.value);
   }, true);
 })();
