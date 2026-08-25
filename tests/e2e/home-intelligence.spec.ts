@@ -150,6 +150,16 @@ test('command routing does not leave a stale hardcoded map result over a later m
   await expect(page.locator('script[src*="jarvis-map-hard-override.js"]')).toHaveCount(0);
 });
 
+test('Maps search submits when Return is pressed in the map input', async ({ page }) => {
+  await openHome(page);
+  await page.locator('.nav[data-app="maps"]').click();
+  const input = page.locator('#mapQuery');
+  await input.fill('Khandagiri');
+  await input.press('Enter');
+  await expect(page.locator('#mapResults')).toContainText(/Khandagiri/i, { timeout: 10_000 });
+  await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
+});
+
 test('lazy voice module loads on demand and owns speech', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#voiceBtn')).toBeVisible();
