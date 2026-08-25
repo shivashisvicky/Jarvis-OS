@@ -40,7 +40,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'9.1.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'9.2.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
