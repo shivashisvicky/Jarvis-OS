@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V4__)return;
-window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V4__=true;
+if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V5__)return;
+window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V5__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const cleanOption=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').replace(/[.!?]+$/,'').trim();
 const jokes=[
@@ -31,10 +31,7 @@ const releaseRecognitionOnly=()=>{
 const speakReply=text=>{
  window.setTimeout(()=>{
    try{window.jarvisMarkSpokenResponse?.(text)}catch{}
-   try{
-     const speak=window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak;
-     if(typeof speak==='function')speak(text);
-   }catch{}
+   try{(window.jarvisVoiceAuthoritySpeak||window.jarvisCinematicSpeak||window.jarvisSpeak)?.(text)}catch{}
  },140);
 };
 const reply=text=>{
@@ -49,6 +46,7 @@ const differentJoke=()=>{
  lastJokeIndex=i;
  return jokes[i];
 };
+const isJokeRequest=q=>/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/i.test(q)||/\bmake\s+me\s+laugh\b/i.test(q);
 const isDifferentFollowup=q=>/^(?:please\s+)?(?:tell|give|show)\s+me\s+(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q)||/^(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q);
 const handle=raw=>{
  const q=normalize(raw);if(!q)return false;
@@ -74,11 +72,34 @@ const handle=raw=>{
 };
 const observeTopic=raw=>{
  const q=normalize(raw).toLowerCase();
- if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/.test(q)||/\bmake\s+me\s+laugh\b/.test(q)){lastTopic='joke';lastJokeIndex=-1;return;}
+ if(isJokeRequest(q)){lastTopic='joke';return;}
  if(!isDifferentFollowup(q)&&!/^\s*(?:please\s+)?(?:pick|choose|select)\b/i.test(q))lastTopic=null;
 };
-const submit=e=>{const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;const input=form.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(handle(raw)){e.preventDefault();e.stopImmediatePropagation();return}observeTopic(raw)};
-const voice=e=>{const raw=e.detail?.text||'';if(handle(raw)){e.preventDefault?.();e.stopImmediatePropagation?.();return}observeTopic(raw)};
-document.addEventListener('submit',submit,true);
-window.addEventListener('jarvis:voice-command',voice,true);
+
+// Capture phase is required because another voice router can stop propagation
+// before a bubble listener sees the command. Record the first joke request at
+// capture time, and intercept its conversational follow-up before web routing.
+const voiceCapture=e=>{
+ const raw=e.detail?.text||'';
+ if(handle(raw)){
+   e.preventDefault?.();
+   e.stopImmediatePropagation?.();
+   return;
+ }
+ observeTopic(raw);
+};
+const submitCapture=e=>{
+ const form=e.target;
+ if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;
+ const input=form.querySelector('#commandInput');
+ const raw=input instanceof HTMLInputElement?input.value:'';
+ if(handle(raw)){
+   e.preventDefault();
+   e.stopImmediatePropagation();
+   return;
+ }
+ observeTopic(raw);
+};
+document.addEventListener('submit',submitCapture,true);
+window.addEventListener('jarvis:voice-command',voiceCapture,true);
 })();
