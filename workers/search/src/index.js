@@ -37,12 +37,38 @@ function isVideoUrl(link) {
 
 function videoIntent(query) { return /\b(video|videos|youtube|watch|trailer|song|music video)\b/i.test(query); }
 
+function searchTerms(query) {
+  return String(query || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+
+function resultScore(query, item) {
+  const normalizedQuery = String(query || '').toLowerCase().replace(/["']/g, '').replace(/\s+/g, ' ').trim();
+  const title = String(item?.title || '').toLowerCase();
+  const snippet = String(item?.snippet || '').toLowerCase();
+  const hay = `${title} ${snippet}`;
+  const terms = searchTerms(normalizedQuery).filter(term => term.length > 1);
+  let score = 0;
+  if (normalizedQuery && title.includes(normalizedQuery)) score += 100;
+  if (normalizedQuery && snippet.includes(normalizedQuery)) score += 45;
+  if (terms.length) {
+    const titleHits = terms.filter(term => title.includes(term)).length;
+    const bodyHits = terms.filter(term => snippet.includes(term)).length;
+    score += titleHits * 12 + bodyHits * 3;
+    if (titleHits === terms.length) score += 30;
+    if (bodyHits === terms.length) score += 10;
+  }
+  if (hay.includes('wikipedia') && normalizedQuery && !title.includes(normalizedQuery)) score -= 8;
+  return score;
+}
+
 function normalizeResults(items, query) {
   const allowVideo = videoIntent(query), seen = new Set();
   return items.map(item => ({ title: clean(decodeHtml(item.title)), link: String(item.link || '').trim(), source: clean(decodeHtml(item.source || 'WEB')), snippet: clean(decodeHtml(item.snippet || '')) }))
     .filter(item => item.title && /^https?:\/\//i.test(item.link))
     .filter(item => allowVideo || !isVideoUrl(item.link))
-    .filter(item => !seen.has(item.link) && (seen.add(item.link), true)).slice(0, 8);
+    .filter(item => !seen.has(item.link) && (seen.add(item.link), true))
+    .sort((a, b) => resultScore(query, b) - resultScore(query, a))
+    .slice(0, 8);
 }
 
 async function fetchText(url, headers = {}, ms = 6500) {
@@ -138,9 +164,17 @@ async function places(kindName, lat, lon, radius, limit) {
 }
 
 async function bingSearch(query) {
-  const xml = await fetchText(`https://www.bing.com/search?format=rss&q=${encodeURIComponent(query)}`, { Accept: 'application/rss+xml, application/xml, text/xml' });
-  const items = []; for (const item of (xml.match(/<item>[\s\S]*?<\/item>/gi) || [])) items.push({ title: item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '', link: item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '', source: 'Bing', snippet: item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || '' });
-  return normalizeResults(items, query);
+  const queries = [query];
+  const cleaned = String(query || '').trim();
+  if (/\s/.test(cleaned) && !/^".*"$/.test(cleaned)) queries.unshift(`"${cleaned.replace(/"/g, '')}"`);
+  const responses = await Promise.allSettled(queries.map(searchQuery => fetchText(`https://www.bing.com/search?format=rss&q=${encodeURIComponent(searchQuery)}`, { Accept: 'application/rss+xml, application/xml, text/xml' })));
+  const items = [];
+  for (const response of responses) {
+    if (response.status !== 'fulfilled') continue;
+    const xml = response.value;
+    for (const item of (xml.match(/<item>[\s\S]*?<\/item>/gi) || [])) items.push({ title: item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '', link: item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '', source: 'Bing', snippet: item.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || '' });
+  }
+  return normalizeResults(items, cleaned);
 }
 
 async function braveSearch(query) {
@@ -150,8 +184,15 @@ async function braveSearch(query) {
 }
 
 async function searchWeb(provider, query) {
-  if (provider === 'brave') { try { const brave = await braveSearch(query); if (brave.length) return { results: brave, provider: 'Brave' }; } catch {} }
-  const bing = await bingSearch(query); if (bing.length) return { results: bing, provider: 'Bing' }; throw new Error('No web search provider returned usable results');
+  if (provider === 'brave') {
+    try {
+      const brave = await braveSearch(query);
+      if (brave.length) return { results: brave, provider: 'brave', requestedProvider: 'brave', fallback: false };
+    } catch {}
+  }
+  const bing = await bingSearch(query);
+  if (bing.length) return { results: bing, provider: 'bing', requestedProvider: provider, fallback: provider !== 'bing' };
+  throw new Error('No web search provider returned usable results');
 }
 
 export default {
@@ -171,6 +212,6 @@ export default {
     if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     const q = String(url.searchParams.get('q') || '').trim(), provider = url.searchParams.get('provider') === 'brave' ? 'brave' : 'bing';
     if (!q) return json({ error: 'q is required', results: [] }, 400, origin); if (q.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
-    try { const result = await searchWeb(provider, q); return json({ ...result, query: q }, 200, origin); } catch (error) { return json({ error: String(error?.message || error), code: 'SEARCH_UNAVAILABLE', results: [], provider }, 502, origin); }
+    try { const result = await searchWeb(provider, q); return json({ ...result, query: q }, 200, origin); } catch (error) { return json({ error: String(error?.message || error), code: 'SEARCH_UNAVAILABLE', results: [], provider, requestedProvider: provider, fallback: false }, 502, origin); }
   },
 };
