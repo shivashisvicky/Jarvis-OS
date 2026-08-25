@@ -1,12 +1,14 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_AUTHORITY_V5__)return;
-window.__JARVIS_COMMAND_AUTHORITY_V5__=true;
+if(window.__JARVIS_COMMAND_AUTHORITY_V6__)return;
+window.__JARVIS_COMMAND_AUTHORITY_V6__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const route=q=>{
  const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();
  const entity=window.__JARVIS_ENTITY__;
  if(!s)return {type:'EMPTY',owner:null};
+ // Explicit web-search language always outranks stale entity/place context.
+ if(/^(?:please\s+)?(?:search|look\s*up|lookup|google|bing|web\s+search)\b[\s\S]*/.test(s)||/\b(?:search|look\s+up|find|browse|google|bing|internet|web|search\s+for)\b[\s\S]*\b(?:internet|web|online)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
  if(/^(?:nice|good|great|awesome|cool|perfect|brilliant|haha+|lol+|lmao+|thanks|thank you|thx)$/.test(s))return {type:'CONVERSATION',owner:'jarvis-context-intelligence-v2.js'};
  if(/^(?:please\s+)?(?:take me to|take me|navigate me to|navigate to|directions? to|go to|open maps? for)\s+.+/.test(s))return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js'};
@@ -29,7 +31,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'5.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'6.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
