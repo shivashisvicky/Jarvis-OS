@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V5__)return;
-window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V5__=true;
+if(window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V6__)return;
+window.__JARVIS_MAP_FOLLOWUP_AUTHORITY_V6__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isNearest=q=>{
  const s=clean(q).replace(/[?.!]+$/,'').trim();
@@ -24,6 +24,7 @@ const focusExact=result=>{
  const apply=()=>{
   const input=document.querySelector('#mapQuery');
   const frame=document.querySelector('#mapFrame');
+  const results=document.querySelector('#mapResults');
   if(!(input instanceof HTMLInputElement)||!(frame instanceof HTMLElement)){
    if(++tries<100)window.setTimeout(apply,40);
    return;
@@ -31,9 +32,15 @@ const focusExact=result=>{
   input.value=name;
   input.dispatchEvent(new Event('input',{bubbles:true}));
   input.dispatchEvent(new Event('change',{bubbles:true}));
-  const z=.006,b=`${lon-z},${lat-z},${lon+z},${lat+z}`;
+  const z=.004,b=`${lon-z},${lat-z},${lon+z},${lat+z}`;
   frame.style.display='block';
   frame.innerHTML=`<iframe title="JARVIS pinpoint for ${name.replace(/"/g,'&quot;')}" loading="eager" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(b)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}"></iframe>`;
+  if(results){
+   const distance=Number(result?.distance);
+   const distanceText=Number.isFinite(distance)?(distance<1?(distance*1000).toFixed(0)+' m':distance.toFixed(1)+' km')+' away':'';
+   const display=clean(result?.display||result?.address||'');
+   results.innerHTML=`<div style="margin:7px 2px;color:var(--muted,#78939c);font-size:11px">DESTINATION</div><div class="place-result" style="cursor:default"><strong>1. ${name.replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}</strong><small>${distanceText}${distanceText&&display?' · ':''}${display.replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}</small></div>`;
+  }
  };
  window.setTimeout(apply,0);
  return true;
