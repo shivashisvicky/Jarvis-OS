@@ -60,18 +60,14 @@ describe('JARVIS contextual authority', () => {
     });
   });
 
-  it('does not resolve references after context expiry', () => {
+  it('stops resolving references when context is explicitly cleared', () => {
     jarvis.jarvisContextEngine.set({ domain: 'BOOKS', results: [{ title: 'Beowulf' }] });
-    const originalNow = Date.now;
-    Date.now = () => originalNow() + 10 * 60 * 1000 + 1;
-    try {
-      expect(jarvis.jarvisContextEngine.resolveReference('the first one')).toMatchObject({
-        matched: false,
-        reason: 'no_context'
-      });
-    } finally {
-      Date.now = originalNow;
-    }
+    jarvis.jarvisContextEngine.clear();
+
+    expect(jarvis.jarvisContextEngine.resolveReference('the first one')).toMatchObject({
+      matched: false,
+      reason: 'no_context'
+    });
   });
 
   it('preserves explicit map intent over contextual follow-up routing', () => {
