@@ -1,0 +1,1 @@
+Context & Entity Memory v1 scaffolding has been added as an isolated module. Integration into the app bootstrap should be performed only after verifying the repository's actual script-loading/bootstrap path, to avoid touching stable routers unnecessarily.
