@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_AUTHORITY_V4__)return;
-window.__JARVIS_COMMAND_AUTHORITY_V4__=true;
+if(window.__JARVIS_COMMAND_AUTHORITY_V5__)return;
+window.__JARVIS_COMMAND_AUTHORITY_V5__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const route=q=>{
  const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();
@@ -10,8 +10,12 @@ const route=q=>{
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
  if(/^(?:nice|good|great|awesome|cool|perfect|brilliant|haha+|lol+|lmao+|thanks|thank you|thx)$/.test(s))return {type:'CONVERSATION',owner:'jarvis-context-intelligence-v2.js'};
  if(/^(?:please\s+)?(?:take me to|take me|navigate me to|navigate to|directions? to|go to|open maps? for)\s+.+/.test(s))return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js'};
+ const geographicPlace=/^(?:find|locate|where is|where's|show me)\s+(?:the\s+)?[a-z0-9][a-z0-9 .'-]{1,80}\b(?:nagar|nagara|road|street|st|lane|avenue|ave|colony|layout|sector|phase|chowk|square|market|bazaar|bazar|vihar|puram|pally|palli|gaon|guda|town|city|village|district|junction|jct|temple|mandir|park|airport|station)\s*$/i.test(s);
+ const bareGeographicPlace=/^[a-z0-9][a-z0-9 .'-]{1,80}\b(?:nagar|nagara|road|street|st|lane|avenue|ave|colony|layout|sector|phase|chowk|square|market|bazaar|bazar|vihar|puram|pally|palli|gaon|guda|town|city|village|district|junction|jct|temple|mandir|park|airport|station)\s*$/i.test(s);
+ if(geographicPlace||bareGeographicPlace)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
  if(/\b(?:show\s+me|show|find|locate|where are|look for)\b[\s\S]*\b(?:restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\s+stations?)?|fuel|gyms?|supermarkets?|temples?)\b[\s\S]*\b(?:in|near|around|at|to)\b/.test(s))return {type:'MAP_POI',owner:'jarvis-command-final-routing-v2.js'};
  if(/\b(?:youtube|yt)\b[\s\S]*\b(?:search|find|look up|play|watch|show|open|video|videos|news|music|song)\b|\b(?:search|find|look up|play|watch)\b[\s\S]*\b(?:youtube|yt)\b/.test(s))return {type:'YOUTUBE',owner:'jarvis-youtube-command-authority-v1.js'};
+ if(entity?.name&&entity.type==='PLACE'&&entity.score>=0.8)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
  if(entity?.name&&entity.type==='BOOK'&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
  if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|reading)\b/.test(s)&&!/^read\s+(?:my\s+)?notes?$/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
  if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
@@ -25,7 +29,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'4.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'5.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
