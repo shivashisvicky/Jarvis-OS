@@ -6,7 +6,7 @@
   const API = 'https://gutendex.com/books/';
   const CACHE_PREFIX = 'jarvis:gutenberg:v3:';
   const TIMEOUT_MS = 4500;
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
   const cover = (b) => b.formats?.['image/jpeg'] || '';
   const epub = (b) => b.formats?.['application/epub+zip'] || '';
@@ -15,18 +15,12 @@
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), ms);
     try {
-      const r = await fetch(url, {
-        signal: c.signal,
-        cache: 'no-store',
-        headers: { Accept: 'application/json' }
-      });
+      const r = await fetch(url, { signal: c.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       if (!data || !Array.isArray(data.results)) throw new Error('Invalid Gutenberg response');
       return data.results;
-    } finally {
-      clearTimeout(t);
-    }
+    } finally { clearTimeout(t); }
   };
 
   const cacheKey = (query) => CACHE_PREFIX + query.toLowerCase();
@@ -41,27 +35,13 @@
     } catch { return null; }
   };
   const writeCache = (query, results) => {
-    try {
-      sessionStorage.setItem(cacheKey(query), JSON.stringify({ savedAt: Date.now(), results }));
-    } catch {}
+    try { sessionStorage.setItem(cacheKey(query), JSON.stringify({ savedAt: Date.now(), results })); } catch {}
   };
 
   const searchRemote = async (query) => {
-    // Keep the primary request simple. The previous text/plain MIME filter could
-    // unnecessarily exclude valid Gutenberg records and add another fallback hop.
     const direct = `${API}?search=${encodeURIComponent(query)}&languages=en`;
     const jina = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}&languages=en`;
-
-    // Race one direct request against one controlled fallback. Do not stack
-    // multiple 9-second retries: a search UI should fail fast and predictably.
-    try {
-      return await Promise.any([
-        request(direct),
-        request(jina)
-      ]);
-    } catch {
-      return [];
-    }
+    try { return await Promise.any([request(direct), request(jina)]); } catch { return []; }
   };
 
   const render = (results, status, query) => {
@@ -71,7 +51,6 @@
       status.results.querySelector('#jbe6RetrySearch')?.addEventListener('click', () => search(query));
       return;
     }
-
     status.results.innerHTML = results.slice(0, 20).map((b, i) => {
       const img = cover(b) ? `<img class="jbe6-cover" src="${esc(cover(b))}" alt="">` : '<div class="jbe6-cover"></div>';
       const e = epub(b);
@@ -86,17 +65,11 @@
     const results = document.querySelector('#jbe6Results');
     const line = document.querySelector('#jbe6StatusLine');
     if (!results) return;
-
     const status = { results, line };
     const cached = readCache(query);
-    if (cached?.length) {
-      render(cached, status, query);
-      return;
-    }
-
+    if (cached?.length) { render(cached, status, query); return; }
     results.innerHTML = '<div class="jbe6-status">SEARCHING GUTENBERG…</div>';
     if (line) line.textContent = 'SEARCHING';
-
     const books = await searchRemote(query);
     if (books.length) writeCache(query, books);
     render(books, status, query);
@@ -121,4 +94,36 @@
     e.stopImmediatePropagation();
     search(input.value);
   }, true);
+
+  // First-run reconciliation: command routing can populate the ebook query while
+  // the library is still mounting. If that happens, the library's default books
+  // must not win over the command-supplied query. Reconcile once the panel/input
+  // exists, without touching ordinary manual searches.
+  let reconciledQuery = '';
+  let reconcileTimer = null;
+  const reconcile = () => {
+    const input = document.querySelector('#jbe6Query');
+    const results = document.querySelector('#jbe6Results');
+    if (!input || !results) return false;
+    const query = String(input.value || '').trim();
+    if (!query || query.length < 2 || query === reconciledQuery) return false;
+    const hasResults = results.querySelector('.jbe6-book');
+    const isSearching = /SEARCHING|GUTENBERG/i.test(document.querySelector('#jbe6StatusLine')?.textContent || '') || results.querySelector('.jbe6-status');
+    if (hasResults || isSearching) { reconciledQuery = query; return false; }
+    reconciledQuery = query;
+    search(query);
+    return true;
+  };
+  const scheduleReconcile = () => {
+    clearTimeout(reconcileTimer);
+    reconcileTimer = setTimeout(() => {
+      reconcile();
+      setTimeout(reconcile, 120);
+      setTimeout(reconcile, 400);
+    }, 0);
+  };
+  const observer = new MutationObserver(scheduleReconcile);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('input', e => { if (e.target?.id === 'jbe6Query') scheduleReconcile(); }, true);
+  scheduleReconcile();
 })();
