@@ -15,12 +15,31 @@ async function submit(page, text) {
   await page.locator('#commandForm').press('Enter');
 }
 
-test('context reference authority resolves book result references after returning home', async ({ page }) => {
-  await openHome(page);
+async function findBeowulf(page) {
   await submit(page, 'find Beowulf');
   await expect(page.locator('.page-head h1')).toHaveText(/Files|Ebooks/i, { timeout: 15_000 });
   await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+}
+
+test('context reference authority resolves book result references after returning home', async ({ page }) => {
+  await openHome(page);
+  await findBeowulf(page);
   const firstTitle = (await page.locator('#jbe6Results .jbe6-book').first().locator('.jbe6-name').innerText()).trim();
+  await page.locator('.nav[data-app="home"]').click();
+  await submit(page, 'open the first one');
+  await expect(page.locator('#jarvisReply')).not.toContainText(/Search Hub|current location|more context/i);
+  await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#jbe6Results')).toContainText(firstTitle);
+});
+
+test('book reference survives opening and closing the native JARVIS reader', async ({ page }) => {
+  await openHome(page);
+  await findBeowulf(page);
+  const firstBook = page.locator('#jbe6Results .jbe6-book').first();
+  const firstTitle = (await firstBook.locator('.jbe6-name').innerText()).trim();
+  await firstBook.locator('[data-rel-read]').click();
+  await expect(page.locator('#jbe6Reader, .jbe6-reader')).toBeVisible({ timeout: 15_000 });
+  await page.locator('#jbe6Close').click();
   await page.locator('.nav[data-app="home"]').click();
   await submit(page, 'open the first one');
   await expect(page.locator('#jarvisReply')).not.toContainText(/Search Hub|current location|more context/i);
@@ -30,7 +49,7 @@ test('context reference authority resolves book result references after returnin
 
 test('context reference authority accepts second and numbered book references', async ({ page }) => {
   await openHome(page);
-  await submit(page, 'find Beowulf');
+  await findBeowulf(page);
   await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(1);
   await page.locator('.nav[data-app="home"]').click();
   await submit(page, 'open the second one');
