@@ -26,6 +26,7 @@ const textFor=(domain,d={})=>{
 const switchTask=(domain,d={})=>{
  const text=textFor(domain,d);if(!text)return;
  try{sessionStorage.setItem(KEY,JSON.stringify([{role:'assistant',text,at:Date.now()}]))}catch{}
+ try{window.dispatchEvent(new CustomEvent('jarvis:task-context-switched',{detail:{domain,text,location:d.place||d.location||d.query||null}}))}catch{}
 };
 window.addEventListener('jarvis:map-intent',e=>switchTask('MAPS',e.detail||{}),true);
 window.addEventListener('jarvis:ebook-context',e=>switchTask('BOOKS',e.detail||{}),true);
