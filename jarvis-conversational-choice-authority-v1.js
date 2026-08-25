@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V6__)return;
-window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V6__=true;
+if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V7__)return;
+window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V7__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const cleanOption=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').replace(/[.!?]+$/,'').trim();
 const jokes=[
@@ -38,17 +38,20 @@ const submitNormalJoke=(previousIndex)=>{
  const input=document.querySelector('#commandInput');
  const form=document.querySelector('#commandForm');
  if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return false;
- // Re-enter through the real Command Center submit path. This is important:
- // it preserves the production voice authority, accent, timing and mic cleanup.
  input.value='Tell me a joke';
  input.dispatchEvent(new Event('input',{bubbles:true}));
- const originalRandom=Math.random;
- Math.random=()=>{
-   const choices=jokes.map((_,i)=>i).filter(i=>i!==previousIndex);
-   const selected=choices.length?choices[0]:0;
-   return (selected+0.01)/jokes.length;
- };
- try{form.requestSubmit()}finally{Math.random=originalRandom}
+ // Let the original SpeechRecognition result handler finish and stop the mic
+ // before re-entering the real Command Center execution path. This avoids
+ // overlapping recognition and TTS, and preserves the normal voice profile.
+ window.setTimeout(()=>{
+   const originalRandom=Math.random;
+   Math.random=()=>{
+     const choices=jokes.map((_,i)=>i).filter(i=>i!==previousIndex);
+     const selected=choices.length?choices[0]:0;
+     return (selected+0.01)/jokes.length;
+   };
+   try{form.requestSubmit()}finally{Math.random=originalRandom}
+ },0);
  return true;
 };
 const handle=raw=>{
@@ -57,8 +60,7 @@ const handle=raw=>{
    rememberLastJoke();
    const previousIndex=lastJokeIndex;
    releaseRecognitionOnly();
-   if(submitNormalJoke(previousIndex))return true;
-   return false;
+   return submitNormalJoke(previousIndex);
  }
  const options=parseChoice(q);
  if(options){
@@ -66,8 +68,6 @@ const handle=raw=>{
    lastChoice={picked,other:picked===options.a?options.b:options.a};
    lastTopic=null;
    releaseRecognitionOnly();
-   const input=document.querySelector('#commandInput');
-   if(input instanceof HTMLInputElement){input.value=q;input.dispatchEvent(new Event('input',{bubbles:true}))}
    return false;
  }
  const why=q.match(/^\s*(?:why|why did you choose|why did you pick)\s+(.+?)[.!?]*$/i);
@@ -81,9 +81,8 @@ const observeTopic=raw=>{
 };
 
 // Capture phase records the first joke request before another voice router can
-// consume it. On the follow-up we stop the original voice event and re-enter
-// through the normal Command Center form, rather than creating a second speech
-// implementation with a different voice/accent.
+// consume it. On the follow-up we stop the original event and re-enter through
+// the real Command Center form, rather than creating a second speech pipeline.
 const voiceCapture=e=>{
  const raw=e.detail?.text||'';
  if(handle(raw)){
