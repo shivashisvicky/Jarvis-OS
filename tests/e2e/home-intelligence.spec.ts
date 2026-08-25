@@ -94,6 +94,22 @@ test('restaurants-to-place phrasing stays inside Maps and becomes an in-place PO
   await expect(page.locator('#webQuery')).toHaveCount(0);
 });
 
+test('Maps owns nearest follow-ups and never sends an old Books context to intelligence', async ({ page }) => {
+  await openHome(page);
+  const command = page.locator('#commandInput');
+  await command.fill('show me restaurants in Jagannath Nagar');
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps');
+  await waitForMapResults(page);
+  const firstName = (await page.locator('#mapResults [data-jarvis-map-v25]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
+  await command.fill("what's the nearest one");
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('#jarvisReply')).toContainText(/nearest option/i, { timeout: 8_000 });
+  await expect(page.locator('#jarvisReply')).toContainText(firstName);
+  await expect(page.locator('#jarvisReply')).not.toContainText(/Beowulf/i);
+  await expect(page.locator('#jarvisReply')).not.toContainText(/current location/i);
+});
+
 test('restaurant results paginate and keep the map synchronized with the visible page', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
