@@ -10,7 +10,7 @@ async function openHome(page) {
 }
 
 async function waitForMapResults(page) {
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v26]').count(), { timeout: 30_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapFrame')).toBeVisible();
   await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
 }
@@ -101,7 +101,7 @@ test('Maps owns nearest follow-ups and never sends an old Books context to intel
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await waitForMapResults(page);
-  const firstName = (await page.locator('#mapResults [data-jarvis-map-v25]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
+  const firstName = (await page.locator('#mapResults [data-jarvis-map-v26]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
   await command.fill("what's the nearest one");
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('#jarvisReply')).toContainText(/nearest option/i, { timeout: 8_000 });
@@ -118,16 +118,16 @@ test('restaurant results paginate and keep the map synchronized with the visible
   await waitForMapResults(page);
   const next = page.locator('#mapNext');
   if (await next.count()) {
-    const first = await page.locator('#mapResults [data-jarvis-map-v25]').first().innerText();
+    const first = await page.locator('#mapResults [data-jarvis-map-v26]').first().innerText();
     const firstSrc = await page.locator('#mapFrame iframe').getAttribute('src');
     await next.click();
-    await expect(page.locator('#mapResults [data-jarvis-map-v25]').first()).not.toHaveText(first);
+    await expect(page.locator('#mapResults [data-jarvis-map-v26]').first()).not.toHaveText(first);
     await expect(page.locator('#mapFrame')).toBeVisible();
     await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
     const nextSrc = await page.locator('#mapFrame iframe').getAttribute('src');
     expect(nextSrc).not.toBe(firstSrc);
   }
-  await page.locator('#mapResults [data-jarvis-map-v25]').first().click();
+  await page.locator('#mapResults [data-jarvis-map-v26]').first().click();
   await expect(page.locator('#mapFrame iframe')).toBeVisible();
 });
 
