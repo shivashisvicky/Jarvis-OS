@@ -1,109 +1,92 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V7__)return;
-window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V7__=true;
+if(window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V8__)return;
+window.__JARVIS_CONVERSATIONAL_CHOICE_AUTHORITY_V8__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
-const cleanOption=s=>normalize(s).replace(/^["'“”‘’]+|["'“”‘’]+$/g,'').replace(/[.!?]+$/,'').trim();
 const jokes=[
  'Why did the developer go broke? Because they used up all their cache.',
  'I told my computer I needed a break. It said, “I will go to sleep.”',
  'There are only 10 kinds of people: those who understand binary and those who do not.'
 ];
 let lastChoice=null;
-let lastTopic=null;
 let lastJokeIndex=-1;
-const parseChoice=text=>{
- const q=normalize(text).replace(/[.!?]+$/,'').trim();
- let m=q.match(/^\s*(?:please\s+)?(?:pick|choose|select)\s+(?:one\s+|between\s+)?(.+?)\s+(?:or|versus|vs\.?|\/)\s+(.+)$/i);
- if(!m)m=q.match(/^\s*(?:which|what)\s+(?:should|would)\s+i\s+(?:pick|choose|select)\s+(.+?)\s+(?:or|versus|vs\.?|\/)\s+(.+)$/i);
- if(!m)m=q.match(/^\s*([^,]{1,48}?)\s+(?:or|versus|vs\.?|\/)\s+([^,]{1,48})\s*$/i);
- if(!m)return null;
- const a=cleanOption(m[1]),b=cleanOption(m[2]);
- if(!a||!b||a.length>80||b.length>80)return null;
- if(/^(search|look up|find|show me|where|what|how|why)\b/i.test(q)||/[?]/.test(q))return null;
- return {a,b};
+const isDifferentFollowup=q=>/^(?:please\s+)?(?:tell|give|show)\s+me\s+(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q)||/^(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q);
+const isJokeRequest=q=>/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/i.test(q)||/\bmake\s+me\s+laugh\b/i.test(q);
+const rememberLastJoke=()=>{
+ const text=normalize(document.querySelector('#jarvisReply')?.textContent||'');
+ const i=jokes.findIndex(j=>normalize(j)===text);
+ if(i>=0)lastJokeIndex=i;
 };
-const releaseRecognitionOnly=()=>{
+const stopRecognition=()=>{
  try{window.jarvisStopAllVoiceSessions?.()}catch{}
  try{window.jarvisStopIOSVoice?.()}catch{}
  try{window.jarvisStopVoiceRecognitionOnly?.()}catch{}
+ try{window.jarvisStopVoice?.()}catch{}
 };
-const isJokeRequest=q=>/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b/i.test(q)||/\bmake\s+me\s+laugh\b/i.test(q);
-const isDifferentFollowup=q=>/^(?:please\s+)?(?:tell|give|show)\s+me\s+(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q)||/^(?:a\s+)?(?:different|another)\s+(?:one|joke)\s*$/i.test(q);
-const rememberLastJoke=()=>{
- const text=normalize(document.querySelector('#jarvisReply')?.textContent||'');
- lastJokeIndex=jokes.findIndex(j=>normalize(j)===text);
+const speakWithProductionVoice=text=>{
+ const clean=normalize(text);if(!clean)return;
+ const reply=document.querySelector('#jarvisReply');
+ if(reply){reply.textContent=clean;reply.classList.add('visible')}
+ // Prefer the exact production cinematic speaker used by the normal Command
+ // Center path. Do not use jarvisVoiceAuthoritySpeak here, which caused the
+ // alternate/slow voice on the previous patch.
+ try{
+   if(typeof window.jarvisCinematicSpeak==='function'){
+     window.jarvisCinematicSpeak(clean);
+     return;
+   }
+ }catch{}
+ // Fallback matching src/jarvis.ts voice selection and parameters.
+ try{
+   if(!('speechSynthesis'in window))return;
+   window.speechSynthesis.cancel();
+   const voices=window.speechSynthesis.getVoices();
+   const preferred=['Daniel','Arthur','George','Oliver','James','Alex','Fred','Thomas'];
+   const voice=voices.find(v=>preferred.some(n=>v.name.toLowerCase().includes(n.toLowerCase()))&&/^en-GB/i.test(v.lang))
+     ||voices.find(v=>/^en-GB/i.test(v.lang)&&/male|natural|enhanced|premium/i.test(v.name))
+     ||voices.find(v=>/^en-GB/i.test(v.lang))
+     ||voices.find(v=>/^en-IN/i.test(v.lang)&&/male|natural|enhanced|premium/i.test(v.name))
+     ||voices[0];
+   const u=new SpeechSynthesisUtterance(clean);
+   u.rate=.92;u.pitch=.54;u.volume=.96;u.lang=voice?.lang||'en-GB';
+   if(voice)u.voice=voice;
+   window.speechSynthesis.speak(u);
+ }catch{}
 };
-const submitNormalJoke=(previousIndex)=>{
- const input=document.querySelector('#commandInput');
- const form=document.querySelector('#commandForm');
- if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return false;
- input.value='Tell me a joke';
- input.dispatchEvent(new Event('input',{bubbles:true}));
- // Let the original SpeechRecognition result handler finish and stop the mic
- // before re-entering the real Command Center execution path. This avoids
- // overlapping recognition and TTS, and preserves the normal voice profile.
- window.setTimeout(()=>{
-   const originalRandom=Math.random;
-   Math.random=()=>{
-     const choices=jokes.map((_,i)=>i).filter(i=>i!==previousIndex);
-     const selected=choices.length?choices[0]:0;
-     return (selected+0.01)/jokes.length;
-   };
-   try{form.requestSubmit()}finally{Math.random=originalRandom}
- },0);
- return true;
+const answerDifferentJoke=()=>{
+ rememberLastJoke();
+ const choices=jokes.map((_,i)=>i).filter(i=>i!==lastJokeIndex);
+ const index=choices.length?choices[0]:0;
+ lastJokeIndex=index;
+ stopRecognition();
+ window.setTimeout(()=>speakWithProductionVoice(jokes[index]),80);
 };
-const handle=raw=>{
- const q=normalize(raw);if(!q)return false;
- if(isDifferentFollowup(q)&&lastTopic==='joke'){
-   rememberLastJoke();
-   const previousIndex=lastJokeIndex;
-   releaseRecognitionOnly();
-   return submitNormalJoke(previousIndex);
- }
- const options=parseChoice(q);
- if(options){
-   const picked=Math.random()<0.5?options.a:options.b;
-   lastChoice={picked,other:picked===options.a?options.b:options.a};
-   lastTopic=null;
-   releaseRecognitionOnly();
-   return false;
- }
- const why=q.match(/^\s*(?:why|why did you choose|why did you pick)\s+(.+?)[.!?]*$/i);
- if(why&&lastChoice)return false;
- return false;
-};
-const observeTopic=raw=>{
- const q=normalize(raw).toLowerCase();
- if(isJokeRequest(q)){lastTopic='joke';return;}
- if(!isDifferentFollowup(q)&&!/^\s*(?:please\s+)?(?:pick|choose|select)\b/i.test(q))lastTopic=null;
-};
-
-// Capture phase records the first joke request before another voice router can
-// consume it. On the follow-up we stop the original event and re-enter through
-// the real Command Center form, rather than creating a second speech pipeline.
-const voiceCapture=e=>{
- const raw=e.detail?.text||'';
- if(handle(raw)){
+const handleVoice=e=>{
+ const raw=normalize(e.detail?.text);if(!raw)return;
+ // Stateless by design: “different one” must never fall through to Search Hub,
+ // even if iOS drops the previous conversational event.
+ if(isDifferentFollowup(raw)){
    e.preventDefault?.();
    e.stopImmediatePropagation?.();
+   answerDifferentJoke();
    return;
  }
- observeTopic(raw);
+ if(isJokeRequest(raw))window.setTimeout(rememberLastJoke,250);
 };
-const submitCapture=e=>{
- const form=e.target;
- if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;
+const handleSubmit=e=>{
+ const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='commandForm')return;
  const input=form.querySelector('#commandInput');
- const raw=input instanceof HTMLInputElement?input.value:'';
- if(handle(raw)){
+ const raw=input instanceof HTMLInputElement?normalize(input.value):'';
+ if(!raw)return;
+ if(isDifferentFollowup(raw)){
    e.preventDefault();
    e.stopImmediatePropagation();
+   answerDifferentJoke();
+   if(input instanceof HTMLInputElement){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}))}
    return;
  }
- observeTopic(raw);
+ if(isJokeRequest(raw))window.setTimeout(rememberLastJoke,250);
 };
-document.addEventListener('submit',submitCapture,true);
-window.addEventListener('jarvis:voice-command',voiceCapture,true);
+document.addEventListener('submit',handleSubmit,true);
+window.addEventListener('jarvis:voice-command',handleVoice,true);
 })();
