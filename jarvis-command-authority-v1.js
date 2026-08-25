@@ -9,6 +9,9 @@ const route=q=>{
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
  if(/^(?:nice|good|great|awesome|cool|perfect|brilliant|haha+|lol+|lmao+|thanks|thank you|thx)$/.test(s))return {type:'CONVERSATION',owner:'jarvis-context-intelligence-v2.js'};
  if(/^(?:please\s+)?(?:take me to|take me|navigate me to|navigate to|directions? to|go to|open maps? for)\s+.+/.test(s))return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js'};
+ const geographicPlace=/^(?:find|locate|where is|where's|show me)\s+(?:the\s+)?[a-z0-9][a-z0-9 .'-]{1,80}\b(?:nagar|nagara|road|street|st|lane|avenue|ave|colony|layout|sector|phase|chowk|square|market|bazaar|bazar|vihar|puram|pally|palli|gaon|guda|nagar|town|city|village|district|junction|jct|temple|mandir|park|airport|station)\s*$/i.test(s);
+ const bareGeographicPlace=/^[a-z0-9][a-z0-9 .'-]{1,80}\b(?:nagar|nagara|road|street|st|lane|avenue|ave|colony|layout|sector|phase|chowk|square|market|bazaar|bazar|vihar|puram|pally|palli|gaon|guda|town|city|village|district|junction|jct|temple|mandir|park|airport|station)\s*$/i.test(s);
+ if(geographicPlace||bareGeographicPlace)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js'};
  if(/\b(?:show\s+me|show|find|locate|where are|look for)\b[\s\S]*\b(?:restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\s+stations?)?|fuel|gyms?|supermarkets?|temples?)\b[\s\S]*\b(?:in|near|around|at|to)\b/.test(s))return {type:'MAP_POI',owner:'jarvis-command-final-routing-v2.js'};
  if(/\b(?:youtube|yt)\b[\s\S]*\b(?:search|find|look up|play|watch|show|open|video|videos|news|music|song)\b|\b(?:search|find|look up|play|watch)\b[\s\S]*\b(?:youtube|yt)\b/.test(s))return {type:'YOUTUBE',owner:'jarvis-youtube-command-authority-v1.js'};
  const strongBookQuery=/^(?:find|search for|look up|show me|open|read)\s+(?:the\s+)?(?:book\s+)?(?:beowulf|pride and prejudice|frankenstein|dracula|jane eyre|wuthering heights|moby dick|the odyssey|the iliad|alice in wonderland|little women|don quixote|war and peace|anna karenina|les miserables|the count of monte cristo|the three musketeers|the picture of dorian gray|the metamorphosis|crime and punishment|the republic|gulliver's travels|treasure island|the scarlet letter|the jungle book|the call of the wild|around the world in eighty days|john henry newman)(?:\s+by\s+.+)?$/i.test(s);
@@ -25,7 +28,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'3.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'3.1.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
