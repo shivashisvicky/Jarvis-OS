@@ -18,19 +18,6 @@
     return q.trim();
   }
 
-  function relevanceScore(query, items) {
-    const terms = normalizeSearchQuery(query).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(t => t.length > 2 && !stopWords.has(t));
-    if (!terms.length || !items.length) return 0;
-    let hits = 0, total = 0;
-    for (const item of items.slice(0,8)) {
-      const hay = `${item?.title || ''} ${item?.snippet || ''}`.toLowerCase();
-      const matched = terms.filter(t => hay.includes(t)).length;
-      hits += matched >= Math.min(2, terms.length) ? 1 : 0;
-      total += matched;
-    }
-    return hits / items.slice(0,8).length + Math.min(1, total / (items.slice(0,8).length * terms.length));
-  }
-
   async function search(provider, query) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
@@ -40,7 +27,12 @@
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      return { results: Array.isArray(data?.results) ? data.results : [], provider: String(data?.provider || provider).toLowerCase() };
+      return {
+        results: Array.isArray(data?.results) ? data.results : [],
+        provider: String(data?.provider || provider).toLowerCase(),
+        requestedProvider: String(data?.requestedProvider || provider).toLowerCase(),
+        fallback: Boolean(data?.fallback),
+      };
     } finally { clearTimeout(timer); }
   }
 
@@ -60,9 +52,9 @@
 
   async function runSearch(provider, rawQuery) {
     const query = normalizeSearchQuery(rawQuery);
-    if (!query) return { results: [], provider, query };
+    if (!query) return { results: [], provider, requestedProvider: provider, fallback: false, query };
     const payload = await search(provider, query);
-    return { ...payload, query, selectedProvider: provider };
+    return { ...payload, query };
   }
 
   document.addEventListener('click', event => {
@@ -85,9 +77,9 @@
     status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
     results.innerHTML = '<div class="empty">Searching…</div>';
     runSearch(provider, rawQuery).then(payload => {
-      const actualProvider = payload.provider || payload.selectedProvider || provider;
-      const shownProvider = payload.selectedProvider || provider;
-      status.textContent = `${payload.results.length} RESULTS · ${shownProvider.toUpperCase()}`;
+      const actualProvider = payload.provider || provider;
+      const providerLabel = actualProvider === 'bing' && payload.fallback ? 'BING FALLBACK' : actualProvider.toUpperCase();
+      status.textContent = `${payload.results.length} RESULTS · ${providerLabel}`;
       render(payload.results, actualProvider, payload.query, results);
     }).catch(() => {
       status.textContent = 'DEGRADED';
