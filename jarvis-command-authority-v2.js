@@ -1,12 +1,13 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_AUTHORITY_V8__)return;
-window.__JARVIS_COMMAND_AUTHORITY_V8__=true;
+if(window.__JARVIS_COMMAND_AUTHORITY_V9__)return;
+window.__JARVIS_COMMAND_AUTHORITY_V9__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const route=q=>{
  const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();
  const entity=window.__JARVIS_ENTITY__;
  const ctx=window.jarvisContextEngine?.get?.();
+ const ref=window.jarvisContextEngine?.resolveReference?.(s);
  if(!s)return {type:'EMPTY',owner:null};
  if(/^(?:please\s+)?(?:search|look\s*up|lookup|google|bing|web\s+search)\b[\s\S]*/.test(s)||/\b(?:search|look\s+up|browse|google|bing|internet|web|search\s+for)\b[\s\S]*\b(?:internet|web|online)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
@@ -26,6 +27,10 @@ const route=q=>{
  if(/\b(?:find|locate|open|read)\s+.+/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
  if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
  if(/\b(?:weather|temperature|forecast|how hot|how cold)\b/.test(s))return {type:'WEATHER',owner:'jarvis-weather-intent-fix.js'};
+ if(ref?.matched&&ctx?.active){
+   const owner=ctx.domain==='BOOKS'?'jarvis-ebook-command-authority-v1.js':ctx.domain==='MAPS'?'jarvis-command-final-routing-v2.js':ctx.domain==='SEARCH'?'search-runtime':ctx.domain==='MEDIA'?'jarvis-youtube-command-authority-v1.js':'context-runtime';
+   return {type:'CONTEXT_FOLLOWUP',owner,contextDomain:ctx.domain||null,reference:ref};
+ }
  if(/\b(?:search|look up|browse|google|bing|internet|web|search for)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  if(/^(?:please\s+)?(?:what(?:'s| is|s)\s+)?(?:the\s+)?(?:time|clock)\b|\bwhat time is it\b/.test(s))return {type:'TIME',owner:'jarvis-command-deterministic-fix-v1.js'};
  if(/\b(?:pick|choose|select)\b[\s\S]*\b(?:or|versus|vs\.?|\/)\b/.test(s)||/^.{1,48}\s+(?:or|versus|vs\.?|\/)\s+.{1,48}$/.test(s))return {type:'CHOICE',owner:'jarvis-command-intelligence-v1.js'};
@@ -35,7 +40,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'8.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'9.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
