@@ -1,10 +1,10 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V3__) return;
-  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V3__ = true;
+  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V4__) return;
+  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V4__ = true;
 
   const API = 'https://gutendex.com/books/';
-  const CACHE_PREFIX = 'jarvis:gutenberg:v3:';
+  const CACHE_PREFIX = 'jarvis:gutenberg:v4:';
   const TIMEOUT_MS = 4500;
   const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
@@ -42,6 +42,14 @@
     const direct = `${API}?search=${encodeURIComponent(query)}&languages=en`;
     const jina = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}&languages=en`;
     try { return await Promise.any([request(direct), request(jina)]); } catch { return []; }
+  };
+
+  const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const resultMatchesQuery = (book, query) => {
+    const q = normalize(query);
+    if (!q) return false;
+    const haystack = normalize([book.title, ...(book.authors || []).map(a => a.name), ...(book.subjects || [])].join(' '));
+    return q.split(' ').every(token => token.length < 2 || haystack.includes(token));
   };
 
   const render = (results, status, query) => {
@@ -95,10 +103,6 @@
     search(input.value);
   }, true);
 
-  // First-run reconciliation: command routing can populate the ebook query while
-  // the library is still mounting. If that happens, the library's default books
-  // must not win over the command-supplied query. Reconcile once the panel/input
-  // exists, without touching ordinary manual searches.
   let reconciledQuery = '';
   let reconcileTimer = null;
   const reconcile = () => {
@@ -107,9 +111,14 @@
     if (!input || !results) return false;
     const query = String(input.value || '').trim();
     if (!query || query.length < 2 || query === reconciledQuery) return false;
-    const hasResults = results.querySelector('.jbe6-book');
-    const isSearching = /SEARCHING|GUTENBERG/i.test(document.querySelector('#jbe6StatusLine')?.textContent || '') || results.querySelector('.jbe6-status');
-    if (hasResults || isSearching) { reconciledQuery = query; return false; }
+    const books = [...results.querySelectorAll('.jbe6-book')];
+    const line = document.querySelector('#jbe6StatusLine')?.textContent || '';
+    const isSearching = /SEARCHING/i.test(line) || results.querySelector('.jbe6-status');
+    if (isSearching) return false;
+    if (books.length && books.some((el) => normalize(el.querySelector('.jbe6-name')?.textContent).includes(normalize(query)))) {
+      reconciledQuery = query;
+      return false;
+    }
     reconciledQuery = query;
     search(query);
     return true;
@@ -120,6 +129,7 @@
       reconcile();
       setTimeout(reconcile, 120);
       setTimeout(reconcile, 400);
+      setTimeout(reconcile, 900);
     }, 0);
   };
   const observer = new MutationObserver(scheduleReconcile);
