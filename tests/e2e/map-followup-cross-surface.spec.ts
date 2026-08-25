@@ -10,7 +10,7 @@ async function openHome(page) {
 }
 
 async function waitForMapResults(page) {
-  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v25]').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v26]').count(), { timeout: 30_000 }).toBeGreaterThan(0);
   await expect(page.locator('#mapFrame')).toBeVisible();
 }
 
@@ -26,7 +26,7 @@ test('MAPS context survives returning home and owns natural nearest follow-ups',
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await waitForMapResults(page);
 
-  const firstName = (await page.locator('#mapResults [data-jarvis-map-v25]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
+  const firstName = (await page.locator('#mapResults [data-jarvis-map-v26]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
 
   await page.locator('.nav[data-app="home"]').click();
   await expect(page.locator('#commandInput')).toBeVisible();
@@ -45,7 +45,7 @@ test('MAPS selected restaurant resolves contextual take-me-there', async ({ page
   await expect(page.locator('.page-head h1')).toHaveText('Maps');
   await waitForMapResults(page);
 
-  const firstName = (await page.locator('#mapResults [data-jarvis-map-v25]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
+  const firstName = (await page.locator('#mapResults [data-jarvis-map-v26]').first().locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
   await submitCommand(page, 'Which one is the nearest one');
   await expect(page.locator('#jarvisReply')).toContainText(firstName, { timeout: 8_000 });
 
