@@ -8,7 +8,7 @@ const lower=s=>normalize(s).toLowerCase().replace(/[.!?]+$/,'').trim();
 const EXPLICIT_DOMAIN=/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|youtube|maps?|restaurants?|hospitals?|hotels?|weather|games?|news|headlines)\b/i;
 const WEB=/^(?:search|look\s*up|lookup|google|bing|web\s+search)\b/i;
 const COMMAND=/^(?:please\s+)?(?:tell me about|who is|what is|what's|what are|give me information about|give me info about|explain)\s+(.+)$/i;
-const CACHE='jarvis:entity-intelligence:v2:';
+const CACHE='jarvis:entity-intelligence:v2.2:';
 const TTL=30*60*1000;
 const reserved=/^(?:hi|hello|hey|thanks|thank you|good morning|good night|tell me a joke|what time is it|weather|help|stop|cancel|yes|no)$/i;
 const fetchJson=async(url,ms=3500)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{signal:c.signal,cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.json()}finally{clearTimeout(t)}};
@@ -24,5 +24,5 @@ const dispatch=(raw,res,mode)=>{const detail={text:raw,resolved:true,entity:{nam
 const intercept=e=>{const raw=normalize(e.detail?.text);if(!raw||e.detail?.resolved)return;const target=candidate(raw);if(!target)return;e.preventDefault?.();e.stopImmediatePropagation?.();resolve(target.entity).then(res=>dispatch(raw,res,target.mode))};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';const target=candidate(raw);if(!target)return;e.preventDefault();e.stopImmediatePropagation();resolve(target.entity).then(res=>{if(input instanceof HTMLInputElement)input.value='';dispatch(raw,res,target.mode)})},true);
-window.jarvisEntityIntelligence=Object.freeze({version:'2.1.0',resolve,candidate});
+window.jarvisEntityIntelligence=Object.freeze({version:'2.2.0',resolve,candidate});
 })();
