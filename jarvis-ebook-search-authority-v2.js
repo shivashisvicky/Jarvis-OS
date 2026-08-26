@@ -1,15 +1,16 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V4__) return;
-  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V4__ = true;
+  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V5__) return;
+  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V5__ = true;
 
   const API = 'https://gutendex.com/books/';
-  const CACHE_PREFIX = 'jarvis:gutenberg:v4:';
-  const TIMEOUT_MS = 4500;
+  const CACHE_PREFIX = 'jarvis:gutenberg:v5:';
+  const TIMEOUT_MS = 5000;
   const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
   const cover = (b) => b.formats?.['image/jpeg'] || '';
   const epub = (b) => b.formats?.['application/epub+zip'] || '';
+  const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
   const request = async (url, ms = TIMEOUT_MS) => {
     const c = new AbortController();
@@ -41,15 +42,40 @@
   const searchRemote = async (query) => {
     const direct = `${API}?search=${encodeURIComponent(query)}&languages=en`;
     const jina = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}&languages=en`;
-    try { return await Promise.any([request(direct), request(jina)]); } catch { return []; }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await Promise.any([request(direct), request(jina)]);
+        if (Array.isArray(result) && result.length) return result;
+      } catch {}
+      if (attempt < 2) await new Promise(r => setTimeout(r, attempt === 0 ? 250 : 700));
+    }
+    return [];
   };
 
-  const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  const resultMatchesQuery = (book, query) => {
-    const q = normalize(query);
-    if (!q) return false;
-    const haystack = normalize([book.title, ...(book.authors || []).map(a => a.name), ...(book.subjects || [])].join(' '));
-    return q.split(' ').every(token => token.length < 2 || haystack.includes(token));
+  const rememberContext = (results, query) => {
+    try {
+      const remembered = results.slice(0, 20).map((b, index) => ({
+        index,
+        id: b.id,
+        title: b.title || '',
+        author: authors(b),
+        type: 'BOOK'
+      }));
+      window.jarvisContextEngine?.set({
+        domain: 'BOOKS',
+        entity: { type: 'BOOK', title: remembered[0]?.title || '' },
+        query,
+        results: remembered,
+        selected: null
+      }, 'merge');
+      window.dispatchEvent(new CustomEvent('jarvis:ebook-context', { detail: {
+        domain: 'BOOKS',
+        entity: { type: 'BOOK', title: remembered[0]?.title || '' },
+        query,
+        results: remembered,
+        selected: null
+      }}));
+    } catch {}
   };
 
   const render = (results, status, query) => {
@@ -65,6 +91,7 @@
       return `<article class="jbe6-book"><div>${img}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
     }).join('');
     if (status.line) status.line.textContent = `${Math.min(20, results.length)} RESULTS · GUTENBERG`;
+    rememberContext(results, query);
   };
 
   const search = async (q) => {
