@@ -1,11 +1,11 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V5__) return;
-  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V5__ = true;
+  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V6__) return;
+  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V6__ = true;
 
   const API = 'https://gutendex.com/books/';
-  const CACHE_PREFIX = 'jarvis:gutenberg:v5:';
-  const TIMEOUT_MS = 5000;
+  const CACHE_PREFIX = 'jarvis:gutenberg:v6:';
+  const TIMEOUT_MS = 4000;
   const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
   const cover = (b) => b.formats?.['image/jpeg'] || '';
@@ -42,39 +42,21 @@
   const searchRemote = async (query) => {
     const direct = `${API}?search=${encodeURIComponent(query)}&languages=en`;
     const jina = `https://r.jina.ai/http://gutendex.com/books/?search=${encodeURIComponent(query)}&languages=en`;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const result = await Promise.any([request(direct), request(jina)]);
         if (Array.isArray(result) && result.length) return result;
       } catch {}
-      if (attempt < 2) await new Promise(r => setTimeout(r, attempt === 0 ? 250 : 700));
+      if (attempt === 0) await new Promise(r => setTimeout(r, 300));
     }
     return [];
   };
 
   const rememberContext = (results, query) => {
     try {
-      const remembered = results.slice(0, 20).map((b, index) => ({
-        index,
-        id: b.id,
-        title: b.title || '',
-        author: authors(b),
-        type: 'BOOK'
-      }));
-      window.jarvisContextEngine?.set({
-        domain: 'BOOKS',
-        entity: { type: 'BOOK', title: remembered[0]?.title || '' },
-        query,
-        results: remembered,
-        selected: null
-      }, 'merge');
-      window.dispatchEvent(new CustomEvent('jarvis:ebook-context', { detail: {
-        domain: 'BOOKS',
-        entity: { type: 'BOOK', title: remembered[0]?.title || '' },
-        query,
-        results: remembered,
-        selected: null
-      }}));
+      const remembered = results.slice(0, 20).map((b, index) => ({ index, id: b.id, title: b.title || '', author: authors(b), type: 'BOOK' }));
+      window.jarvisContextEngine?.set({ domain: 'BOOKS', entity: { type: 'BOOK', title: remembered[0]?.title || '' }, query, results: remembered, selected: null }, 'merge');
+      window.dispatchEvent(new CustomEvent('jarvis:ebook-context', { detail: { domain: 'BOOKS', entity: { type: 'BOOK', title: remembered[0]?.title || '' }, query, results: remembered, selected: null }}));
     } catch {}
   };
 
