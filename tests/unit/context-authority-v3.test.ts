@@ -105,4 +105,18 @@ describe('JARVIS contextual authority', () => {
       owner: 'search-runtime'
     });
   });
+
+  it('routes a resolved Gutenberg author entity into ebook authority', () => {
+    jarvis.__JARVIS_ENTITY__ = {
+      name: 'John Henry Newman',
+      type: 'BOOK_AUTHOR',
+      score: 0.97,
+      source: 'gutenberg'
+    };
+
+    expect(jarvis.jarvisCommandAuthority.route('John Henry Newman')).toMatchObject({
+      type: 'BOOKS',
+      owner: 'jarvis-ebook-command-authority-v1.js'
+    });
+  });
 });
