@@ -26,7 +26,7 @@ const route=q=>{
    const owner=ctx.domain==='BOOKS'?'jarvis-ebook-command-authority-v1.js':ctx.domain==='MAPS'?'jarvis-command-final-routing-v2.js':ctx.domain==='SEARCH'?'search-runtime':ctx.domain==='MEDIA'?'jarvis-youtube-command-authority-v1.js':'context-runtime';
    return {type:'CONTEXT_FOLLOWUP',owner,contextDomain:ctx.domain||null,reference:ref};
  }
- if(entity?.name&&entity.type==='BOOK'&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
+ if(entity?.name&&(entity.type==='BOOK'||entity.type==='BOOK_AUTHOR')&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
  if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|reading)\b/.test(s)&&!/^read\s+(?:my\s+)?notes?$/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
  if(/\b(?:find|locate|open|read)\s+.+/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
  if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
@@ -40,7 +40,7 @@ const route=q=>{
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
 const observe=e=>{const text=clean(e.detail?.text);if(text)snapshot(text)};
-window.jarvisCommandAuthority=Object.freeze({version:'9.3.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'9.4.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',observe,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
