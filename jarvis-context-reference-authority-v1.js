@@ -10,11 +10,20 @@ const isRef=q=>reference.test(q)||numberRef.test(q);
 const getBooksContext=()=>{
  const engine=window.jarvisContextEngine;
  const live=engine?.get?.();
- if(live?.active&&isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return {ctx:live,source:'live'};
+ if(live?.active){
+   if(isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return {ctx:live,source:'live'};
+   return null;
+ }
  const memory=window.jarvisContextMemory;
  const saved=memory?.get?.();
  if(isBookDomain(saved?.domain)&&Array.isArray(saved.results)&&saved.results.length)return {ctx:saved,source:'memory'};
  return null;
+};
+const explainNoContext=()=>{
+ const text='I do not have a current book result list to read from. Search for a book first, then ask me to read a result.';
+ const el=document.querySelector('#jarvisReply');
+ if(el){el.textContent=text;el.classList.add('visible')}
+ try{window.jarvisVoiceAuthoritySpeak?.(text)||window.jarvisCinematicSpeak?.(text)||window.jarvisSpeak?.(text)}catch{}
 };
 const resolve=(target,ctx,source)=>{
  const engine=window.jarvisContextEngine;
@@ -33,13 +42,15 @@ const resolve=(target,ctx,source)=>{
 const run=(raw)=>{
  const q=clean(raw);if(!isRef(q))return false;
  const target=clean(q.replace(/^(?:please\s+)?(?:open|read|show)\s+/i,''));
- const hit=getBooksContext();if(!hit)return false;
- const resolved=resolve(target,hit.ctx,hit.source);if(!resolved?.matched)return false;
+ const hit=getBooksContext();
+ if(!hit){explainNoContext();return true}
+ const resolved=resolve(target,hit.ctx,hit.source);
+ if(!resolved?.matched){explainNoContext();return true}
  window.dispatchEvent(new CustomEvent('jarvis:context-followup',{detail:{type:'SELECT',text:target,context:hit.ctx,source:hit.source,resolved}}));
  return true;
 };
 const intercept=e=>{const raw=clean(e.detail?.text);if(!run(raw))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(!run(raw))return;e.preventDefault();e.stopImmediatePropagation();if(input instanceof HTMLInputElement)input.value=''},true);
-window.jarvisContextReferenceAuthority={version:'2.1.0',run};
+window.jarvisContextReferenceAuthority={version:'2.2.0',run};
 })();
