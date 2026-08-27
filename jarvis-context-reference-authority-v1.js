@@ -4,22 +4,21 @@ if(window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V1__)return;
 window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V1__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isBookDomain=d=>d==='BOOKS'||d==='BOOK'||d==='BOOK_AUTHOR';
+const blockingDomains=new Set(['MAPS','SEARCH','MEDIA','VIDEOS','VIDEO','YOUTUBE','CALC','CALCULATOR','GAMES','FILES','NEWS','WEATHER','PLACES','RESTAURANTS','NAVIGATION']);
 const reference=/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result))?$/i;
 const numberRef=/^(?:please\s+)?(?:open|read|show)\s+(?:result|number|no\.?)\s+\d+$/i;
 const isRef=q=>reference.test(q)||numberRef.test(q);
-const readLastBook=()=>{try{const x=JSON.parse(sessionStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V1')||'null');if(!x||!Array.isArray(x.results)||!x.results.length)return null;if(Date.now()-Number(x.savedAt||0)>30*60*1000)return null;return x}catch{return null}};
+const readLastBook=()=>{try{const x=window.jarvisBookContextPersistence?.get?.()||JSON.parse(sessionStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V1')||'null');if(!x||!Array.isArray(x.results)||!x.results.length)return null;if(Date.now()-Number(x.savedAt||0)>30*60*1000)return null;return x}catch{return null}};
 const getBooksContext=()=>{
  const engine=window.jarvisContextEngine;
  const live=engine?.get?.();
- if(live?.active){
-   if(isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return {ctx:live,source:'live'};
-   return null;
- }
- const memory=window.jarvisContextMemory;
- const saved=memory?.get?.();
- if(isBookDomain(saved?.domain)&&Array.isArray(saved.results)&&saved.results.length)return {ctx:saved,source:'memory'};
+ if(live?.active&&isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return {ctx:live,source:'live'};
+ if(live?.active&&blockingDomains.has(String(live.domain||'').toUpperCase()))return null;
  const last=readLastBook();
  if(last)return {ctx:last,source:'last-book'};
+ const memory=window.jarvisContextMemory;
+ const saved=memory?.get?.();
+ if(saved?.domain&&isBookDomain(saved.domain)&&Array.isArray(saved.results)&&saved.results.length)return {ctx:saved,source:'memory'};
  return null;
 };
 const explainNoContext=()=>{
@@ -32,7 +31,7 @@ const resolve=(target,ctx,source)=>{
  const engine=window.jarvisContextEngine;
  if(source==='live'){
    const resolved=engine?.resolveReference?.(target);
-   if(resolved?.matched)return resolved;
+   if(resolved?.matched&&isBookDomain(resolved.domain))return resolved;
  }
  if(source==='memory'){
    const resolved=window.jarvisContextMemory?.resolveReference?.(target);
@@ -41,7 +40,8 @@ const resolve=(target,ctx,source)=>{
  const list=Array.isArray(ctx?.results)?ctx.results:[];
  const q=clean(target).toLowerCase().replace(/[?.!]+$/,'');
  const idx=/^(?:the\s+)?(?:first|1(?:st)?|one)(?:\s+(?:one|result))?$/.test(q)?0:/^(?:the\s+)?(?:second|2(?:nd)?|two)(?:\s+(?:one|result))?$/.test(q)?1:/^(?:the\s+)?(?:third|3(?:rd)?|three)(?:\s+(?:one|result))?$/.test(q)?2:null;
- return idx!==null&&list[idx]?{matched:true,type:'RESULT',index:idx,value:list[idx],domain:'BOOKS'}:{matched:false,reason:'unresolved'};
+ if(idx!==null&&list[idx])return{matched:true,type:'RESULT',index:idx,value:list[idx],domain:'BOOKS'};
+ return {matched:false,reason:'unresolved'};
 };
 const run=(raw)=>{
  const q=clean(raw);if(!isRef(q))return false;
@@ -56,5 +56,5 @@ const run=(raw)=>{
 const intercept=e=>{const raw=clean(e.detail?.text);if(!run(raw))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(!run(raw))return;e.preventDefault();e.stopImmediatePropagation();if(input instanceof HTMLInputElement)input.value=''},true);
-window.jarvisContextReferenceAuthority={version:'2.3.0',run};
+window.jarvisContextReferenceAuthority={version:'2.4.0',run};
 })();
