@@ -7,6 +7,7 @@ const isBookDomain=d=>d==='BOOKS'||d==='BOOK'||d==='BOOK_AUTHOR';
 const reference=/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result))?$/i;
 const numberRef=/^(?:please\s+)?(?:open|read|show)\s+(?:result|number|no\.?)\s+\d+$/i;
 const isRef=q=>reference.test(q)||numberRef.test(q);
+const readLastBook=()=>{try{const x=JSON.parse(sessionStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V1')||'null');if(!x||!Array.isArray(x.results)||!x.results.length)return null;if(Date.now()-Number(x.savedAt||0)>30*60*1000)return null;return x}catch{return null}};
 const getBooksContext=()=>{
  const engine=window.jarvisContextEngine;
  const live=engine?.get?.();
@@ -17,6 +18,8 @@ const getBooksContext=()=>{
  const memory=window.jarvisContextMemory;
  const saved=memory?.get?.();
  if(isBookDomain(saved?.domain)&&Array.isArray(saved.results)&&saved.results.length)return {ctx:saved,source:'memory'};
+ const last=readLastBook();
+ if(last)return {ctx:last,source:'last-book'};
  return null;
 };
 const explainNoContext=()=>{
@@ -31,9 +34,10 @@ const resolve=(target,ctx,source)=>{
    const resolved=engine?.resolveReference?.(target);
    if(resolved?.matched)return resolved;
  }
- const memory=window.jarvisContextMemory;
- const resolved=memory?.resolveReference?.(target);
- if(resolved?.matched&&isBookDomain(resolved.domain))return resolved;
+ if(source==='memory'){
+   const resolved=window.jarvisContextMemory?.resolveReference?.(target);
+   if(resolved?.matched&&isBookDomain(resolved.domain))return resolved;
+ }
  const list=Array.isArray(ctx?.results)?ctx.results:[];
  const q=clean(target).toLowerCase().replace(/[?.!]+$/,'');
  const idx=/^(?:the\s+)?(?:first|1(?:st)?|one)(?:\s+(?:one|result))?$/.test(q)?0:/^(?:the\s+)?(?:second|2(?:nd)?|two)(?:\s+(?:one|result))?$/.test(q)?1:/^(?:the\s+)?(?:third|3(?:rd)?|three)(?:\s+(?:one|result))?$/.test(q)?2:null;
@@ -52,5 +56,5 @@ const run=(raw)=>{
 const intercept=e=>{const raw=clean(e.detail?.text);if(!run(raw))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(!run(raw))return;e.preventDefault();e.stopImmediatePropagation();if(input instanceof HTMLInputElement)input.value=''},true);
-window.jarvisContextReferenceAuthority={version:'2.2.0',run};
+window.jarvisContextReferenceAuthority={version:'2.3.0',run};
 })();
