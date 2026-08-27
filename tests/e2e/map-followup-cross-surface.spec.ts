@@ -55,3 +55,15 @@ test('MAPS selected restaurant resolves contextual take-me-there', async ({ page
   await waitForMapResults(page);
   await expect(page.locator('#mapResults')).toContainText(firstName);
 });
+
+test('MAPS context blocks stale book references instead of falling into web search', async ({ page }) => {
+  await openHome(page);
+  await submitCommand(page, 'show me restaurants in Jagannath Nagar');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps');
+  await waitForMapResults(page);
+  await page.locator('.nav[data-app="home"]').click();
+
+  await submitCommand(page, 'read the first one');
+  await expect(page.locator('.nav[data-app="web"]')).not.toHaveClass(/selected/);
+  await expect(page.locator('#jarvisReply')).toContainText(/current book result list|search for a book first/i, { timeout: 8_000 });
+});
