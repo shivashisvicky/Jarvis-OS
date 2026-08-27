@@ -9,7 +9,6 @@
   const synth = window.speechSynthesis;
   const nativeSpeak = synth.speak.bind(synth);
   const nativeCancel = synth.cancel.bind(synth);
-  let installed = false;
   let audioContext = null;
 
   const primeAudio = () => {
@@ -27,35 +26,20 @@
     } catch {}
   };
 
-  const ensureStop = () => {
-    if (document.querySelector('#jarvisIOSStopVoice')) return;
-    const b = document.createElement('button');
-    b.id = 'jarvisIOSStopVoice';
-    b.type = 'button';
-    b.textContent = 'STOP VOICE';
-    b.hidden = true;
-    b.setAttribute('aria-label', 'Stop JARVIS voice response');
-    b.style.cssText = 'position:fixed;right:18px;bottom:86px;z-index:10001;min-height:42px;padding:10px 16px;border:1px solid rgba(91,214,244,.72);border-radius:10px;background:rgba(4,16,22,.97);color:#bfefff;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;box-shadow:0 0 24px rgba(71,201,236,.18);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)';
-    b.addEventListener('click', () => { nativeCancel(); try { synth.resume(); } catch {} try { audioContext?.suspend(); } catch {} b.hidden = true; });
-    document.body.appendChild(b);
-  };
-
-  const setSpeaking = value => {
-    ensureStop();
-    const b = document.querySelector('#jarvisIOSStopVoice');
-    if (b) b.hidden = !value;
-  };
+  // The command surface already owns the STOP VOICE control.
+  // Do not inject a second floating control on iOS.
+  const locateStop = () => [...document.querySelectorAll('button,[role="button"]')].find(el => /\bstop\s+voice\b/i.test(`${el.textContent||''} ${el.getAttribute?.('aria-label')||''}`)) || null;
+  const setSpeaking = value => { const b = locateStop(); if (b instanceof HTMLElement) b.dataset.jarvisSpeaking = value ? '1' : '0'; };
 
   const speakNative = (text, options = {}) => {
     const clean = String(text || '').trim();
     if (!clean) return false;
     try {
-      ensureStop();
       nativeCancel();
       primeAudio();
       try { synth.resume(); } catch {}
       const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.rate = Math.min(1.2, Math.max(.8, Number(options.rate) || 0.92));
+      utterance.rate = Math.min(1.2, Math.max(.8, Number(options.rate) || .92));
       utterance.pitch = Number.isFinite(Number(options.pitch)) ? Number(options.pitch) : .54;
       utterance.volume = Number.isFinite(Number(options.volume)) ? Number(options.volume) : .96;
       utterance.lang = options.language || 'en-GB';
@@ -89,11 +73,9 @@
   };
 
   const install = () => {
-    ensureStop();
     window.jarvisVoiceAuthoritySpeak = speakNative;
     window.jarvisCinematicSpeak = speakNative;
     window.jarvisSpeak = speakNative;
-    installed = true;
   };
 
   const warm = event => {
@@ -105,11 +87,10 @@
     install();
   };
 
-  ensureStop();
   install();
   document.addEventListener('pointerdown', warm, true);
   document.addEventListener('touchstart', warm, true);
-  const timer = window.setInterval(() => install(), 250);
+  const timer = window.setInterval(install, 250);
   window.setTimeout(() => window.clearInterval(timer), 15000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { primeAudio(); install(); } });
 })();
