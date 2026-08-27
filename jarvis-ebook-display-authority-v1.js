@@ -1,0 +1,11 @@
+(()=>{'use strict';
+if(window.__JARVIS_EBOOK_DISPLAY_AUTHORITY_V1__)return;window.__JARVIS_EBOOK_DISPLAY_AUTHORITY_V1__=true;
+const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const clean=s=>String(s??'').replace(/[?!.]+$/,'').replace(/\b(?:search|find|look up|show me|show|open|read|reading|book|books|ebook|ebooks|gutenberg|standard ebooks|library|for|on)\b/gi,' ').replace(/\s+/g,' ').trim();
+const isBook=q=>{const s=String(q??'');try{if(window.jarvisCommandAuthority?.route?.(s)?.type==='BOOKS')return true}catch{}return /\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks)\b/i.test(s)};
+let pending=null;
+window.addEventListener('jarvis:voice-command',e=>{const raw=e.detail?.text||'';if(isBook(raw)){pending={query:clean(raw)||String(raw).trim(),at:Date.now()};}},true);
+const matches=(cards,q)=>{const wanted=norm(q);if(!wanted)return false;const tokens=wanted.split(' ').filter(Boolean);return cards.some(c=>{const text=norm(c.textContent||'');return text.includes(wanted)||tokens.every(t=>text.includes(t))})};
+const tick=()=>{if(!pending)return;if(Date.now()-pending.at>20000){pending=null;return}const panel=document.querySelector('#jbe6Panel');if(!panel)return;const input=panel.querySelector('#jbe6Query');const button=panel.querySelector('#jbe6Search');const results=panel.querySelector('#jbe6Results');if(!input||!button||!results)return;const q=pending.query;results.style.visibility='hidden';if(norm(input.value)!==norm(q)){input.value=q;input.dataset.jarvisUserQuery='1';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}const cards=[...results.querySelectorAll('.jbe6-book')];if(matches(cards,q)){results.style.visibility='visible';pending=null;return}if(!panel.__jarvisDisplaySearchStarted){panel.__jarvisDisplaySearchStarted=true;setTimeout(()=>{if(pending&&panel.isConnected){try{button.click()}catch{}}},20)}};
+new MutationObserver(tick).observe(document.body,{childList:true,subtree:true});setInterval(tick,120);
+})();
