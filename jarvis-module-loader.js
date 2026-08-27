@@ -47,10 +47,11 @@
 
   window.jarvisLoadFeature = loadFeature;
 
-  // Voice must be ready before the first iOS microphone gesture. Previously the
-  // first typed command happened to load this feature, which is why voice began
-  // working only after a written command was submitted.
-  window.setTimeout(() => {
-    void loadFeature('voice').catch(error => console.warn('[JARVIS voice preload]', error));
-  }, 0);
+  // Voice must be ready before the first iOS microphone gesture. Expose the
+  // actual preload promise so startup can wait for readiness instead of using
+  // an arbitrary delay.
+  window.__JARVIS_VOICE_PRELOAD__ = loadFeature('voice').catch(error => {
+    console.warn('[JARVIS voice preload]', error);
+    throw error;
+  });
 })();
