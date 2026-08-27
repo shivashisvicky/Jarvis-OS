@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const LIVE_URL = process.env.JARVIS_LIVE_URL;
 
-test('deployed Gutenberg ebook reader searches, renders, and navigates', async ({ page }) => {
+test('deployed Gutenberg ebook reader searches, renders, navigates, and survives Command re-entry', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
   await expect(page.locator('.workspace h1')).toHaveText('Files');
@@ -17,6 +17,7 @@ test('deployed Gutenberg ebook reader searches, renders, and navigates', async (
 
   const read = page.locator('[data-rel-read], [data-final-read], [data-read], [data-native-read]').first();
   await expect(read).toBeVisible();
+  await expect(read).toHaveAttribute('data-title', /Beowulf/i);
   await read.click();
 
   await expect(page.locator('.jbe8')).toBeVisible({ timeout: 3_000 });
@@ -26,12 +27,20 @@ test('deployed Gutenberg ebook reader searches, renders, and navigates', async (
   await expect(page.locator('#jbe8Page')).toContainText(/Beowulf|Hw[aæ]t|Scyld/i, { timeout: 25_000 });
   await expect(page.locator('#jbe8Counter')).toHaveText(/1 \/ \d+/);
 
-  const jump = page.locator('#jbe8Jump');
-  await jump.fill('2');
+  await page.locator('#jbe8Jump').fill('2');
   await page.locator('#jbe8Go').click();
   await expect(page.locator('#jbe8Counter')).toHaveText(/2 \/ \d+/);
   await expect(page.locator('#jbe8Page')).not.toBeEmpty();
 
   await page.locator('#jbe8Next').click();
   await expect(page.locator('#jbe8Counter')).toHaveText(/3 \/ \d+/);
+
+  await page.locator('#jbe8Close').click();
+  await page.locator('.nav[data-app="command"]').click();
+  await expect(page.locator('.workspace h1')).toHaveText(/Command/i);
+  await page.locator('#commandInput').fill('read the first one');
+  await page.locator('#commandForm').press('Enter');
+  await expect(page.locator('.jbe8')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#jbe8Title')).toContainText(/Beowulf/i, { timeout: 5_000 });
+  await page.locator('#jbe8Close').click();
 });
