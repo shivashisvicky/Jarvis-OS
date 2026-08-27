@@ -1,0 +1,32 @@
+/* JARVIS Ebook Reader polish v1: Apple Books-inspired reading surface, JARVIS chrome. */
+.jbe8{background:#050608!important;color:#f4f1e9!important;isolation:isolate}
+.jbe8-head{min-height:58px!important;padding:8px 12px!important;background:rgba(7,9,12,.96)!important;border-bottom:1px solid rgba(255,255,255,.08)!important;box-shadow:0 1px 18px rgba(0,0,0,.28)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.jbe8-title{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:13px!important;font-weight:650!important;letter-spacing:.01em;color:#f2f5f6!important}
+.jbe8-meta{font-size:9px!important;letter-spacing:.08em!important;color:#7e8a90!important}
+.jbe8-btn{background:rgba(255,255,255,.045)!important;border:1px solid rgba(255,255,255,.12)!important;color:#d9e0e2!important;border-radius:10px!important;padding:8px 10px!important;font-size:9px!important;letter-spacing:.04em!important;transition:background .18s ease,border-color .18s ease,transform .12s ease}
+.jbe8-btn:active{transform:scale(.97)}
+.jbe8-btn:disabled{opacity:.38!important}
+.jbe8-nav{min-height:52px!important;padding:7px 10px!important;background:rgba(10,13,16,.98)!important;border-bottom:1px solid rgba(255,255,255,.07)!important}
+.jbe8-jump,.jbe8-select{background:#111418!important;border:1px solid rgba(255,255,255,.12)!important;color:#e8ecee!important;border-radius:10px!important;padding:9px 10px!important}
+.jbe8-select{font-size:9px!important}
+.jbe8-body{background:#0a0b0d!important;color:#f2efe8!important;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
+.jbe8-page{max-width:720px!important;margin:0 auto!important;padding:48px 30px 120px!important;background:#0a0b0d!important;color:#eeeae1!important;font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif!important;font-size:19px!important;line-height:1.86!important;letter-spacing:.006em!important;white-space:pre-wrap!important;text-rendering:optimizeLegibility!important;-webkit-font-smoothing:antialiased!important;overflow-wrap:break-word!important}
+.jbe8-page::selection{background:rgba(128,211,231,.24)}
+.jbe8-foot{min-height:58px!important;padding:8px 12px max(10px,env(safe-area-inset-bottom))!important;background:rgba(7,9,12,.97)!important;border-top:1px solid rgba(255,255,255,.08)!important;box-shadow:0 -1px 18px rgba(0,0,0,.25)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.jbe8-counter{font-size:10px!important;letter-spacing:.05em!important;color:#a2aaad!important}
+.jbe8-status{background:#0a0b0d!important;color:#9ba4a8!important}
+.jbe8-status strong{color:#f1eee8!important;font-family:ui-sans-serif,system-ui,sans-serif!important;font-weight:650!important}
+@media(max-width:700px){
+  .jbe8-head{min-height:56px!important;padding:7px 10px!important;gap:5px!important}
+  .jbe8-title{font-size:12px!important}
+  .jbe8-btn{padding:8px 8px!important;border-radius:9px!important}
+  #jbe8Official{font-size:0!important;width:38px!important;padding:8px 0!important}
+  #jbe8Official::after{content:"↗";font-size:16px;font-weight:500}
+  #jbe8Close{font-size:0!important;width:38px!important;padding:8px 0!important}
+  #jbe8Close::after{content:"×";font-size:20px;font-weight:400;line-height:1}
+  .jbe8-nav{min-height:50px!important;padding:6px 9px!important}
+  .jbe8-page{max-width:none!important;padding:38px 24px 104px!important;font-size:18px!important;line-height:1.82!important}
+  .jbe8-foot{min-height:56px!important}
+}
+@media(min-width:701px){.jbe8-page{font-size:20px!important;padding-left:44px!important;padding-right:44px!important}.jbe8-body{background:#08090b!important}.jbe8-page{box-shadow:0 0 60px rgba(0,0,0,.18)}}
+@media(prefers-reduced-motion:reduce){.jbe8-btn{transition:none}.jbe8-body{scroll-behavior:auto}}
