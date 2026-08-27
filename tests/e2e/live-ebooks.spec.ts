@@ -36,7 +36,7 @@ test('deployed Gutenberg ebook reader searches, renders, navigates, and survives
   await expect(page.locator('#jbe8Counter')).toHaveText(/3 \/ \d+/);
 
   await page.locator('#jbe8Close').click();
-  await page.locator('.nav[data-app="command"]').click();
+  await page.locator('.nav[data-app="home"]').click();
   await expect(page.locator('.workspace h1')).toHaveText(/Command/i);
   await page.locator('#commandInput').fill('read the first one');
   await page.locator('#commandForm').press('Enter');
