@@ -1,0 +1,20 @@
+(()=>{
+'use strict';
+if(window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V2__)return;
+window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V2__=true;
+const C=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!C)return;
+const active=new Set();
+const nativeStart=C.prototype.start;
+const nativeStop=C.prototype.stop;
+const nativeAbort=C.prototype.abort;
+C.prototype.start=function(...args){active.add(this);try{return nativeStart.apply(this,args)}catch(e){active.delete(this);throw e}};
+C.prototype.stop=function(...args){let out;try{out=nativeStop.apply(this,args)}catch{}try{nativeAbort.apply(this,args)}catch{}active.delete(this);return out};
+C.prototype.abort=function(...args){try{return nativeAbort.apply(this,args)}finally{active.delete(this)}};
+const release=()=>{for(const r of Array.from(active)){try{nativeAbort.call(r)}catch{}active.delete(r)}};
+window.jarvisStopVoiceRecognitionOnly=release;
+window.jarvisStopAllVoiceSessions=()=>{release();try{window.speechSynthesis?.cancel()}catch{}};
+window.addEventListener('jarvis:voice-command',release,true);
+window.addEventListener('pagehide',release,true);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)release()},true);
+})();
