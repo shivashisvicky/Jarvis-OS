@@ -1,15 +1,15 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_ENTITY_INTELLIGENCE_V4__)return;
-window.__JARVIS_ENTITY_INTELLIGENCE_V4__=true;
+if(window.__JARVIS_ENTITY_INTELLIGENCE_V5__)return;
+window.__JARVIS_ENTITY_INTELLIGENCE_V5__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const lower=s=>normalize(s).toLowerCase().replace(/[.!?]+$/,'').trim();
 const EXPLICIT_DOMAIN=/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|youtube|maps?|restaurants?|hospitals?|hotels?|weather|games?|news|headlines)\b/i;
 const WEB=/^(?:search|look\s*up|lookup|google|bing|web\s+search)\b/i;
 const COMMAND=/^(?:please\s+)?(?:tell me about|who is|what is|what's|what are|give me information about|give me info about|explain)\s+(.+)$/i;
-const CACHE='jarvis:entity-intelligence:v4:';
+const CACHE='jarvis:entity-intelligence:v5:';
 const TTL=30*60*1000;
-const reserved=/^(?:hi|hello|hey|thanks|thank you|good morning|good night|tell me a joke|what time is it|weather|help|stop|cancel|yes|no)$/i;
+const reserved=/^(?:hi|hello|hey|thanks|thank you|good morning|good night|tell me a joke|what time is it|time now|time|what(?:'s| is|s) the time|what(?:'s| is|s) the local time|tell me the time|tell me the local time|what time is it now|what(?:'s| is|s) the time now)$/i;
 const identity=/^(?:what(?:'s| is|s)\s+my\s+name|who\s+am\s+i|what(?:'s| is|s)\s+your\s+name|who\s+are\s+you)$/i;
 const notes=/^(?:make\s+(?:me\s+)?a\s+note|make\s+note|write\s+(?:me\s+)?a\s+note|remember\s+to|remind\s+me)\b/i;
 const fetchJson=async(url,ms=3500)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{signal:c.signal,cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.json()}finally{clearTimeout(t)}};
@@ -20,22 +20,15 @@ const words=s=>new Set(lower(s).normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
 const authorMatch=(query,name)=>{const q=words(query),a=words(name);if(!q.size||!a.size)return 0;let hit=0;for(const w of q)if(a.has(w))hit++;return hit/q.size};
 const sameAuthor=(query,name)=>{const q=words(query),a=words(name);return q.size===a.size&&authorMatch(query,name)===1};
 const gutenberg=async entity=>{try{
- const queries=[entity];
- const parts=entity.split(/\s+/).filter(Boolean);
- if(parts.length>=2){const reversed=[...parts].reverse().join(', ');if(reversed.toLowerCase()!==entity.toLowerCase())queries.push(reversed)}
+ const queries=[entity];const parts=entity.split(/\s+/).filter(Boolean);if(parts.length>=2){const reversed=[...parts].reverse().join(', ');if(reversed.toLowerCase()!==entity.toLowerCase())queries.push(reversed)}
  trace('gutenberg-request',{entity,queries});
  const responses=await Promise.all(queries.map(q=>fetchJson(`https://gutendex.com/books/?search=${encodeURIComponent(q)}&languages=en`)));
  const rows=[];for(const data of responses){for(const b of (Array.isArray(data?.results)?data.results:[])){if(!rows.some(x=>x.id===b.id))rows.push(b)}}
  trace('gutenberg-response',{entity,queries,resultCount:rows.length,sample:rows.slice(0,5).map(b=>({id:b.id,title:b.title,authors:(b.authors||[]).map(a=>a.name)}))});
- const q=entity.toLowerCase();
- const exact=rows.filter(b=>String(b.title||'').toLowerCase().trim()===q);
- if(exact.length){trace('gutenberg-title-match',{entity,count:exact.length});return{type:'BOOK',score:.99,source:'gutenberg',entity,results:exact};}
- const author=rows.filter(b=>(b.authors||[]).some(a=>sameAuthor(entity,a.name)));
- if(author.length){trace('gutenberg-author-exact',{entity,count:author.length,authors:[...new Set(author.flatMap(b=>(b.authors||[]).map(a=>a.name)).filter(n=>sameAuthor(entity,n)))]});return{type:'BOOK_AUTHOR',score:.99,source:'gutenberg',entity,results:author};}
- const authorEvidence=rows.filter(b=>(b.authors||[]).some(a=>authorMatch(entity,a.name)>=.8));
- if(authorEvidence.length){trace('gutenberg-author-evidence',{entity,count:authorEvidence.length});return{type:'BOOK_AUTHOR',score:.97,source:'gutenberg',entity,results:authorEvidence.slice(0,10)};}
- const partial=rows.filter(b=>String(b.title||'').toLowerCase().includes(q)||(b.authors||[]).some(a=>String(a.name||'').toLowerCase().includes(q)));
- if(partial.length){trace('gutenberg-partial',{entity,count:partial.length});return{type:'BOOK_CANDIDATE',score:.76,source:'gutenberg',entity,results:partial.slice(0,10)}}
+ const q=entity.toLowerCase();const exact=rows.filter(b=>String(b.title||'').toLowerCase().trim()===q);if(exact.length){trace('gutenberg-title-match',{entity,count:exact.length});return{type:'BOOK',score:.99,source:'gutenberg',entity,results:exact}}
+ const author=rows.filter(b=>(b.authors||[]).some(a=>sameAuthor(entity,a.name)));if(author.length){trace('gutenberg-author-exact',{entity,count:author.length,authors:[...new Set(author.flatMap(b=>(b.authors||[]).map(a=>a.name)).filter(n=>sameAuthor(entity,n)))]});return{type:'BOOK_AUTHOR',score:.99,source:'gutenberg',entity,results:author}}
+ const authorEvidence=rows.filter(b=>(b.authors||[]).some(a=>authorMatch(entity,a.name)>=.8));if(authorEvidence.length){trace('gutenberg-author-evidence',{entity,count:authorEvidence.length});return{type:'BOOK_AUTHOR',score:.97,source:'gutenberg',entity,results:authorEvidence.slice(0,10)}}
+ const partial=rows.filter(b=>String(b.title||'').toLowerCase().includes(q)||(b.authors||[]).some(a=>String(a.name||'').toLowerCase().includes(q)));if(partial.length){trace('gutenberg-partial',{entity,count:partial.length});return{type:'BOOK_CANDIDATE',score:.76,source:'gutenberg',entity,results:partial.slice(0,10)}}
  trace('gutenberg-no-evidence',{entity});
  }catch(error){trace('gutenberg-error',{entity,error:String(error)})}return null};
 const wikidata=async entity=>{try{const data=await fetchJson(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(entity)}&language=en&uselang=en&type=item&limit=6&format=json&origin=*`);const hits=Array.isArray(data?.search)?data.search:[];const exact=hits.find(h=>String(h.label||'').toLowerCase()===entity.toLowerCase())||hits[0];if(!exact)return null;const d=String(exact.description||'').toLowerCase();let type='UNKNOWN',score=.45;if(/epic poem|poem|novel|book|literary work|work of literature|written work|publication/.test(d)){type='BOOK';score=.9}else if(/person|human|politician|writer|author|actor|scientist|musician/.test(d)){type='PERSON';score=.86}else if(/city|town|village|place|country|state|district|river|mountain|temple/.test(d)){type='PLACE';score=.86}else if(/company|business|organization|corporation|brand/.test(d)){type='COMPANY';score=.86}else if(/film|movie|television series|tv series/.test(d)){type='MEDIA';score=.84}else if(/song|single|album|musical work/.test(d)){type='MUSIC';score=.84}trace('wikidata-result',{entity,label:exact.label,type,score,description:exact.description||''});return{type,score,source:'wikidata',entity,label:exact.label,description:exact.description||''}}catch(error){trace('wikidata-error',{entity,error:String(error)});return null}};
@@ -45,5 +38,5 @@ const dispatch=(raw,res,mode)=>{const detail={text:raw,resolved:true,entity:{nam
 const intercept=e=>{const raw=normalize(e.detail?.text);if(!raw||e.detail?.resolved)return;const target=candidate(raw);if(!target)return;e.preventDefault?.();e.stopImmediatePropagation?.();resolve(target.entity).then(res=>dispatch(raw,res,target.mode))};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';const target=candidate(raw);if(!target)return;e.preventDefault();e.stopImmediatePropagation();resolve(target.entity).then(res=>{if(input instanceof HTMLInputElement)input.value='';dispatch(raw,res,target.mode)})},true);
-window.jarvisEntityIntelligence=Object.freeze({version:'4.1.0',resolve,candidate});
+window.jarvisEntityIntelligence=Object.freeze({version:'5.0.0',resolve,candidate});
 })();
