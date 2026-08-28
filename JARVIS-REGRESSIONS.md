@@ -19,8 +19,9 @@
 - **Beowulf:** correct result list returned and ebook opened successfully in the reader with spoken response.
 - **Reader:** content now loads and pagination is present (`1 / 350` in the reported test).
 - **John Henry Newman:** resolved/opened successfully in repeated tests, but initial open can take approximately **20–30 seconds**. This is now a performance/reliability concern rather than the previous total routing/open failure.
-- **Remaining reader defect:** Gutenberg raw/metadata front matter is being rendered as visible book content, including `Title`, `URL Source`, `Published Time`, and `Markdown Content`. This should be normalized away before the actual reading text.
-- **Current interpretation:** the core routing and reader-opening regression appears substantially improved. Do not declare the Ebook feature fully fixed yet because content normalization and Newman latency remain.
+- **Remaining reader defect:** Gutenberg raw/metadata front matter was being rendered as visible book content, including `Title`, `URL Source`, `Published Time`, and `Markdown Content`.
+- **Latest fix pushed:** the guard-only Ebook stability layer now strips that known transport envelope from `.jbe2-page` after reader content is rendered. It does not touch command routing, result buttons, IDs, entity classification, voice, Time Now, maps, YouTube, news, or Command Center.
+- **Current interpretation:** the core routing and reader-opening regression appears substantially improved. Do not declare the Ebook feature fully fixed until the front-matter fix and Newman latency are verified in deployment.
 
 ### Evidence / CI findings
 
