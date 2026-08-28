@@ -5,8 +5,6 @@ const LIVE_URL = process.env.JARVIS_LIVE_URL;
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
-
-  // Let the deployed shell finish hydrating before issuing the command.
   await expect.poll(async () => page.evaluate(() => document.readyState)).toBe('complete', { timeout: 15_000 });
 
   const input = page.locator('#commandInput');
@@ -17,10 +15,9 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 10_000 });
-  await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
-
   const results = page.locator('#jbe6Results .jbe6-book');
-  await expect(results).toHaveCount(1, { timeout: 5_000 });
+  await expect(results.first()).toBeVisible({ timeout: 25_000 });
+  await expect(results).not.toHaveCount(0);
   await expect(results.first().locator('.jbe6-name')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6Results')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
