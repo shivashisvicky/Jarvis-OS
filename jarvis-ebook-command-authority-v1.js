@@ -1,8 +1,7 @@
 (()=>{'use strict';if(window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V10__)return;window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V10__=true;const norm=s=>String(s||'').trim();
 const explicitBookRoute=q=>{try{return window.jarvisCommandAuthority?.route?.(q)?.type==='BOOKS'}catch{return false}};
 const isReadReference=q=>/^read\s+(?:the\s+)?(?:first|second|third|last|\d+(?:st|nd|rd|th)?)(?:\s+(?:one|result))?$/i.test(norm(q));
-const isKnownBareBook=q=>/^beowulf$/i.test(norm(q));
-const isBook=q=>{const s=norm(q);if(isReadReference(s))return false;if(explicitBookRoute(s)||isKnownBareBook(s))return true;return /\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|read|reading)\b/i.test(s)&&!/^read\s+(?:my\s+)?notes?$/i.test(s)};
+const isBook=q=>{const s=norm(q);if(isReadReference(s))return false;if(explicitBookRoute(s))return true;return /\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|read|reading)\b/i.test(s)&&!/^read\s+(?:my\s+)?notes?$/i.test(s)};
 const clean=q=>norm(q).replace(/[?!.]+$/,'').replace(/\b(?:search|find|look up|show me|show|open|read|reading|book|books|ebook|ebooks|gutenberg|standard ebooks|library|for|on)\b/gi,' ').replace(/\s+/g,' ').trim();
 const source=q=>/\bstandard\s+ebooks?\b/i.test(q)?'standard':'gutenberg';
 const speakFallback=t=>{try{if(!('speechSynthesis'in window))return;const synth=window.speechSynthesis;synth.cancel();synth.resume();const u=new SpeechSynthesisUtterance(t);u.rate=.92;u.pitch=.54;u.volume=.96;u.lang='en-GB';const voices=synth.getVoices();const v=voices.find(x=>/^en-GB/i.test(x.lang)&&/Daniel|Arthur|George|Oliver|James|Alex/i.test(x.name))||voices.find(x=>/^en-GB/i.test(x.lang));if(v)u.voice=v;synth.speak(u)}catch{}};
