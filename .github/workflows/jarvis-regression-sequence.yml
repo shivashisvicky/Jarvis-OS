@@ -1,0 +1,51 @@
+name: JARVIS Sequential Regression
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Jarvis OS"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-sequential-regression
+  cancel-in-progress: false
+
+env:
+  PNPM_VERSION: 10.15.0
+
+jobs:
+  sequence:
+    name: Post-deploy / Critical command sequence
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run critical sequential regression
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?regression=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/jarvis-critical-sequence.spec.ts --project=chromium
+      - name: Upload critical regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-critical-sequence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
