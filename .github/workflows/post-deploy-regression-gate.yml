@@ -20,10 +20,16 @@ env:
 jobs:
   sequential-command-gate:
     name: Sequential / Beowulf -> Newman -> Time -> Context
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require successful production deployment
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          echo "UPSTREAM_DEPLOY_CONCLUSION=${{ github.event.workflow_run.conclusion }}"
+          test "${{ github.event.workflow_run.conclusion }}" = "success"
+
       - name: Checkout deployed commit
         uses: actions/checkout@v4
         with:
