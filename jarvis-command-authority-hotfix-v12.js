@@ -43,3 +43,50 @@ window.addEventListener('jarvis:voice-command',intercept,true);
 const submit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');const q=i instanceof HTMLInputElement?i.value:'';if(!handle(q))return;e.preventDefault();e.stopImmediatePropagation()};
 window.addEventListener('submit',submit,true);document.addEventListener('submit',submit,true);
 })();
+
+(()=>{'use strict';
+if(window.__JARVIS_EBOOK_RESILIENCE_V1__)return;window.__JARVIS_EBOOK_RESILIENCE_V1__=true;
+const trace=(event,detail={})=>{try{console.info('[JARVIS:EBOOK_RESILIENCE]',event,detail)}catch{};try{window.dispatchEvent(new CustomEvent('jarvis:ebook-resilience',{detail:{event,...detail,at:Date.now()}}))}catch{}};
+const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const isEbooks=()=>document.querySelector('#jarvisFilesV4 .jf4-opt.active')?.dataset.tab==='ebooks';
+let restoring=false,lastQuery='';
+const restore=()=>{
+ if(restoring||!isEbooks())return;
+ const panel=document.querySelector('#jbe6Panel');if(!panel)return;
+ const input=panel.querySelector('#jbe6Query');const results=panel.querySelector('#jbe6Results');
+ let q=String(input?.value||'').trim();
+ if(q.length<2){try{q=String(sessionStorage.getItem('jarvis:ebook:last-query')||'').trim();if(q.length>=2&&input)input.value=q}catch{}}
+ if(q.length<2)return;
+ const text=String(results?.textContent||'').trim();
+ const wrongDefault=/^Moby Dick: Or, The Whale/i.test(text)||/1\. Moby Dick/i.test(text);
+ const empty=!text||/SEARCHING GUTENBERG|SEARCH ERROR|TEMPORARILY UNAVAILABLE/i.test(text);
+ if(!empty&&!wrongDefault&&norm(q)===norm(lastQuery))return;
+ const auth=window.jarvisEbookSearchAuthority;if(!auth?.search)return;
+ lastQuery=q;restoring=true;trace('RESTORE_SEARCH',{query:q,empty,wrongDefault});
+ Promise.resolve(auth.search(q)).finally(()=>setTimeout(()=>{restoring=false},300));
+};
+document.addEventListener('input',e=>{const q=e.target?.closest?.('#jbe6Query')?.value?.trim();if(q){try{sessionStorage.setItem('jarvis:ebook:last-query',q)}catch{}}},true);
+const obs=new MutationObserver(()=>{if(!restoring)setTimeout(restore,80)});obs.observe(document.documentElement,{childList:true,subtree:true});
+setInterval(()=>{if(isEbooks())restore()},1200);
+let readerRetries=0,readerKey='';
+const watchReader=()=>{
+ const r=document.querySelector('.jbe11.jarvis-ebook-reader');if(!r)return;
+ const title=norm(r.querySelector('.jbe11-title')?.textContent||'');
+ if(title!==readerKey){readerKey=title;readerRetries=0;trace('READER_OPEN',{title})}
+ const page=r.querySelector('#jbe11Page'),status=r.querySelector('#jbe11Status');if(!page||!status)return;
+ const visible=page.offsetParent!==null&&String(page.textContent||'').trim().length>100;if(visible)return;
+ if(status.dataset.resilienceTimer)return;
+ status.dataset.resilienceTimer='1';
+ setTimeout(()=>{
+  status.removeAttribute('data-resilience-timer');
+  const nowPage=r.querySelector('#jbe11Page');
+  const loaded=nowPage&&nowPage.offsetParent!==null&&String(nowPage.textContent||'').trim().length>100;
+  if(loaded||!r.isConnected)return;
+  if(readerRetries>=2)return;
+  readerRetries++;const retry=r.querySelector('#jbe11Retry');
+  trace('READER_RETRY',{title,attempt:readerRetries,hasRetry:!!retry});
+  if(retry)retry.click();
+ },7000);
+};
+setInterval(watchReader,500);trace('READY');
+})();
