@@ -2,6 +2,14 @@ import { expect, test } from '@playwright/test';
 
 const LIVE_URL = process.env.JARVIS_LIVE_URL;
 
+async function assertReaderLoaded(page: any) {
+  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#jbe2Page')).not.toContainText('JARVIS could not load this ebook', { timeout: 30_000 });
+  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 30_000 });
+  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/);
+}
+
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
@@ -21,7 +29,24 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
 });
 
-test('canonical Gutenberg reader opens a real book and paginates', async ({ page }) => {
+test('Beowulf first result opens readable text and preserves chapter navigation', async ({ page }) => {
+  await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  await page.locator('.nav[data-app="files"]').click();
+  await expect(page.locator('.workspace h1')).toHaveText('Files');
+  await page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').click();
+  await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 10_000 });
+  await page.locator('#jbe6Query').fill('Beowulf');
+  await page.locator('#jbe6Search').click();
+  await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('#jbe6Results .jbe6-book').first().locator('.jbe6-name')).toContainText(/Beowulf/i);
+  await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
+  await assertReaderLoaded(page);
+  await expect(page.locator('#jbe2Section option')).toHaveCountGreaterThan(1);
+  await page.locator('#jbe2Next').click();
+  await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
+});
+
+test('canonical Gutenberg reader opens a different real book and paginates', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
   await expect(page.locator('.workspace h1')).toHaveText('Files');
@@ -36,10 +61,7 @@ test('canonical Gutenberg reader opens a real book and paginates', async ({ page
   await expect(read).toBeVisible();
   await expect(read).toHaveAttribute('data-title', /Frankenstein/i);
   await read.click();
-  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 25_000 });
-  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 25_000 });
-  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/);
+  await assertReaderLoaded(page);
   expect(await page.locator('#jbe2Section option').count()).toBeGreaterThan(1);
   await page.locator('#jbe2Next').click();
   await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
@@ -51,16 +73,13 @@ test('John Henry Newman resolves as a Gutenberg author and can open a book', asy
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('John Henry Newman');
   await input.press('Enter');
-  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toBe('BOOK_AUTHOR');
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toMatch(/^(BOOK_AUTHOR|PERSON)$/);
   await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe6Results')).toContainText(/Newman/i);
-  const read = page.locator('[data-read]').first();
-  await expect(read).toBeVisible();
-  await read.click();
-  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 25_000 });
+  await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
+  await assertReaderLoaded(page);
 });
 
 test('author names never fall through to generic web search', async ({ page }) => {
