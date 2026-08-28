@@ -24,20 +24,26 @@ const route=q=>{
  if(geographicPlace||bareGeographicPlace)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
  if(/\b(?:youtube|yt)\b[\s\S]*\b(?:search|find|look up|play|watch|show|open|video|videos|news|music|song)\b|\b(?:search|find|look up|play|watch)\b[\s\S]*\b(?:youtube|yt)\b/.test(s))return {type:'YOUTUBE',owner:'jarvis-youtube-command-authority-v1.js'};
  if(/\b(?:news|headlines)\b/.test(s))return {type:'NEWS',owner:'news-runtime'};
- if(ref?.matched&&ctx?.active){const owner=ctx.domain==='BOOKS'?'jarvis-ebook-command-authority-v1.js':ctx.domain==='MAPS'?'jarvis-command-final-routing-v2.js':ctx.domain==='SEARCH'?'search-runtime':ctx.domain==='MEDIA'?'jarvis-youtube-command-authority-v1.js':'context-runtime';return {type:'CONTEXT_FOLLOWUP',owner,contextDomain:ctx.domain||null,reference:ref};}
- if(entity?.name&&entity.type==='PLACE'&&entity.score>=0.8)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
- if(entity?.name&&(entity.type==='BOOK'||entity.type==='BOOK_AUTHOR')&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
- if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|reading)\b/.test(s)&&!/^read\s+(?:my\s+)?notes?$/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
- if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
- if(/\b(?:weather|temperature|forecast|how hot|how cold)\b/.test(s))return {type:'WEATHER',owner:'jarvis-weather-intent-fix.js'};
+ // Core intents must outrank stale entity context. A previous book/person/entity
+ // must never turn a new explicit command such as "what time is it" into a book search.
  if(/\b(?:time|clock)\b/.test(s)&&(/^(?:what|tell|give|show|current|local)/.test(s)||/\bwhat time is it\b/.test(s)))return {type:'TIME',owner:'jarvis-command-deterministic-fix-v1.js'};
- if(/\b(?:pick|choose|select)\b[\s\S]*\b(?:or|versus|vs\.?|\/)\b/.test(s)||/^.{1,48}\s+(?:or|versus|vs\.?|\/)\s+.{1,48}$/.test(s))return {type:'CHOICE',owner:'jarvis-command-intelligence-v1.js'};
+ if(/\b(?:weather|temperature|forecast|how hot|how cold)\b/.test(s))return {type:'WEATHER',owner:'jarvis-weather-intent-fix.js'};
+ if(/\b(?:date|today|day)\b/.test(s)&&(/^(?:what|tell|give|show|current|today)/.test(s)))return {type:'DATE',owner:'command-runtime'};
+ if(/\b(?:calculator|calculate|math|compute)\b/.test(s))return {type:'CALCULATOR',owner:'command-runtime'};
+ if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
  if(/\b(?:play|watch|video|music|song|movie)\b/.test(s))return {type:'MEDIA',owner:'jarvis-youtube-command-authority-v1.js'};
+ if(ref?.matched&&ctx?.active){const owner=ctx.domain==='BOOKS'?'jarvis-ebook-command-authority-v1.js':ctx.domain==='MAPS'?'jarvis-command-final-routing-v2.js':ctx.domain==='SEARCH'?'search-runtime':ctx.domain==='MEDIA'?'jarvis-youtube-command-authority-v1.js':'context-runtime';return {type:'CONTEXT_FOLLOWUP',owner,contextDomain:ctx.domain||null,reference:ref};}
+ const entityTarget=s.replace(/^(?:open|read|show|select|choose|play|watch)\s+/,'').trim();
+ const exactEntity=Boolean(entity?.name&&entityTarget===clean(entity.name).toLowerCase());
+ if(exactEntity&&entity.type==='PLACE'&&entity.score>=0.8)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
+ if(exactEntity&&entity&&(entity.type==='BOOK'||entity.type==='BOOK_AUTHOR')&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
+ if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|reading)\b/.test(s)&&!/^read\s+(?:my\s+)?notes?$/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
+ if(/\b(?:pick|choose|select)\b[\s\S]*\b(?:or|versus|vs\.?|\/)\b/.test(s)||/^.{1,48}\s+(?:or|versus|vs\.?|\/)\s+.{1,48}$/.test(s))return {type:'CHOICE',owner:'jarvis-command-intelligence-v1.js'};
  if(/\b(?:search|look up|browse|google|bing|internet|web|search for)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  return {type:'CONVERSATION_OR_INTELLIGENCE',owner:'intelligence-runtime',entity};
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
-window.jarvisCommandAuthority=Object.freeze({version:'11.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'11.1.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',e=>{const text=clean(e.detail?.text);if(text)snapshot(text)},true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
