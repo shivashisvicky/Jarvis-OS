@@ -21,7 +21,7 @@ test('deployed Gutenberg ebook reader searches, renders, navigates, and survives
   await read.click();
 
   await expect(page.locator('.jbe10')).toBeVisible({ timeout: 3_000 });
-  await expect(page.locator('#jbe10Title')).toContainText(/Beowulf/i, { timeout: 5_000 });
+  await expect(page.locator('.jbe10-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
   await expect(page.locator('#jbe10Page')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe10Page')).not.toBeEmpty({ timeout: 25_000 });
   await expect(page.locator('#jbe10Page')).toContainText(/Beowulf|Hw[aæ]t|Scyld/i, { timeout: 25_000 });
@@ -41,6 +41,6 @@ test('deployed Gutenberg ebook reader searches, renders, navigates, and survives
   await page.locator('#commandInput').fill('read the first one');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.jbe10')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe10Title')).toContainText(/Beowulf/i, { timeout: 5_000 });
+  await expect(page.locator('.jbe10-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
   await page.locator('#jbe10Close').click();
 });
