@@ -1,10 +1,14 @@
 # JARVIS Book Summary Checkpoint
 
-## Target from the reported Beowulf test
-The third visible Beowulf result was `Beowulf: An Anglo-Saxon Epic Poem`, Project Gutenberg eBook **#16328**, translated by **J. Lesslie Hall**.
+## Target
+**Third Beowulf result:** *Beowulf: An Anglo-Saxon Epic Poem*, Project Gutenberg **#16328**, translated by **J. Lesslie Hall**.
 
-## Ready summary for next validation run
-Beowulf follows Beowulf, a Geatish warrior who travels to Denmark to help King Hrothgar, whose great hall Heorot is being devastated by the monster Grendel. Beowulf defeats Grendel in single combat and then fights Grendel's mother. After returning home, he eventually becomes king of the Geats and rules for many years. In old age he confronts a fire-breathing dragon guarding a treasure hoard. He kills the dragon with Wiglaf's help but is fatally wounded, and the Geats honor him with a great funeral and memorial mound. The work emphasizes courage, loyalty, reputation, generosity, leadership, mortality, and the duty of a ruler to his people.
+## Summary ready for next JARVIS run
+The poem opens with the history of the Spear-Danes, especially Scyld and his descendants, leading to King Hrothgar. Hrothgar builds Heorot, a great mead-hall, but the monster Grendel attacks it night after night for twelve years. Beowulf, a Geatish warrior and nephew of King Hygelac, hears of Hrothgar's suffering and sails to Denmark with fourteen companions. He pledges to fight Grendel without weapons and defeats Grendel in a brutal hand-to-hand struggle, tearing away the monster's shoulder and arm.
 
-## Next-run instruction
-After the ebook reader fix is deployed and manually verified, use the third Beowulf result / eBook #16328 as the canonical summary-validation target. Confirm that JARVIS can open it, navigate its Contents/chapters, and then provide a concise summary without exposing Gutenberg transport metadata or audio-file listings.
+Grendel's mother then attacks Heorot to avenge her son. Beowulf pursues her into an underwater lair, kills her with a giant sword, and returns with Grendel's head. Hrothgar rewards him richly, and Beowulf returns to Geatland, where he later becomes king. After ruling for fifty years, he faces a fire-breathing dragon angered by the theft of a cup from its hoard. Beowulf kills the dragon but is mortally wounded and dies. His people burn his body and build a great memorial mound. The poem closes by praising his courage, generosity, gentleness, and loyalty.
+
+## JARVIS response target
+If asked to summarize the third Beowulf result, identify it as Gutenberg #16328 / Hall translation first, then give the concise story above. Do not confuse it with audiobook/sound records or other Beowulf translations.
+
+Source: Project Gutenberg #16328.
