@@ -63,6 +63,8 @@ const resolve=async q=>{
  writeCache(key,result);return result;
 };
 
+const legacyResolve=async q=>{const modern=await resolve(q);if(modern?.type==='PERSON'){const evidence=await gutenberg(q);if(evidence?.type==='BOOK_AUTHOR_EVIDENCE'&&evidence.results?.length)return{...evidence,type:'BOOK_AUTHOR',score:Math.max(.92,evidence.score)}}if(modern?.type==='BOOK_AUDIO_OR_NON_TEXT')return{...modern,type:'BOOK',score:Math.max(.9,modern.score)}return modern};
+
 const openBooks=async query=>{
  const files=document.querySelector('.nav[data-app="files"]');
  if(files instanceof HTMLElement&&!files.classList.contains('selected'))files.click();
@@ -77,7 +79,7 @@ const openBooks=async query=>{
 const publish=(raw,result)=>{
  const entity={name:result.entity,type:result.type,score:result.score,source:result.source,label:result.label||result.entity,description:result.description||'',results:result.results||[]};
  window.__JARVIS_ENTITY__=entity;
- window.__JARVIS_ENTITY_ROUTE__={query:raw,domain:result.type==='BOOK'?'BOOKS':result.type,at:Date.now()};
+ window.__JARVIS_ENTITY_ROUTE__={query:raw,domain:result.type==='BOOK'||result.type==='BOOK_AUTHOR'?'BOOKS':result.type,at:Date.now()};
  try{window.dispatchEvent(new CustomEvent('jarvis:entity-resolved',{detail:{text:raw,resolved:true,entity}}))}catch{}
  trace('published',{query:raw,type:result.type});
  return entity;
@@ -100,4 +102,5 @@ const voice=async e=>{const q=clean(e.detail?.text);if(!candidate(q)||e.detail?.
 document.addEventListener('submit',submit,true);
 window.addEventListener('jarvis:voice-command',voice,true);
 window.jarvisEntityAuthority=Object.freeze({version:'1.0.0',resolve,candidate});
+window.jarvisEntityIntelligence=Object.freeze({version:'compat-1.0.0',resolve:legacyResolve});
 })();
