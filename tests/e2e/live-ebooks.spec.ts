@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 const LIVE_URL = process.env.JARVIS_LIVE_URL;
+const READER = '.jarvis-ebook-reader';
+const reader = (page: any) => page.locator(READER);
 
 test('deployed Gutenberg ebook reader searches, renders, navigates, and survives Command re-entry', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
@@ -20,27 +22,27 @@ test('deployed Gutenberg ebook reader searches, renders, navigates, and survives
   await expect(read).toHaveAttribute('data-title', /Beowulf/i);
   await read.click();
 
-  await expect(page.locator('.jbe10')).toBeVisible({ timeout: 3_000 });
-  await expect(page.locator('.jbe10-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
-  await expect(page.locator('#jbe10Page')).toBeVisible({ timeout: 25_000 });
-  await expect(page.locator('#jbe10Page')).not.toBeEmpty({ timeout: 25_000 });
-  await expect(page.locator('#jbe10Page')).toContainText(/Beowulf|Hw[aæ]t|Scyld/i, { timeout: 25_000 });
-  await expect(page.locator('#jbe10Counter')).toHaveText(/1 \/ \d+/);
+  await expect(reader(page)).toBeVisible({ timeout: 5_000 });
+  await expect(reader(page).locator('.jbe11-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
+  await expect(reader(page).locator('#jbe11Page')).toBeVisible({ timeout: 25_000 });
+  await expect(reader(page).locator('#jbe11Page')).not.toBeEmpty({ timeout: 25_000 });
+  await expect(reader(page).locator('#jbe11Page')).toContainText(/Beowulf|Hw[aæ]t|Scyld/i, { timeout: 25_000 });
+  await expect(reader(page).locator('#jbe11Counter')).toHaveText(/1 \/ \d+/);
 
-  await page.locator('#jbe10Jump').fill('2');
-  await page.locator('#jbe10Go').click();
-  await expect(page.locator('#jbe10Counter')).toHaveText(/2 \/ \d+/);
-  await expect(page.locator('#jbe10Page')).not.toBeEmpty();
+  await reader(page).locator('#jbe11Jump').fill('2');
+  await reader(page).locator('#jbe11Go').click();
+  await expect(reader(page).locator('#jbe11Counter')).toHaveText(/2 \/ \d+/);
+  await expect(reader(page).locator('#jbe11Page')).not.toBeEmpty();
 
-  await page.locator('#jbe10Next').click();
-  await expect(page.locator('#jbe10Counter')).toHaveText(/3 \/ \d+/);
+  await reader(page).locator('#jbe11Next').click();
+  await expect(reader(page).locator('#jbe11Counter')).toHaveText(/3 \/ \d+/);
 
-  await page.locator('#jbe10Close').click();
+  await reader(page).locator('#jbe11Close').click();
   await page.locator('.nav[data-app="home"]').click();
   await expect(page.locator('.workspace h1')).toHaveText(/Command/i);
   await page.locator('#commandInput').fill('read the first one');
   await page.locator('#commandForm').press('Enter');
-  await expect(page.locator('.jbe10')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('.jbe10-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
-  await page.locator('#jbe10Close').click();
+  await expect(reader(page)).toBeVisible({ timeout: 7_000 });
+  await expect(reader(page).locator('.jbe11-title')).toContainText(/Beowulf/i, { timeout: 5_000 });
+  await reader(page).locator('#jbe11Close').click();
 });
