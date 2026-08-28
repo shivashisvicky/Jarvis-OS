@@ -6,11 +6,10 @@ let locked=false;
 let query='';
 let unlockTimer=0;
 const clean=s=>String(s??'').trim().toLowerCase();
-const isSearching=()=>clean(document.querySelector('#jbe6StatusLine')?.textContent||'').includes('searching');
 const hasResults=()=>!!document.querySelector('#jbe6Results .jbe6-book');
 const unlock=()=>{locked=false;query='';if(unlockTimer)clearTimeout(unlockTimer);unlockTimer=0};
 const arm=q=>{locked=true;query=clean(q);if(unlockTimer)clearTimeout(unlockTimer);unlockTimer=setTimeout(unlock,15000)};
-const observer=new MutationObserver(()=>{if(!locked)return;if(hasResults()||!isSearching())unlock()});
+const observer=new MutationObserver(()=>{if(locked&&hasResults())unlock()});
 observer.observe(document.body,{childList:true,subtree:true,characterData:true});
 window.addEventListener('click',e=>{
  const btn=e.target?.closest?.('#jbe6Search');
