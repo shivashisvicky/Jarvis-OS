@@ -7,7 +7,7 @@ async function assertReaderLoaded(page: any) {
   await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#jbe2Page')).not.toContainText('JARVIS could not load this ebook', { timeout: 30_000 });
   await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 30_000 });
-  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/);
+  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
 }
 
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
@@ -27,6 +27,8 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(results.first().locator('.jbe6-name')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6Results')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
+  const titles = await results.locator('.jbe6-name').allTextContents();
+  expect(new Set(titles.map(t => t.replace(/^\d+\.\s*/, '').trim().toLowerCase())).size).toBe(titles.length);
 });
 
 test('Beowulf first result opens readable text and preserves chapter navigation', async ({ page }) => {
@@ -41,7 +43,7 @@ test('Beowulf first result opens readable text and preserves chapter navigation'
   await expect(page.locator('#jbe6Results .jbe6-book').first().locator('.jbe6-name')).toContainText(/Beowulf/i);
   await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
   await assertReaderLoaded(page);
-  await expect(page.locator('#jbe2Section option')).toHaveCountGreaterThan(1);
+  await expect.poll(async () => page.locator('#jbe2Section option').count(), { timeout: 10_000 }).toBeGreaterThan(1);
   await page.locator('#jbe2Next').click();
   await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
 });
