@@ -6,7 +6,7 @@
   const features = {
     web: { scripts: ['jarvis-web-search.js', 'jarvis-search-provider-fidelity-v1.js'], css: ['jarvis-web-polish.css'] },
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
-    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js'] },
+    voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js', 'jarvis-voice-reliability-v1.js'], css: [] },
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
     engineering: { scripts: ['jarvis-engineering.js'] },
     notes: { scripts: ['jarvis-notes.js'] },
@@ -15,7 +15,7 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260825-phase2-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=20260828-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
@@ -39,17 +39,13 @@
     if (pending.has(name)) return pending.get(name);
     const task = Promise.all([
       ...features[name].scripts.map(script => loadScript(assetUrl(script))),
-      ...features[name].css.map(css => loadCss(assetUrl(css))),
+      ...features[name].css.map(css => loadCss(css)),
     ]).then(() => { loaded.set(name, true); pending.delete(name); }).catch(error => { pending.delete(name); throw error; });
     pending.set(name, task);
     return task;
   };
 
   window.jarvisLoadFeature = loadFeature;
-
-  // Voice must be ready before the first iOS microphone gesture. Expose the
-  // actual preload promise so startup can wait for readiness instead of using
-  // an arbitrary delay.
   window.__JARVIS_VOICE_PRELOAD__ = loadFeature('voice').catch(error => {
     console.warn('[JARVIS voice preload]', error);
     throw error;
