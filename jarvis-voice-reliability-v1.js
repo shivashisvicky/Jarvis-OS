@@ -1,0 +1,15 @@
+(()=>{'use strict';
+if(window.__JARVIS_VOICE_RELIABILITY_V1__)return;window.__JARVIS_VOICE_RELIABILITY_V1__=true;
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const timeIntent=q=>{const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();return /^(?:what(?:'s|\s+is|\s+s)?\s+)?(?:the\s+)?(?:local\s+)?time(?:\s+now)?$/.test(s)||/^(?:tell|give|show)\s+me\s+(?:the\s+)?(?:local\s+)?time(?:\s+now)?$/.test(s)||/^time\s+now$/.test(s)};
+const replyEl=()=>document.querySelector('#jarvisReply');
+const releaseRecognition=()=>{try{window.jarvisStopVoiceRecognitionOnly?.()}catch{}try{window.jarvisStopIOSVoice?.()}catch{}document.querySelectorAll('#voiceBtn,.voice,[data-voice-button]').forEach(el=>{el.classList.remove('listening');el.removeAttribute('aria-pressed');el.dataset.listening='0'})};
+const fallbackSpeak=text=>{try{const synth=window.speechSynthesis;if(!synth)return false;synth.cancel();synth.resume();const u=new SpeechSynthesisUtterance(text);u.lang='en-GB';u.rate=.92;u.pitch=.54;u.volume=.96;const voices=synth.getVoices();const v=voices.find(x=>/^en-GB/i.test(x.lang)&&/Daniel|Arthur|George|Oliver|James|Thomas|Alex/i.test(x.name))||voices.find(x=>/^en-GB/i.test(x.lang));if(v)u.voice=v;u.onend=releaseRecognition;u.onerror=releaseRecognition;synth.speak(u);return true}catch{return false}};
+const speak=async text=>{const t=clean(text);if(!t)return false;const el=replyEl();if(el){el.textContent=t;el.classList.add('visible')}releaseRecognition();let ok=false;try{const fn=window.jarvisSpeak;if(typeof fn==='function')ok=fn(t)}catch{}if(!ok)ok=fallbackSpeak(t);window.setTimeout(()=>{try{const s=window.speechSynthesis;if(s&&!s.speaking&&!s.pending)fallbackSpeak(t)}catch{}},900);return ok};
+const timeReply=()=>`The local time is ${new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date())}.`;
+const handleVoice=e=>{const q=clean(e.detail?.text);if(!timeIntent(q))return;e.preventDefault?.();e.stopImmediatePropagation?.();releaseRecognition();void speak(timeReply())};
+const handleSubmit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');const q=i instanceof HTMLInputElement?clean(i.value):'';if(!timeIntent(q))return;e.preventDefault();e.stopImmediatePropagation();releaseRecognition();void speak(timeReply())};
+window.addEventListener('jarvis:voice-command',handleVoice,true);document.addEventListener('submit',handleSubmit,true);
+window.jarvisVoiceReliability={release:releaseRecognition,speak};
+window.addEventListener('jarvis:force-stop-voice',releaseRecognition,true);window.addEventListener('pagehide',releaseRecognition,true);
+})();
