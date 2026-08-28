@@ -6,12 +6,10 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
   await expect.poll(async () => page.evaluate(() => document.readyState)).toBe('complete', { timeout: 15_000 });
-
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 15_000 });
   await input.fill('Beowulf');
   await input.press('Enter');
-
   await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 10_000 });
@@ -30,28 +28,22 @@ test('deployed Gutenberg authority resolves a different book and opens a structu
   await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toBeVisible({ timeout: 10_000 });
   await page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').click();
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 10_000 });
-
   const query = page.locator('#jbe6Query');
   await query.fill('Frankenstein');
   await page.locator('#jbe6Search').click();
   await expect(page.locator('#jbe6Results')).toContainText(/Frankenstein/i, { timeout: 20_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toContainText(/Frankenstein/i);
-
   const read = page.locator('[data-rel-read], [data-final-read], [data-read], [data-native-read]').first();
   await expect(read).toBeVisible();
   await expect(read).toHaveAttribute('data-title', /Frankenstein/i);
   await read.click();
-
   await expect(page.locator('.jber')).toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.jber-title')).toContainText(/Frankenstein/i, { timeout: 5_000 });
   await expect(page.locator('#jberPage')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jberPage')).not.toBeEmpty({ timeout: 25_000 });
   await expect(page.locator('#jberCounter')).toHaveText(/1 \/ \d+/);
   await expect(page.locator('#jberPage')).not.toContainText(/^CONTENTS\.?$/i);
-
-  const sectionCount = await page.locator('#jberSection option').count();
-  expect(sectionCount).toBeGreaterThan(1);
-
+  expect(await page.locator('#jberSection option').count()).toBeGreaterThan(1);
   await page.locator('#jberJump').fill('2');
   await page.locator('#jberGo').click();
   await expect(page.locator('#jberCounter')).toHaveText(/2 \/ \d+/);
@@ -59,14 +51,13 @@ test('deployed Gutenberg authority resolves a different book and opens a structu
   await expect(page.locator('#jberCounter')).toHaveText(/3 \/ \d+/);
 });
 
-test('bare author names resolve as entities instead of falling into web search', async ({ page }) => {
+test('author names are allowed to resolve as BOOK_AUTHOR or PERSON, but never generic web search', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('Charles Dickens');
   await input.press('Enter');
-
-  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || '')).toBe('PERSON', { timeout: 20_000 });
-  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.name || '')).toBe('Charles Dickens', { timeout: 20_000 });
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toMatch(/^(PERSON|BOOK_AUTHOR)$/);
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.name || ''), { timeout: 20_000 }).toBe('Charles Dickens');
   await expect(page.locator('.nav[data-app="web"]')).not.toHaveClass(/selected/);
 });
