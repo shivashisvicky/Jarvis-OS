@@ -1,71 +1,25 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_EBOOK_STABILITY_V1__)return;
-window.__JARVIS_EBOOK_STABILITY_V1__=true;
+if(window.__JARVIS_EBOOK_STABILITY_V2__)return;
+window.__JARVIS_EBOOK_STABILITY_V2__=true;
 const API='https://gutendex.com/books/';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const getAuthority=()=>window.jarvisEbookAuthority;
-const openReader=(id,title)=>{const a=getAuthority();if(!a||typeof a.openReader!=='function')return false;return !!a.openReader(String(id),String(title||''));};
-window.jarvisEbookReaderOpen=window.jarvisEbookReaderOpen||openReader;
-
-const wireReader=()=>{
-  const panel=document.querySelector('#jbe6Panel');
-  if(!panel)return;
-  if(panel.dataset.stabilityReader==='1')return;
-  panel.dataset.stabilityReader='1';
-  panel.addEventListener('click',e=>{
-    const b=e.target?.closest?.('[data-jbe2-read],[data-read]');
-    if(!b||!panel.contains(b))return;
-    const id=b.getAttribute('data-jbe2-read')||b.getAttribute('data-read');
-    if(!id)return;
-    const card=b.closest('.jbe6-book');
-    const title=(b.getAttribute('data-title')||card?.querySelector('.jbe6-name')?.textContent||'').replace(/^\d+\.\s*/,'').trim();
-    if(openReader(id,title)){e.preventDefault();e.stopImmediatePropagation();}
-  },true);
-};
-
-const coverCache=new Map();
-const loadCover=async(card)=>{
-  if(card.dataset.coverReady==='1'||card.dataset.coverLoading==='1')return;
-  const id=card.getAttribute('data-book-id');
-  if(!id)return;
-  card.dataset.coverLoading='1';
-  try{
-    let book=coverCache.get(id);
-    if(!book){
-      const r=await fetch(`${API}${encodeURIComponent(id)}`,{cache:'no-store',headers:{Accept:'application/json'}});
-      if(!r.ok)throw Error(`HTTP ${r.status}`);
-      book=await r.json();coverCache.set(id,book);
-    }
-    const url=book?.formats?.['image/jpeg']||'';
-    const box=card.querySelector('.jbe6-cover');
-    if(box&&url){
-      const img=document.createElement('img');
-      img.className='jbe6-cover';img.alt='';img.loading='lazy';img.decoding='async';img.src=url;
-      img.style.cssText='width:58px;height:76px;object-fit:cover;border-radius:5px;background:#0b171e;border:1px solid var(--line);display:block';
-      box.replaceWith(img);
-    }
-    card.dataset.coverReady='1';
-  }catch{card.dataset.coverReady='1';}
-  delete card.dataset.coverLoading;
-};
-const covers=()=>document.querySelectorAll('#jbe6Results .jbe6-book').forEach(loadCover);
-
-const wireSearch=()=>{
-  const panel=document.querySelector('#jbe6Panel');
-  const a=getAuthority();
-  if(!panel||!a||typeof a.search!=='function')return;
-  const btn=panel.querySelector('#jbe6Search'),input=panel.querySelector('#jbe6Query');
-  if(!btn||!input||panel.dataset.stabilitySearch==='1')return;
-  panel.dataset.stabilitySearch='1';
-  const run=()=>{const q=input.value.trim();if(!q)return;void a.search(q);};
-  btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();run();},true);
-  input.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();e.stopImmediatePropagation();run();},true);
-};
-
-const observe=()=>{wireReader();wireSearch();covers();};
+const log=(event,data={})=>{try{console.info('[JARVIS ebook stability]',event,data)}catch{}};
+const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
+const authority=()=>window.jarvisEbookAuthority;
+const speak=t=>{try{if(typeof window.jarvisCinematicSpeak==='function'){window.jarvisCinematicSpeak(t);return}}catch{}try{if(!('speechSynthesis'in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-GB';u.rate=.92;u.pitch=.54;window.speechSynthesis.speak(u)}catch{}};
+const openFiles=()=>{const b=document.querySelector('.nav[data-app="files"]')||document.querySelector('[data-app="files"]');if(!b)return false;b.click();return true};
+const selectEbooks=()=>{const b=document.querySelector('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]');if(!b)return false;b.click();return true};
+const waitForPanel=async(ms=10000)=>{const end=Date.now()+ms;while(Date.now()<end){const p=document.querySelector('#jbe6Panel');if(p)return p;await wait(100)}return null};
+const syncContext=panel=>{try{const cards=[...panel.querySelectorAll('#jbe6Results .jbe6-book')];if(!cards.length)return false;const results=cards.map((card,index)=>({index,id:card.getAttribute('data-book-id')||'',title:clean(card.querySelector('.jbe6-name')?.textContent||''),author:clean(card.querySelector('.jbe6-author')?.textContent||''),type:'BOOK'}));const query=clean(panel.querySelector('#jbe6Query')?.value||'');window.jarvisContextEngine?.set?.({domain:'BOOKS',entity:{type:'BOOK',title:results[0]?.title||''},query,results,selected:null},'merge');window.dispatchEvent(new CustomEvent('jarvis:ebook-context',{detail:{domain:'BOOKS',entity:{type:'BOOK',title:results[0]?.title||''},query,results,selected:null}}));log('context:synced',{query,count:results.length});return true}catch(e){log('context:error',{message:String(e)});return false}};
+const stableReaderButtons=panel=>{panel.querySelectorAll('#jbe6Results .jbe6-book').forEach(card=>{const id=card.getAttribute('data-book-id');const btn=card.querySelector('[data-read],[data-jbe2-read]');if(!id||!btn||btn.dataset.jbeStableRead==='1')return;const title=clean(btn.getAttribute('data-title')||card.querySelector('.jbe6-name')?.textContent||'').replace(/^\d+\.\s*/,'');btn.removeAttribute('data-read');btn.removeAttribute('data-jbe2-read');btn.dataset.jbeStableRead='1';btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const fn=window.jarvisEbookReaderOpen||authority()?.openReader;if(typeof fn!=='function'){log('reader:bridge-missing',{id,title});return}log('reader:open',{id,title});try{fn(String(id),title)}catch(err){log('reader:error',{id,message:String(err)})}},false)});};
+const hydrateCovers=panel=>{panel.querySelectorAll('#jbe6Results .jbe6-book').forEach(async card=>{if(card.dataset.stabilityCover==='1')return;const id=card.getAttribute('data-book-id');const box=card.querySelector('.jbe6-cover');if(!id||!box)return;card.dataset.stabilityCover='1';try{const r=await fetch(`${API}${encodeURIComponent(id)}`,{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error(`HTTP ${r.status}`);const b=await r.json();const url=b?.formats?.['image/jpeg'];if(url){const img=document.createElement('img');img.className='jbe6-cover';img.alt='';img.loading='lazy';img.decoding='async';img.src=url;img.style.cssText='width:58px;height:76px;object-fit:cover;border-radius:5px;background:#0b171e;border:1px solid var(--line);display:block';box.replaceWith(img);log('cover:attached',{id})}}catch(e){log('cover:failed',{id,message:String(e)})}})};
+const wirePanel=panel=>{if(!panel||panel.dataset.stabilityV2==='1')return;panel.dataset.stabilityV2='1';const btn=panel.querySelector('#jbe6Search');if(btn){btn.id='jbe6SearchStable';btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const q=clean(panel.querySelector('#jbe6Query')?.value||'');if(!q)return;const a=authority();if(!a?.search)return;log('ui-search:start',{q});void a.search(q).then(ok=>log('ui-search:done',{q,ok})).catch(err=>log('ui-search:error',{q,message:String(err)}))},false)};stableReaderButtons(panel);hydrateCovers(panel);};
+const searchDeterministic=async raw=>{const q=clean(raw);if(!q)return false;log('command-search:start',{q});if(!document.querySelector('#jarvisFilesV4')){if(!openFiles()){log('files-nav:missing');return false}};if(!selectEbooks()){const p=await waitForPanel(12000);if(!p){log('ebooks-tab:missing');return false}}const panel=await waitForPanel(12000);if(!panel){log('panel:timeout');return false}const a=authority();if(!a?.search){log('authority:missing');return false}speak(`Searching Gutenberg for ${q}.`);wirePanel(panel);const ok=await a.search(q);if(!ok){await wait(350);const retry=await a.search(q);if(!retry){log('command-search:failed',{q});return false}}await wait(50);const live=document.querySelector('#jbe6Panel');if(live){stableReaderButtons(live);hydrateCovers(live);syncContext(live)}log('command-search:done',{q});return true};
+window.__JARVIS_EBOOK_FINAL_RUN__=searchDeterministic;
+window.jarvisEbookReaderOpen=window.jarvisEbookReaderOpen||((id,title)=>{const a=authority();return a&&typeof a.openReader==='function'?a.openReader(String(id),String(title||'')):false});
+const observe=()=>{const p=document.querySelector('#jbe6Panel');if(p)wirePanel(p)};
 new MutationObserver(observe).observe(document.documentElement,{childList:true,subtree:true});
-setInterval(observe,250);
-observe();
+setInterval(observe,500);observe();
+log('boot',{version:'2.0'});
 })();
