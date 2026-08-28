@@ -1,0 +1,17 @@
+(()=>{
+'use strict';
+if(window.__JARVIS_EBOOK_AUTHORITY_V3__)return;window.__JARVIS_EBOOK_AUTHORITY_V3__=true;
+const API='https://gutendex.com/books/',G='https://www.gutenberg.org';
+const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
+const norm=s=>clean(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const readable=b=>Object.keys(b?.formats||{}).some(k=>/^text\/(plain|html)/i.test(k));
+const json=async(url,ms=15000)=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{signal:c.signal,cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error(`HTTP ${r.status}`);return await r.json()}finally{clearTimeout(t)}};
+const search=async q=>{const d=await json(`${API}?search=${encodeURIComponent(q)}&languages=en&page=1`);return(d.results||[]).filter(readable).slice(0,12)};
+const render=(p,rows)=>{const box=p.querySelector('#jbe6Results'),line=p.querySelector('#jbe6StatusLine');if(!box)return;box.innerHTML=rows.length?rows.map((b,i)=>{const author=(b.authors||[]).map(a=>a.name).join(', ')||'Unknown author';const epub=b.formats?.['application/epub+zip']||'';return `<article class="jbe6-book" data-book-id="${esc(b.id)}"><div class="jbe6-cover"></div><div><div class="jbe6-name">${i+1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(author)}</div><div class="jbe6-desc">${esc((b.subjects||[]).slice(0,3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-read="${esc(b.id)}" data-jbe2-read="${esc(b.id)}" data-title="${esc(b.title)}">READ IN JARVIS</button><a class="jbe6-link" href="${G}/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div><span hidden data-epub="${esc(epub)}"></span></article>`}).join(''):'<div class="jbe6-status">NO READABLE GUTENBERG EDITION FOUND.</div>';if(line)line.textContent=rows.length?`${rows.length} RESULTS · GUTENBERG`:'NO READABLE RESULTS';};
+const run=async input=>{const p=input.closest('#jbe6Panel');if(!p)return;const q=clean(input.value);const box=p.querySelector('#jbe6Results'),line=p.querySelector('#jbe6StatusLine');if(!q)return;box.innerHTML='<div class="jbe6-status">SEARCHING GUTENBERG…</div>';if(line)line.textContent='SEARCHING';try{render(p,await search(q))}catch(e){box.innerHTML='<div class="jbe6-status">GUTENBERG SEARCH FAILED. RETRY.</div>';if(line)line.textContent='SEARCH ERROR';console.warn('[JARVIS ebook authority v3]',e)}};
+document.addEventListener('click',e=>{const b=e.target?.closest?.('#jbe6Search');if(!b)return;const i=b.closest('#jbe6Panel')?.querySelector('#jbe6Query');if(!i)return;e.preventDefault();e.stopImmediatePropagation();void run(i)},true);
+document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const i=e.target?.closest?.('#jbe6Query');if(!i)return;e.preventDefault();e.stopImmediatePropagation();void run(i)},true);
+document.addEventListener('click',e=>{const b=e.target?.closest?.('[data-read],[data-jbe2-read]');if(!b||b.closest('#jbe6Search'))return;const reader=window.jarvisEbookAuthority?.openReader;if(typeof reader!=='function')return;e.preventDefault();e.stopImmediatePropagation();void reader(b.getAttribute('data-read')||b.getAttribute('data-jbe2-read'),b.getAttribute('data-title')||'JARVIS READER')},true);
+window.jarvisEbookAuthorityV3=Object.freeze({version:'3.0.0',search});
+})();
