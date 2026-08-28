@@ -189,3 +189,33 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+  live-ebooks:
+    name: Live / Gutenberg Ebooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed Gutenberg ebook reader
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/live-ebooks.spec.ts --project=chromium
+      - name: Upload ebook evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-ebook-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
