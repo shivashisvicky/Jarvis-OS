@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: jarvis-post-deploy-regression-gate
@@ -23,12 +24,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Require successful production deployment
+      - name: Verify production Pages job succeeded
         if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          echo "UPSTREAM_DEPLOY_CONCLUSION=${{ github.event.workflow_run.conclusion }}"
-          test "${{ github.event.workflow_run.conclusion }}" = "success"
+          echo "UPSTREAM_RUN_ID=$UPSTREAM_RUN_ID"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$UPSTREAM_RUN_ID/jobs?per_page=100" > jobs.json
+          python - <<'PY'
+          import json
+          data=json.load(open('jobs.json'))
+          jobs=data.get('jobs',[])
+          target=next((j for j in jobs if j.get('name')=='Deploy production Pages'),None)
+          if not target:
+              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_FOUND')
+          print('DEPLOY_PRODUCTION_JOB_STATUS=',target.get('status'))
+          print('DEPLOY_PRODUCTION_JOB_CONCLUSION=',target.get('conclusion'))
+          if target.get('conclusion') != 'success':
+              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_SUCCESS')
+          PY
 
       - name: Checkout deployed commit
         uses: actions/checkout@v4
