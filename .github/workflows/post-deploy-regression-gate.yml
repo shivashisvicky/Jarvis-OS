@@ -21,6 +21,12 @@ env:
 jobs:
   sequential-command-gate:
     name: Sequential / Beowulf -> Newman -> Time -> Context
+    # A cancelled/failed deployment is not a product regression. Do not turn
+    # the post-deploy gate red or run browser tests against an unconfirmed
+    # production version. The next successful deployment will trigger a new
+    # gate automatically. Manual workflow_dispatch remains available for
+    # deliberate diagnostics.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
