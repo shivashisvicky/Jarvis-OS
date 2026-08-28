@@ -44,7 +44,7 @@ test('bare author names resolve as entities instead of falling into web search',
   await input.fill('Charles Dickens');
   await input.press('Enter');
 
-  await expect.poll(async () => page.evaluate(() => window.__JARVIS_ENTITY__?.type || '')).toBe('PERSON', { timeout: 20_000 });
-  await expect.poll(async () => page.evaluate(() => window.__JARVIS_ENTITY__?.name || '')).toBe('Charles Dickens', { timeout: 20_000 });
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || '')).toBe('PERSON', { timeout: 20_000 });
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.name || '')).toBe('Charles Dickens', { timeout: 20_000 });
   await expect(page.locator('.nav[data-app="web"]')).not.toHaveClass(/selected/);
 });
