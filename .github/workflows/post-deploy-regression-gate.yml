@@ -1,0 +1,63 @@
+name: Post-Deploy Regression Gate
+
+on:
+  workflow_run:
+    workflows: ["Deploy Jarvis OS"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-post-deploy-regression-gate
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.15.0
+
+jobs:
+  sequential-command-gate:
+    name: Sequential / Beowulf -> Newman -> Time -> Context
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify deployed shell in strict sequence
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          echo "DEPLOYED_COMMIT=${JARVIS_LIVE_URL##*=}"
+          pnpm exec playwright test tests/e2e/post-deploy-regression-gate.spec.ts --project=chromium --workers=1 --reporter=line
+
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-regression-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 21
