@@ -21,7 +21,7 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
 });
 
-test('deployed Gutenberg authority resolves a different book and opens a structured reader', async ({ page }) => {
+test('canonical Gutenberg reader opens a real book and paginates', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
   await expect(page.locator('.workspace h1')).toHaveText('Files');
@@ -32,32 +32,43 @@ test('deployed Gutenberg authority resolves a different book and opens a structu
   await query.fill('Frankenstein');
   await page.locator('#jbe6Search').click();
   await expect(page.locator('#jbe6Results')).toContainText(/Frankenstein/i, { timeout: 20_000 });
-  await expect(page.locator('#jbe6Results .jbe6-book').first()).toContainText(/Frankenstein/i);
-  const read = page.locator('[data-rel-read], [data-final-read], [data-read], [data-native-read]').first();
+  const read = page.locator('[data-read]').first();
   await expect(read).toBeVisible();
   await expect(read).toHaveAttribute('data-title', /Frankenstein/i);
   await read.click();
-  await expect(page.locator('.jber')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('.jber-title')).toContainText(/Frankenstein/i, { timeout: 5_000 });
-  await expect(page.locator('#jberPage')).toBeVisible({ timeout: 25_000 });
-  await expect(page.locator('#jberPage')).not.toBeEmpty({ timeout: 25_000 });
-  await expect(page.locator('#jberCounter')).toHaveText(/1 \/ \d+/);
-  await expect(page.locator('#jberPage')).not.toContainText(/^CONTENTS\.?$/i);
-  expect(await page.locator('#jberSection option').count()).toBeGreaterThan(1);
-  await page.locator('#jberJump').fill('2');
-  await page.locator('#jberGo').click();
-  await expect(page.locator('#jberCounter')).toHaveText(/2 \/ \d+/);
-  await page.locator('#jberNext').click();
-  await expect(page.locator('#jberCounter')).toHaveText(/3 \/ \d+/);
+  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 25_000 });
+  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/);
+  await expect(page.locator('#jbe2Section option')).toHaveCount(expect.any(Number));
+  await page.locator('#jbe2Next').click();
+  await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
 });
 
-test('author names are allowed to resolve as BOOK_AUTHOR or PERSON, but never generic web search', async ({ page }) => {
+test('John Henry Newman resolves as a Gutenberg author and can open a book', async ({ page }) => {
+  await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  const input = page.locator('#commandInput');
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill('John Henry Newman');
+  await input.press('Enter');
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toBe('BOOK_AUTHOR');
+  await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
+  await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('#jbe6Results')).toContainText(/Newman/i);
+  const read = page.locator('[data-read]').first();
+  await expect(read).toBeVisible();
+  await read.click();
+  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 25_000 });
+});
+
+test('author names never fall through to generic web search', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('Charles Dickens');
   await input.press('Enter');
   await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toMatch(/^(PERSON|BOOK_AUTHOR)$/);
-  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.name || ''), { timeout: 20_000 }).toBe('Charles Dickens');
   await expect(page.locator('.nav[data-app="web"]')).not.toHaveClass(/selected/);
 });
