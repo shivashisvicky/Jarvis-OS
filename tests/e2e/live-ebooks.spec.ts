@@ -40,7 +40,7 @@ test('canonical Gutenberg reader opens a real book and paginates', async ({ page
   await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 25_000 });
   await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/);
-  await expect(page.locator('#jbe2Section option')).toHaveCount(expect.any(Number));
+  expect(await page.locator('#jbe2Section option').count()).toBeGreaterThan(1);
   await page.locator('#jbe2Next').click();
   await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
 });
