@@ -48,6 +48,16 @@ test('natural-question punctuation survives normalization', async ({ page }) => 
   expect(normalized).toBe('What is the capital of India?');
 });
 
+test('core time command outranks stale book entity context', async ({ page }) => {
+  await openHome(page);
+  const route = await page.evaluate(() => {
+    window.__JARVIS_ENTITY__ = { name: 'Beowulf', type: 'BOOK', score: 0.99 };
+    return window.jarvisCommandAuthority?.route('what time is it');
+  });
+  expect(route?.type).toBe('TIME');
+  expect(route?.owner).toBe('jarvis-command-deterministic-fix-v1.js');
+});
+
 test('voice kill authority is exposed without requiring speech hardware', async ({ page }) => {
   await openHome(page);
   const authority = await page.evaluate(() => typeof window.jarvisStopAllVoiceSessions === 'function');
