@@ -47,11 +47,15 @@ test('book reference survives opening and closing the native JARVIS reader', asy
   await expect(page.locator('#jbe6Results')).toContainText(firstTitle);
 });
 
-test('context reference authority accepts second and numbered book references', async ({ page }) => {
+test('context reference authority resolves numbered book result references', async ({ page }) => {
   await openHome(page);
   await findBeowulf(page);
-  await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(1);
+  const secondBook = page.locator('#jbe6Results .jbe6-book').nth(1);
+  await expect(secondBook).toBeVisible({ timeout: 15_000 });
+  const secondTitle = (await secondBook.locator('.jbe6-name').innerText()).trim();
   await page.locator('.nav[data-app="home"]').click();
-  await submit(page, 'open the second one');
+  await submit(page, 'open result 2');
   await expect(page.locator('#jarvisReply')).not.toContainText(/Search Hub|current location|more context/i);
+  await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#jbe6Results')).toContainText(secondTitle);
 });
