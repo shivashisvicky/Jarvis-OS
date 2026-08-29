@@ -44,3 +44,12 @@ A commit becomes a new baseline only after the relevant CI/live regression suite
 ## Engineering cadence
 
 JARVIS development follows a strict **one issue → one fix → one push → one validation cycle**. Do not stack speculative fixes. If the fix does not solve the reported issue, stop, inspect the exact failure, and make the next smallest targeted change.
+
+## Session handoff files
+
+Read these before continuing work:
+
+1. `JARVIS-BASELINES.md`
+2. `JARVIS-CONTINUATION.md`
+3. `JARVIS-OS-TRACKER.md`
+4. `JARVIS_ROADMAP.md`
