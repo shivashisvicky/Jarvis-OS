@@ -2,8 +2,6 @@
 (() => {
   'use strict';
   if (window.__JARVIS_STARTUP_BOOT__) return;
-  window.__JARVIS_STARTUP_BOOT__ = true;
-  const survival=document.createElement('script');survival.src='./jarvis-command-survival-hotfix-v1.js?v=20260830-survival-v1';survival.defer=false;survival.async=false;document.head.appendChild(survival);
   const boot=document.createElement('div');boot.id='jarvis-boot';boot.setAttribute('role','status');boot.setAttribute('aria-label','JARVIS initializing');
   boot.innerHTML=`<div class="jarvis-boot-core"><div class="jarvis-reactor" aria-hidden="true"><div class="jarvis-reactor-ring"></div><div class="jarvis-reactor-core"></div></div><p class="jarvis-boot-name">J.A.R.V.I.S.</p><p class="jarvis-boot-subtitle">PERSONAL INTELLIGENCE SYSTEM</p><div class="jarvis-boot-status" aria-hidden="true"><div class="jarvis-boot-row"><span>CORE SYSTEM</span><b id="boot-core">ONLINE</b></div><div class="jarvis-boot-row"><span>VOICE AUTHORITY</span><b id="boot-voice">SYNCING</b></div><div class="jarvis-boot-row"><span>COMMAND AUTHORITY</span><b id="boot-command">SYNCING</b></div><div class="jarvis-boot-row"><span>LIBRARY CONTEXT</span><b id="boot-library">SYNCING</b></div></div><div class="jarvis-boot-track"><span></span></div><div class="jarvis-boot-online"><strong>JARVIS</strong> &nbsp; INITIALIZING</div></div>`;
   const mount=()=>{if(!document.body.contains(boot))document.body.appendChild(boot)};if(document.body)mount();else document.addEventListener('DOMContentLoaded',mount,{once:true});
