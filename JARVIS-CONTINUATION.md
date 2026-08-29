@@ -1,6 +1,6 @@
 # J.A.R.V.I.S. OS Continuation Checkpoint
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-08-30
 **Purpose:** Session-to-session engineering handoff. Read this before continuing work on Jarvis OS.
 
 ## Current state
@@ -11,9 +11,9 @@ Repository: `shivashisvicky/Jarvis-OS`, branch: `main`.
 
 `ede622c6e7f35dbd67f2007806122116d724dcb5`
 
-This is the verified 2026-08-29 Ebook/Gutenberg baseline. **Do not touch the Ebook path while fixing another subsystem.**
+This remains the verified 2026-08-29 Ebook/Gutenberg baseline. **Do not touch the Ebook path while fixing another subsystem.**
 
-Verified in the deployed build:
+Verified baseline behavior:
 
 - Beowulf search/listing works.
 - John Henry Newman can resolve to a readable Gutenberg edition.
@@ -31,20 +31,55 @@ Verified in the deployed build:
 - Maps, News and Media hardening from the earlier 3.0 track.
 - iOS voice path restoration and protection from unrelated Ebook changes.
 
+## Latest engineering work
+
+### Media ordinal context fix
+
+Commits:
+
+- `670ebb554efb086ef747df732456409637cef27b` — **Fix media ordinal context across navigation**
+- `e1621b1d6462870b173cd740c137ae75ad5cd54d` — deployment/cache-version update in `index.html`
+
+The reported failure was: after a YouTube/Media result list was displayed, returning to Command Center and saying **“Play the first one”** produced the Command Center message **“I do not have a current result list to open. Search first, then ask me to open a result.”**
+
+The fix adds Media context recovery from the existing `sessionStorage` YouTube result cache and can restore the Media surface, rerun the stored query, resolve the requested ordinal by YouTube result ID, and click the exact matching card. The context engine version is now `3.4.0`.
+
+**Important:** this fix has been pushed, but it is **NOT yet a new verified baseline**. CI/deployment was still running when this checkpoint was saved, and the manual iOS test of “Play the first one” after leaving Media is still required.
+
+### Exact pending validation
+
+After deployment:
+
+1. Search YouTube for any query with multiple results.
+2. Confirm the result list appears.
+3. Navigate back to Command Center.
+4. Say/type **“Play the first one.”**
+5. Confirm JARVIS returns to Media, restores the relevant search, selects the exact first result and starts playback.
+6. Repeat with **“Play the second one”** and **“Play result 2.”**
+
+If this fails, inspect the exact Media authority/context handoff. Do not modify Ebook, Voice/iOS, Maps, News or unrelated routing as a workaround.
+
 ## Active roadmap
 
-The next major track is **3.0 Shell / Intelligence migration**. Work one issue at a time, in this order:
+The active major track is **3.0 Shell / Intelligence migration**.
 
-1. Context/result references and action/result chaining
-2. Entity continuity and ambiguity handling
-3. Media
-4. News
-5. Maps
-6. API Lab
-7. SFTP / Files
-8. Terminal
+Current work is the context/result-reference layer. The immediate task is to validate the Media ordinal navigation fix above. Once that is green, continue with numbered result references:
 
-Ebook is frozen unless a new reproducible Ebook regression is reported.
+- `open result 2`
+- `open result 3`
+- `open number 2`
+- `open no. 2`
+
+Then proceed one issue at a time through:
+
+1. Ordinal/result references: first, second, third, last.
+2. Contextual locations: here, there, nearby.
+3. Context clearing and expiry.
+4. Explicit intent versus stale context.
+5. Action/result chaining.
+6. Entity continuity.
+7. Ambiguity resolution.
+8. Graceful clarification when context is insufficient.
 
 ## One issue → one fix
 
@@ -60,12 +95,6 @@ This is the governing engineering rule:
 
 No speculative bundles, broad refactors, cache-only fixes, or unrelated cleanup in the same change.
 
-## Current next issue
-
-**Result reference: numbered selection (`open result 2`, `open result 3`, `open number 2`).**
-
-The reference authority already recognizes numbered-reference syntax, but its fallback resolver currently maps only first/second/third/one/two/three. The next code change must make the existing numbered contract actually resolve the requested result, without changing Ebook search, reader behavior, voice, Maps or other routing.
-
 ## Protected behavior
 
 During unrelated work, do not alter:
@@ -75,7 +104,7 @@ During unrelated work, do not alter:
 - Time Now
 - Maps
 - News
-- YouTube/Media
+- YouTube/Media except for the current Media-reference issue
 - Command Center
 - Games
 - Notes/Calculator
@@ -89,4 +118,4 @@ Historical/duplicate experiments are not active roadmap work. Completed issues/P
 
 ## Next-session instruction
 
-Read this file, `JARVIS-BASELINES.md`, `JARVIS-OS-TRACKER.md`, and `JARVIS_ROADMAP.md` first. Continue from the golden baseline and work only on the current single issue. Do not restart Ebook diagnosis from historical symptoms unless a new regression is observed.
+Read this file, `JARVIS-BASELINES.md`, `JARVIS-OS-TRACKER.md`, and `JARVIS_ROADMAP.md` first. The current working commits are `670ebb554efb086ef747df732456409637cef27b` and `e1621b1d6462870b173cd740c137ae75ad5cd54d`; the golden verified baseline remains `ede622c6e7f35dbd67f2007806122116d724dcb5`. Start by checking deployment/CI and manually validating **“Play the first one” after leaving Media**. Do not restart Ebook diagnosis unless a new Ebook regression is observed.
