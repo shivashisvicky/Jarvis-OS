@@ -5,7 +5,6 @@
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
-  const stopWords = new Set(['who','what','when','where','which','is','are','was','were','the','a','an','of','in','on','for','to','and','or','does','do','did','can','could','would','should','how']);
 
   function normalizeSearchQuery(raw) {
     let q = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -40,21 +39,26 @@
     window.open(provider === 'brave' ? `https://search.brave.com/search?q=${encodeURIComponent(query)}` : `https://www.bing.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
   }
 
+  function publishContext(items, query, provider) {
+    try {
+      window.dispatchEvent(new CustomEvent('jarvis:search-context', {
+        detail: { domain: 'SEARCH', query, provider, results: items.slice(0, 8), selected: null }
+      }));
+      console.debug('[JARVIS][SEARCH_CONTEXT]', { query, provider, count: items.length });
+    } catch {}
+  }
+
   function render(items, provider, query, results) {
     const label = String(provider || 'web').toUpperCase();
     if (!items.length) {
       results.innerHTML = `<div class="empty">No web results found. <button class="secondary" id="webExternal">OPEN ${esc(label)} ↗</button></div>`;
       results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
+      publishContext([], query, provider);
       return;
     }
-    results.innerHTML = items.slice(0,8).map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
-  }
-
-  async function runSearch(provider, rawQuery) {
-    const query = normalizeSearchQuery(rawQuery);
-    if (!query) return { results: [], provider, requestedProvider: provider, fallback: false, query };
-    const payload = await search(provider, query);
-    return { ...payload, query };
+    const visible = items.slice(0,8);
+    results.innerHTML = visible.map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
+    publishContext(visible, query, provider);
   }
 
   document.addEventListener('click', event => {
@@ -72,15 +76,16 @@
     if (!rawQuery) {
       status.textContent = 'READY';
       results.innerHTML = '<div class="empty">Enter a search query.</div>';
+      publishContext([], '', provider);
       return;
     }
     status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
     results.innerHTML = '<div class="empty">Searching…</div>';
-    runSearch(provider, rawQuery).then(payload => {
+    search(provider, normalizeSearchQuery(rawQuery)).then(payload => {
       const actualProvider = payload.provider || provider;
       const providerLabel = actualProvider === 'bing' && payload.fallback ? 'BING FALLBACK' : actualProvider.toUpperCase();
       status.textContent = `${payload.results.length} RESULTS · ${providerLabel}`;
-      render(payload.results, actualProvider, payload.query, results);
+      render(payload.results, actualProvider, normalizeSearchQuery(rawQuery), results);
     }).catch(() => {
       status.textContent = 'DEGRADED';
       results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
