@@ -1,0 +1,8 @@
+(()=>{'use strict';
+if(window.__JARVIS_GUTENDEX_CORS_BRIDGE_V1__)return;window.__JARVIS_GUTENDEX_CORS_BRIDGE_V1__=true;
+const nativeFetch=window.fetch.bind(window);
+const isGutendex=u=>{try{return new URL(typeof u==='string'?u:u?.url||'',location.href).hostname==='gutendex.com'}catch{return false}};
+const proxyUrl=u=>`https://r.jina.ai/${String(u)}`;
+const parsePayload=async r=>{const text=await r.text();try{const d=JSON.parse(text);if(d&&Array.isArray(d.results))return d;if(d&&typeof d.content==='string'){try{const inner=JSON.parse(d.content);if(inner&&Array.isArray(inner.results))return inner}catch{}}}catch{};const a=text.indexOf('{'),b=text.lastIndexOf('}');if(a>=0&&b>a){try{const d=JSON.parse(text.slice(a,b+1));if(d&&Array.isArray(d.results))return d;if(d&&typeof d.content==='string'){try{const inner=JSON.parse(d.content);if(inner&&Array.isArray(inner.results))return inner}catch{}}}catch{}}throw Error('Invalid Gutendex payload')};
+window.fetch=async function(input,init){if(!isGutendex(input))return nativeFetch(input,init);try{const direct=await nativeFetch(input,init);if(direct.ok){try{const clone=direct.clone();const d=await clone.json();if(d&&Array.isArray(d.results))return direct}catch{}}}catch{}try{const u=typeof input==='string'?input:input?.url||'';const proxy=await nativeFetch(proxyUrl(u),{...init,headers:{...(init?.headers||{}),Accept:'application/json'}});if(!proxy.ok)throw Error('Proxy HTTP '+proxy.status);const d=await parsePayload(proxy);return new Response(JSON.stringify(d),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}catch(e){try{console.info('[JARVIS:GUTENBERG_TRACE] CORS_BRIDGE_ERROR',String(e?.message||e))}catch{};throw e}};
+})();
