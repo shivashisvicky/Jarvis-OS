@@ -89,4 +89,4 @@ Historical/duplicate experiments are not active roadmap work. Completed issues/P
 
 ## Next-session instruction
 
-Read this file, `JARVIS-BASELINES.md`, and `JARVIS-OS-TRACKER.md` first. Continue from the golden baseline and work only on the current single issue. Do not restart Ebook diagnosis from historical symptoms unless a new regression is observed.
+Read this file, `JARVIS-BASELINES.md`, `JARVIS-OS-TRACKER.md`, and `JARVIS_ROADMAP.md` first. Continue from the golden baseline and work only on the current single issue. Do not restart Ebook diagnosis from historical symptoms unless a new regression is observed.
