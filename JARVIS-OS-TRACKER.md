@@ -32,18 +32,13 @@ Verified deployed baseline. Ebook/Gutenberg is frozen unless a new reproducible 
 
 **ACTIVE NOW**
 
-Fix the existing reference contract for:
+Fix the existing reference contract for `open result 2`, `open number 2`, and `open no. 2`.
 
-- `open result 2`
-- `open number 2`
-- `open no. 2`
-- corresponding result numbers when present
-
-Current authority recognizes this syntax but its fallback resolver only resolves first/second/third and one/two/three. This is the next and only active code fix.
+The current authority recognizes this syntax but its fallback resolver only resolves first/second/third and one/two/three. This is the next and only active code fix.
 
 ### 2. Remaining context references
 
-After item 1 is green, handle these as separate issues:
+After item 1 is green, handle each as a separate issue:
 
 - ordinal references: first, second, third, last;
 - contextual locations: here, there, nearby;
@@ -58,15 +53,7 @@ After item 1 is green, handle these as separate issues:
 
 **One issue → one fix → one push → one validation.**
 
-For each issue:
-
-1. reproduce it;
-2. identify the owning authority;
-3. change only that authority/test surface;
-4. push once;
-5. wait for CI/deployment;
-6. manually validate the reported behavior;
-7. freeze as baseline if it becomes the best verified state.
+For each issue: reproduce it, identify the owning authority, change only that authority/test surface, push once, wait for CI/deployment, manually validate, then freeze the result if it becomes the best verified state.
 
 Do not combine unrelated fixes. Do not use speculative cache busts as a substitute for a root-cause fix. Do not touch a frozen subsystem to solve a different problem.
 
@@ -76,15 +63,8 @@ During Shell / Intelligence work, do not modify Ebook/Gutenberg, Voice/iOS, Time
 
 ## Tracker hygiene
 
-Close completed issues and stale experimental PRs. GitHub's open work should represent actual pending engineering work, not historical debugging attempts.
+Completed issues and stale experimental PRs should be closed. GitHub's open work should represent actual pending engineering work, not historical debugging attempts.
 
 ## Session handoff
 
-Before starting work in a new chat, read:
-
-1. `JARVIS-BASELINES.md`
-2. `JARVIS-CONTINUATION.md`
-3. `JARVIS-OS-TRACKER.md`
-4. `JARVIS_ROADMAP.md`
-
-Then continue with the single issue marked **ACTIVE NOW**.
+Before starting work in a new chat, read `JARVIS-BASELINES.md`, `JARVIS-CONTINUATION.md`, `JARVIS-OS-TRACKER.md`, and `JARVIS_ROADMAP.md`. Then continue with the single issue marked **ACTIVE NOW**.
