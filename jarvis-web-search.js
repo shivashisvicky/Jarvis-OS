@@ -2,6 +2,7 @@
   'use strict';
   if (window.__JARVIS_WEB_SEARCH_V4__) return;
   window.__JARVIS_WEB_SEARCH_V4__ = true;
+  window.__JARVIS_WEB_SEARCH_V3__ = true;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
@@ -125,10 +126,6 @@
     }
   }, true);
 
-  // A voice command opens the web module asynchronously. The command authority
-  // snapshot survives that handoff, so consume it only after the Search Hub is
-  // mounted. This fixes the command wrapper without touching result objects or
-  // ordinal-reference handling.
   const handoffObserver = new MutationObserver(runCommandHandoff);
   handoffObserver.observe(document.documentElement, { childList: true, subtree: true });
   window.setTimeout(runCommandHandoff, 0);
