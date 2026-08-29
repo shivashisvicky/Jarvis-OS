@@ -1,5 +1,30 @@
 # J.A.R.V.I.S. OS Engineering Changelog
 
+## 2026-08-30
+
+### Media ordinal context recovery
+
+- Reported failure: after leaving a YouTube/Media result list, `Play the first one` returned the Command Center message that no current result list was available.
+- Patched `jarvis-context-engine-v1.js` in commit `670ebb554efb086ef747df732456409637cef27b`.
+- Context engine is now version `3.4.0`.
+- Added recovery from the existing `jarvis-youtube:*` session cache when live Media context is unavailable.
+- Added Media restoration, stored-query replay and exact YouTube-ID result matching before playback.
+- Updated `index.html` cache/version references in commit `e1621b1d6462870b173cd740c137ae75ad5cd54d`.
+- Updated session handoff/tracker in commits `7e16a213e9600ddad036a7c63495b1568070ca34` and `711b4babe910ea8943b6c2d52e010cbd65c1c51c`.
+- **Validation status:** pending deployed/manual verification. Do not promote these working commits to the golden baseline yet.
+
+### Next-session test
+
+1. Search YouTube for a query with multiple results.
+2. Leave Media and return to Command Center.
+3. Say `Play the first one`.
+4. Confirm JARVIS restores Media, restores the relevant search and plays the exact first result.
+5. Repeat `Play the second one` and `Play result 2`.
+
+### Next queue
+
+After Media ordinal recovery is green, continue with numbered result references: `open result 2`, `open number 2`, `open no. 2`, followed by the remaining context-reference sequence documented in `JARVIS-CONTINUATION.md`.
+
 ## 2026-08-29
 
 ### Golden baseline frozen
