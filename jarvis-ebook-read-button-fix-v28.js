@@ -1,9 +1,13 @@
 (()=>{'use strict';
-if(window.__JARVIS_EBOOK_READ_BUTTON_V28__)return;window.__JARVIS_EBOOK_READ_BUTTON_V28__=true;
+if(window.__JARVIS_EBOOK_READ_BUTTON_V29__)return;window.__JARVIS_EBOOK_READ_BUTTON_V29__=true;
 const TRACE='[JARVIS:GUTENBERG_TRACE]';
 const log=(e,d={})=>{try{console.info(TRACE,e,d)}catch{}};
-const get=b=>({id:b?.getAttribute('data-read')||b?.getAttribute('data-rel-read')||b?.getAttribute('data-final-read')||b?.getAttribute('data-native-read')||'',title:b?.getAttribute('data-title')||b?.closest('.jbe6-book')?.querySelector('.jbe6-name')?.textContent?.replace(/^\d+\.\s*/,'')||'JARVIS READER',plain:b?.getAttribute('data-plain')||'',epub:b?.getAttribute('data-epub')||''});
-const open=b=>{const x=get(b);if(!x.id)return;log('READ_BUTTON_V28',{id:x.id,title:x.title});const f=window.jarvisEbookReaderOpenV24||window.jarvisEbookReaderOpenV22||window.jarvisEbookReaderOpen;if(typeof f==='function'){f(x.id,x.title,x.plain,x.epub);return}log('READ_BUTTON_V28_NO_READER',{id:x.id})};
-window.addEventListener('click',e=>{const b=e.target?.closest?.('[data-read],[data-rel-read],[data-final-read],[data-native-read]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();open(b)},true);
-log('READ_BUTTON_V28_READY');
+const rootOf=b=>b?.closest?.('.jbe6-book')||b?.closest?.('[data-book-id]')||b?.closest?.('[data-id]');
+const idFrom=b=>{const r=rootOf(b)||b;const attrs=['data-read','data-rel-read','data-final-read','data-native-read','data-id','data-book-id','data-gutenberg-id'];for(const el of [b,r,...(r?[...r.querySelectorAll('[data-read],[data-rel-read],[data-final-read],[data-native-read],[data-id],[data-book-id],[data-gutenberg-id]')]:[])])for(const a of attrs){const v=el?.getAttribute?.(a);if(v&&/^\d+$/.test(v))return v}for(const a of r?.querySelectorAll?.('a[href]')||[]){const m=a.getAttribute('href')?.match(/(?:ebooks|files)\/(\d+)/);if(m)return m[1]}const text=r?.textContent||'';const m=text.match(/(?:^|\s)#?(\d{2,6})(?:\s|$)/);return m?.[1]||''};
+const titleFrom=b=>b?.getAttribute?.('data-title')||rootOf(b)?.querySelector?.('.jbe6-name')?.textContent?.replace(/^\d+\.\s*/,'').trim()||b?.textContent?.trim()||'JARVIS READER';
+const open=b=>{const id=idFrom(b),title=titleFrom(b),r=rootOf(b);const plain=b?.getAttribute?.('data-plain')||r?.querySelector?.('[data-plain]')?.getAttribute?.('data-plain')||'';const epub=b?.getAttribute?.('data-epub')||r?.querySelector?.('[data-epub]')?.getAttribute?.('data-epub')||'';log('READ_BUTTON_V29',{id,title,plain:!!plain,epub:!!epub});if(!id){log('READ_BUTTON_V29_NO_ID',{text:(b?.textContent||'').trim().slice(0,100)});return}const f=window.jarvisEbookReaderOpenV24||window.jarvisEbookReaderOpenV22||window.jarvisEbookReaderOpen;if(typeof f==='function'){f(id,title,plain,epub);return}log('READ_BUTTON_V29_NO_READER',{id})};
+const isRead=b=>{const t=(b?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();return t.includes('read in jarvis')};
+window.addEventListener('click',e=>{const target=e.target?.closest?.('button,a,[role="button"]');if(!target)return;const marked=target.matches('[data-read],[data-rel-read],[data-final-read],[data-native-read]');if(marked||isRead(target)){e.preventDefault();e.stopImmediatePropagation();open(target)}},true);
+window.addEventListener('pointerup',e=>{const target=e.target?.closest?.('button,a,[role="button"]');if(target&&isRead(target)){e.preventDefault();e.stopImmediatePropagation()}},true);
+log('READ_BUTTON_V29_READY');
 })();
