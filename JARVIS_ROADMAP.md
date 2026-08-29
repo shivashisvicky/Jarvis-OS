@@ -13,7 +13,7 @@ JARVIS should understand what the user means, choose the correct capability, exe
 - Voice and text converge on the same command authority.
 - Every intelligence change gets deterministic coverage before the next layer is added.
 - **One issue → one fix → one push → one validation cycle.**
-- The 2026-08-29 Ebook/Gutenberg baseline is frozen and must not be touched by unrelated work.
+- The 2026-08-29 Ebook/Gutenberg baseline is frozen and must not be touched by unrelated changes.
 
 ## Completed tracks
 
@@ -56,21 +56,27 @@ Do not modify this subsystem unless a new reproducible regression is reported.
 ## Active track: Shell / Intelligence
 Status: IN PROGRESS
 
-### Current issue
-**Numbered result references.**
+### Current issue: Media ordinal recovery across navigation
 
-The context reference authority recognizes commands such as `open result 2`, `open number 2` and `open no. 2`, but the resolver fallback currently handles only first/second/third and one/two/three. Fix this one contract without changing unrelated routing.
+The reported flow was: search YouTube, leave Media for Command Center, then say `Play the first one`. JARVIS previously lost the result context and reported that no current result list was available.
 
-### Remaining Shell / Intelligence sequence
+Patch: `670ebb554efb086ef747df732456409637cef27b`.
+Deployment/cache update: `e1621b1d6462870b173cd740c137ae75ad5cd54d`.
+Context engine version: `3.4.0`.
 
-1. Numbered result references.
-2. Ordinal/result reference coverage: first, second, third, last.
-3. Contextual location references: here, there, nearby.
+The patch recovers the latest valid YouTube result set from session storage, restores Media, replays the stored query and selects the exact result by YouTube ID. **Manual deployed validation is still pending.**
+
+### Next after Media validation
+
+1. Numbered result references: `open result 2`, `open result 3`, `open number 2`, `open no. 2`.
+2. Ordinal/result references: first, second, third, last.
+3. Contextual locations: here, there, nearby.
 4. Context clearing and expiry.
-5. Explicit search/map intent must not be hijacked by stale context.
+5. Explicit intent versus stale context.
 6. Action/result chaining.
-7. Entity continuity and ambiguity resolution.
-8. Graceful clarification when context is insufficient.
+7. Entity continuity.
+8. Ambiguity resolution.
+9. Graceful clarification when context is insufficient.
 
 Each item is a separate issue and separate push.
 
