@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_COMMAND_AUTHORITY_V12__)return;
-window.__JARVIS_COMMAND_AUTHORITY_V12__=true;
+if(window.__JARVIS_COMMAND_AUTHORITY_V13__)return;
+window.__JARVIS_COMMAND_AUTHORITY_V13__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const route=q=>{
  const s=clean(q).toLowerCase().replace(/[.!?]+$/,'').trim();
@@ -11,10 +11,10 @@ const route=q=>{
  if(!s)return {type:'EMPTY',owner:null};
  if(/\b(?:what(?:'s| is|s)\s+my\s+name|who\s+am\s+i)\b/.test(s))return {type:'NAME',owner:'command-runtime'};
  if(/\b(?:make\s+(?:me\s+)?a\s+note|make\s+note|write\s+(?:me\s+)?a\s+note|remember\s+to|remind\s+me)\b/.test(s))return {type:'NOTES',owner:'notes-runtime'};
- if(/^(?:please\s+)?(?:search|look\s*up|lookup|google|bing|web\s+search)\b/.test(s)||/\b(?:search|look\s+up|browse|google|bing|internet|web|search\s+for)\b[\s\S]*\b(?:internet|web|online)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
- if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
- if(/^(?:nice|good|great|awesome|cool|perfect|brilliant|haha+|lol+|lmao+|thanks|thank you|thx)$/.test(s))return {type:'CONVERSATION',owner:'jarvis-context-intelligence-v2.js'};
- const poiWords='restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\\s+stations?)?|fuel|gyms?|supermarkets?|temples?';
+ /* Explicit ebook intent MUST outrank generic search. "Search books for X"
+    is a Books command, not a web-search command. */
+ if(/\b(?:search|find|look\s+up|lookup|show(?:\s+me)?|open)\b[\s\S]*\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard\s+ebooks?)\b|\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard\s+ebooks?)\b[\s\S]*\b(?:search|find|look\s+up|lookup)\b/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
+ const poiWords='restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|atms?|banks?|petrol(?:\\s+stations?)?|fuel|gyms?|supermarkets?|temples?';
  const explicitPoi=new RegExp('\\b(?:show\\s+me|show|find|locate|where\\s+are|look\\s+for)\\b[\\s\\S]*\\b(?:'+poiWords+')\\b[\\s\\S]*\\b(?:in|near|around|at|to)\\b').test(s);
  const contextualPoi=new RegExp('^(?:please\\s+)?(?:show\\s+me|show|find|locate|where\\s+are|look\\s+for)\\s+(?:'+poiWords+')\\s+(?:there|here|nearby|around\\s+there)$').test(s);
  if(explicitPoi||(contextualPoi&&ctx?.active&&ctx?.location))return {type:'MAP_POI',owner:'jarvis-command-final-routing-v2.js',context:ctx?.location||null};
@@ -24,8 +24,6 @@ const route=q=>{
  if(geographicPlace||bareGeographicPlace)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
  if(/\b(?:youtube|yt)\b[\s\S]*\b(?:search|find|look up|play|watch|show|open|video|videos|news|music|song)\b|\b(?:search|find|look up|play|watch)\b[\s\S]*\b(?:youtube|yt)\b/.test(s))return {type:'YOUTUBE',owner:'jarvis-youtube-command-authority-v1.js'};
  if(/\b(?:news|headlines)\b/.test(s))return {type:'NEWS',owner:'news-runtime'};
- // Time is a hard command. It outranks stale book/person context and accepts
- // natural variants including "time now" and "what time is it".
  if(/^(?:what(?:'s| is|s)\s+)?(?:the\s+)?(?:current\s+|local\s+)?time(?:\s+now)?$/.test(s)||/^(?:tell|give|show)\s+(?:me\s+)?(?:the\s+)?(?:current\s+|local\s+)?time(?:\s+now)?$/.test(s))return {type:'TIME',owner:'jarvis-command-deterministic-fix-v1.js'};
  if(/\b(?:weather|temperature|forecast|how hot|how cold)\b/.test(s))return {type:'WEATHER',owner:'jarvis-weather-intent-fix.js'};
  if(/\b(?:date|today|day)\b/.test(s)&&(/^(?:what|tell|give|show|current|today)/.test(s)))return {type:'DATE',owner:'command-runtime'};
@@ -38,12 +36,12 @@ const route=q=>{
  if(exactEntity&&entity.type==='PLACE'&&entity.score>=0.8)return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js',entity};
  if(exactEntity&&entity&&(entity.type==='BOOK'||entity.type==='BOOK_AUTHOR')&&entity.score>=0.88)return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',entity};
  if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|reading)\b/.test(s)&&!/^read\s+(?:my\s+)?notes?$/.test(s))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js'};
+ if(/^\s*(?:search|look\s*up|lookup|google|bing|web\s+search)\b/.test(s)||/\b(?:search|look\s+up|browse|google|bing|internet|web|search\s+for)\b[\s\S]*\b(?:internet|web|online)\b/.test(s)||/\b(?:search|look up|browse|google|bing|internet|web|search for)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  if(/\b(?:pick|choose|select)\b[\s\S]*\b(?:or|versus|vs\.?|\/)\b/.test(s)||/^.{1,48}\s+(?:or|versus|vs\.?|\/)\s+.{1,48}$/.test(s))return {type:'CHOICE',owner:'jarvis-command-intelligence-v1.js'};
- if(/\b(?:search|look up|browse|google|bing|internet|web|search for)\b/.test(s))return {type:'SEARCH',owner:'search-runtime'};
  return {type:'CONVERSATION_OR_INTELLIGENCE',owner:'intelligence-runtime',entity};
 };
 const snapshot=q=>{const r=route(q);window.__JARVIS_COMMAND_ROUTE__={...r,text:clean(q),at:Date.now()};return window.__JARVIS_COMMAND_ROUTE__};
-window.jarvisCommandAuthority=Object.freeze({version:'12.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
+window.jarvisCommandAuthority=Object.freeze({version:'13.0.0',route:snapshot,get:()=>({...window.__JARVIS_COMMAND_ROUTE__})});
 window.addEventListener('jarvis:voice-command',e=>{const text=clean(e.detail?.text);if(text)snapshot(text)},true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const i=f.querySelector('#commandInput');if(i instanceof HTMLInputElement)snapshot(i.value)},true);
 })();
