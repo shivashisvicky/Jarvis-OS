@@ -4,10 +4,14 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 const loadRuntime = () => {
-  const window: any = { __JARVIS_ENTITY__: null, addEventListener() {} };
-  const document: any = { addEventListener() {} };
-  const context = vm.createContext({ window, document, console, structuredClone });
-  for (const file of ['jarvis-context-engine-v1.js', 'jarvis-command-authority-v2.js']) {
+  const window: any = { __JARVIS_ENTITY__: null, addEventListener() {}, dispatchEvent() {} };
+  const document: any = { addEventListener() {}, querySelectorAll() { return []; }, querySelector() { return null; } };
+  class CustomEventStub {
+    detail: any;
+    constructor(_type: string, init: any = {}) { this.detail = init.detail; }
+  }
+  const context = vm.createContext({ window, document, console, structuredClone, CustomEvent: CustomEventStub });
+  for (const file of ['jarvis-context-engine-v1.js', 'jarvis-command-authority-v2.js', 'jarvis-context-reference-authority-v1.js']) {
     const source = fs.readFileSync(path.resolve(file), 'utf8');
     vm.runInContext(source, context, { filename: file });
   }
@@ -68,6 +72,18 @@ describe('JARVIS contextual authority', () => {
       matched: false,
       reason: 'no_context'
     });
+  });
+
+  it('accepts no-space numbered reference syntax at the authority boundary', () => {
+    jarvis.jarvisContextEngine.set({
+      domain: 'BOOKS',
+      query: 'beowulf',
+      results: [{ title: 'Beowulf' }, { title: 'Beowulf II' }, { title: 'Beowulf III' }]
+    });
+
+    expect(jarvis.jarvisContextReferenceAuthority.run('open no.2')).toBe(true);
+    expect(jarvis.jarvisContextReferenceAuthority.run('open result2')).toBe(true);
+    expect(jarvis.jarvisContextReferenceAuthority.run('open number3')).toBe(true);
   });
 
   it('preserves explicit map intent over contextual follow-up routing', () => {
