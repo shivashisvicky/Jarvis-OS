@@ -1,17 +1,18 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_WEB_SEARCH_V3__) return;
-  window.__JARVIS_WEB_SEARCH_V3__ = true;
+  if (window.__JARVIS_WEB_SEARCH_V4__) return;
+  window.__JARVIS_WEB_SEARCH_V4__ = true;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
 
   function normalizeSearchQuery(raw) {
     let q = String(raw || '').replace(/\s+/g, ' ').trim();
-    q = q.replace(/^(?:open|search|find|show|lookup|look\s+up)\s+(?:for\s+)?/i, '');
-    q = q.replace(/^(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i, '');
     q = q.replace(/^search\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i, '');
-    q = q.replace(/^look\s+up\s+(?:on\s+)?(?:the\s+)?(?:internet|web)\s+(?:for|about)\s+/i, '');
+    q = q.replace(/^look\s+up\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i, '');
+    q = q.replace(/^find\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i, '');
+    q = q.replace(/^(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i, '');
+    q = q.replace(/^(?:search|look\s+up|find)\s+(?:for\s+)?/i, '');
     q = q.replace(/\b1st\b/gi,'first').replace(/\b2nd\b/gi,'second').replace(/\b3rd\b/gi,'third').replace(/\b4th\b/gi,'fourth').replace(/\b5th\b/gi,'fifth');
     q = q.replace(/\bUS\b/gi,'United States').replace(/\bUSA\b/gi,'United States');
     return q.trim();
@@ -61,6 +62,47 @@
     publishContext(visible, query, provider);
   }
 
+  async function runSearch(provider, rawQuery, status, results) {
+    const query = normalizeSearchQuery(rawQuery);
+    if (!query) {
+      status.textContent = 'READY';
+      results.innerHTML = '<div class="empty">Enter a search query.</div>';
+      publishContext([], '', provider);
+      return;
+    }
+    status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
+    results.innerHTML = '<div class="empty">Searching…</div>';
+    try {
+      const payload = await search(provider, query);
+      const actualProvider = payload.provider || provider;
+      const providerLabel = actualProvider === 'bing' && payload.fallback ? 'BING FALLBACK' : actualProvider.toUpperCase();
+      status.textContent = `${payload.results.length} RESULTS · ${providerLabel}`;
+      render(payload.results, actualProvider, query, results);
+    } catch {
+      status.textContent = 'DEGRADED';
+      results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
+      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query || rawQuery), { once: true });
+    }
+  }
+
+  function runCommandHandoff() {
+    try {
+      const route = window.__JARVIS_COMMAND_ROUTE__;
+      if (!route || route.type !== 'SEARCH' || !route.text || window.__JARVIS_WEB_COMMAND_CONSUMED__ === route.at) return;
+      const input = document.querySelector('#webQuery');
+      const button = document.querySelector('#webSearch');
+      const status = document.querySelector('#jwsStatus');
+      const results = document.querySelector('#jwsResults');
+      if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLElement) || !status || !results) return;
+      const query = normalizeSearchQuery(route.text);
+      if (!query) return;
+      window.__JARVIS_WEB_COMMAND_CONSUMED__ = route.at;
+      input.value = query;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      button.click();
+    } catch {}
+  }
+
   document.addEventListener('click', event => {
     const button = event.target?.closest?.('#webSearch');
     if (!button) return;
@@ -73,24 +115,7 @@
     const rawQuery = input?.value?.trim() || '';
     const provider = providerEl?.value === 'brave' ? 'brave' : 'bing';
     if (!status || !results) return;
-    if (!rawQuery) {
-      status.textContent = 'READY';
-      results.innerHTML = '<div class="empty">Enter a search query.</div>';
-      publishContext([], '', provider);
-      return;
-    }
-    status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
-    results.innerHTML = '<div class="empty">Searching…</div>';
-    search(provider, normalizeSearchQuery(rawQuery)).then(payload => {
-      const actualProvider = payload.provider || provider;
-      const providerLabel = actualProvider === 'bing' && payload.fallback ? 'BING FALLBACK' : actualProvider.toUpperCase();
-      status.textContent = `${payload.results.length} RESULTS · ${providerLabel}`;
-      render(payload.results, actualProvider, normalizeSearchQuery(rawQuery), results);
-    }).catch(() => {
-      status.textContent = 'DEGRADED';
-      results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
-      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, rawQuery), { once: true });
-    });
+    void runSearch(provider, rawQuery, status, results);
   }, true);
 
   document.addEventListener('keydown', event => {
@@ -99,4 +124,14 @@
       document.querySelector('#webSearch')?.click();
     }
   }, true);
+
+  // A voice command opens the web module asynchronously. The command authority
+  // snapshot survives that handoff, so consume it only after the Search Hub is
+  // mounted. This fixes the command wrapper without touching result objects or
+  // ordinal-reference handling.
+  const handoffObserver = new MutationObserver(runCommandHandoff);
+  handoffObserver.observe(document.documentElement, { childList: true, subtree: true });
+  window.setTimeout(runCommandHandoff, 0);
+  window.setTimeout(runCommandHandoff, 120);
+  window.setTimeout(runCommandHandoff, 500);
 })();
