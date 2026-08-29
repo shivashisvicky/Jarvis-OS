@@ -15,7 +15,10 @@
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=20260828-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => {
+    const version = name === 'jarvis-web-search.js' ? '20260829-search-context-v1' : `20260829-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
+    return `./${name}?v=${version}`;
+  };
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
