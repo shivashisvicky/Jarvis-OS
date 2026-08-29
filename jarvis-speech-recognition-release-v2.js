@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V4__)return;
-window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V4__=true;
+if(window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V5__)return;
+window.__JARVIS_SPEECH_RECOGNITION_RELEASE_V5__=true;
 const C=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(!C)return;
 const active=new Set();
@@ -25,16 +25,23 @@ const armCommandRelease=()=>{
   try{window.speechSynthesis?.cancel()}catch{}
 };
 
+const hardReleaseAfterFinalResult=r=>{
+  commandReleaseLatch=true;
+  release('final-result-mic-release');
+  // Deliberately do not touch speechSynthesis here. The command's response is
+  // produced after the recognition result reaches the normal command handler.
+};
+
 const attachFinalResultGuard=r=>{
   try{
     r.addEventListener('result',event=>{
       try{
         for(let i=event.resultIndex;i<event.results.length;i++){
           if(event.results[i]?.isFinal){
-            // Abort synchronously before JARVIS's normal onresult handler can
-            // dispatch navigation/media work or an onend restart.
-            armCommandRelease();
-            trace('final-result-mic-release');
+            // Capture-phase guard runs before the application's onresult handler.
+            // This closes the microphone and latches recognition before media,
+            // navigation, or any later onend restart can reopen it.
+            hardReleaseAfterFinalResult(r);
             return;
           }
         }
