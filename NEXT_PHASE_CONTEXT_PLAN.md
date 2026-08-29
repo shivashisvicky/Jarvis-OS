@@ -1,12 +1,42 @@
-# Next Phase: Context & Entity Memory v1
+# Next Phase Context Plan
 
-Goal: make JARVIS retain structured conversational context across a short command chain without changing working domain routers.
+**Updated:** 2026-08-29
 
-Examples:
-- Show me restaurants in Jagannath Nagar -> remember domain/location/results
-- Which one is nearest? -> resolve against remembered results
-- Take me there -> resolve selected entity, canonicalize the place name, navigate
-- Find Beowulf -> remember BOOK entity
-- Open the first one -> resolve ordinal against remembered results
+## Baseline
 
-Guardrail: additive layer only. Do not rewrite stable map/search/media routers unless tests demonstrate a concrete regression.
+Frozen golden baseline: `ede622c6e7f35dbd67f2007806122116d724dcb5`.
+
+Ebook/Gutenberg is verified and protected. Do not modify it for unrelated work.
+
+## Next phase
+
+Shell / Intelligence, one issue at a time.
+
+### Issue 1: numbered result references
+
+Target commands:
+
+- `open result 2`
+- `open number 2`
+- `open no. 2`
+
+The current reference authority recognizes these forms but does not resolve the numeric index in its fallback resolver. Fix only that mismatch and add/extend deterministic coverage.
+
+### After Issue 1 is green
+
+Handle each as a separate issue:
+
+1. ordinal references including `last`;
+2. contextual location references (`here`, `there`, `nearby`);
+3. context expiry/clearing;
+4. explicit intent versus stale context;
+5. action/result chaining;
+6. entity continuity;
+7. ambiguity resolution;
+8. graceful clarification.
+
+## Operating rule
+
+**One issue → one fix → one push → one validation.**
+
+Never bundle several of these into one deployment.
