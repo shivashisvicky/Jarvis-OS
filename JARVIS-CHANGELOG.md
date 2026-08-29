@@ -18,6 +18,7 @@
 - Shell / Intelligence is the next active 3.0 track.
 - The next single issue is numbered result references: `open result 2`, `open number 2`, `open no. 2`.
 - Historical/duplicate Ebook and Media experiments should not be treated as active work.
+- Session handoff is documented in `JARVIS-CONTINUATION.md`, `JARVIS-OS-TRACKER.md`, `JARVIS_ROADMAP.md`, and `NEXT_PHASE_CONTEXT_PLAN.md`.
 
 ### Engineering policy
 
@@ -32,11 +33,3 @@ Every change follows **one issue → one fix → one push → one validation cyc
 - Regression ledger added in `JARVIS-REGRESSIONS.md`.
 - Architecture guardrails added in `JARVIS-ARCHITECTURE.md`.
 - Ebook/Gutenberg stabilization was the active track.
-
-### Recent Ebook work
-
-- Added Beowulf live regression coverage.
-- Added author entity regression coverage.
-- Corrected author test semantics to accept `BOOK_AUTHOR` as a legitimate author entity while still rejecting generic Web/Search routing.
-- Added/iterated Gutenberg network race and reader source fallback handling.
-- Converted Ebook stability layer toward guard-only behaviour so it does not compete with the canonical Ebook authority.
