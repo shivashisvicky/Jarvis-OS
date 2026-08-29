@@ -26,7 +26,7 @@ Verified in the deployed build:
 
 - JARVIS OS 3.0 foundation.
 - Command/authority consolidation and compatibility cleanup.
-- Generic entity intelligence for people/books without hardcoding specific names.
+- Generic entity intelligence for people/books without hardcoded specific names.
 - Ebook/Gutenberg search, readable-edition selection, audio filtering, 404 filtering and reader handoff.
 - Maps, News and Media hardening from the earlier 3.0 track.
 - iOS voice path restoration and protection from unrelated Ebook changes.
@@ -89,4 +89,4 @@ Historical/duplicate experiments are not active roadmap work. Completed issues/P
 
 ## Next-session instruction
 
-Read this file and `JARVIS-BASELINES.md` first. Continue from the golden baseline and work only on the current single issue. Do not restart Ebook diagnosis from historical symptoms unless a new regression is observed.
+Read this file, `JARVIS-BASELINES.md`, and `JARVIS-OS-TRACKER.md` first. Continue from the golden baseline and work only on the current single issue. Do not restart Ebook diagnosis from historical symptoms unless a new regression is observed.
