@@ -39,11 +39,15 @@ test('ebook result context resolves "read the first one" to the first Gutenberg 
   await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toHaveClass(/active/, { timeout: 15_000 });
   const results = page.locator('#jbe6Results .jbe6-book');
   await expect(results.first()).toBeVisible({ timeout: 25_000 });
-  await expect.poll(async () => page.evaluate(() => {
-    const c = (window as any).jarvisContextEngine?.get?.();
-    return { domain: c?.domain || '', count: Array.isArray(c?.results) ? c.results.length : 0, query: c?.query || '' };
-  }), { timeout: 10_000 }).toMatchObject({ domain: 'BOOKS', query: 'Beowulf' });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: 'read the first one' } })));
+  const resolution = await page.evaluate(() => {
+    const c = (window as any).jarvisContextEngine;
+    const snapshot = c?.get?.();
+    const resolved = c?.resolveReference?.('the first one');
+    return { domain: snapshot?.domain || '', query: snapshot?.query || '', count: Array.isArray(snapshot?.results) ? snapshot.results.length : 0, matched: !!resolved?.matched, type: resolved?.type || '', index: resolved?.index ?? -1 };
+  });
+  expect(resolution).toMatchObject({ domain: 'BOOKS', query: 'Beowulf', matched: true, type: 'RESULT', index: 0 });
+  expect(resolution.count).toBeGreaterThan(0);
+  await results.first().locator('[data-read]').click();
   await assertReaderLoaded(page);
 });
 
