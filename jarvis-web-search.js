@@ -2,7 +2,10 @@
   'use strict';
   if (window.__JARVIS_WEB_SEARCH_V5__) return;
   window.__JARVIS_WEB_SEARCH_V5__ = true;
+  // Keep the legacy readiness signal for the existing live E2E gate while V5
+  // remains the canonical implementation marker.
   window.__JARVIS_WEB_SEARCH_V4__ = true;
+  window.__JARVIS_WEB_SEARCH_V3__ = true;
 
   const esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
@@ -22,8 +25,11 @@
       /^(?:google|bing)\s+(?:search\s+)?(?:for\s+)?/i,
     ];
     for (const prefix of prefixes) {
-      q = q.replace(prefix, '').trim();
-      if (q) break;
+      const next = q.replace(prefix, '').trim();
+      if (next !== q) {
+        q = next;
+        break;
+      }
     }
 
     q = q.replace(/\b1st\b/gi, 'first')
@@ -36,8 +42,6 @@
     return q.trim();
   }
 
-  // Make the canonicalizer available to other Search Hub/context code so
-  // there is one definition of what the actual provider query means.
   window.jarvisNormalizeSearchQuery = normalizeSearchQuery;
 
   async function search(provider, query) {
@@ -108,9 +112,6 @@
       return;
     }
 
-    // Keep the visible Search Hub input canonical too. This prevents another
-    // command handler from leaving the raw voice phrase in #webQuery and later
-    // reintroducing it into result-reference context.
     const input = document.querySelector('#webQuery');
     if (input instanceof HTMLInputElement && input.value !== query) {
       input.value = query;
