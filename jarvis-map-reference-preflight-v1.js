@@ -9,13 +9,14 @@ window.__JARVIS_MAP_REFERENCE_PREFLIGHT_V1__=true;
  * This is intentionally narrower than command authority: it owns no intent
  * classification and no search routing. It only consumes the live Maps
  * result set for an ordinal follow-up such as "open the second one".
- * This mirrors the existing Search/Media reference pattern while avoiding
- * a second Maps search or a stale context snapshot.
+ * If the Maps result UI is not mounted (for example after returning Home),
+ * this preflight MUST decline so the canonical context-reference authority
+ * can navigate back to Maps and resolve the same live result context.
  */
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const indexOf=q=>{
  const s=clean(q).toLowerCase().replace(/[?.!]+$/,'');
- if(!/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|last|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result|place))?$/.test(s))return null;
+ if(!/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|last|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:map\s+)?(?:one|result|place)|\s+map)?$/.test(s))return null;
  if(/\b(?:first|1st|one)\b/.test(s))return 0;
  if(/\b(?:second|2nd|two)\b/.test(s))return 1;
  if(/\b(?:third|3rd|three)\b/.test(s))return 2;
@@ -26,6 +27,8 @@ const live=()=>{try{return window.jarvisMapAuthority?.getContext?.()||null}catch
 const speak=text=>{const el=document.querySelector('#jarvisReply');if(el){el.textContent=text;el.classList.add('visible')}try{window.jarvisVoiceAuthoritySpeak?.(text)||window.jarvisCinematicSpeak?.(text)||window.jarvisSpeak?.(text)}catch{}};
 const open=q=>{
  const wanted=indexOf(q);if(wanted===null)return false;
+ /* No Maps result surface means this fast path does not own the command. */
+ if(!document.querySelector('#mapResults'))return false;
  const ctx=live();
  if(String(ctx?.domain||'').toUpperCase()!=='MAPS'||!ctx?.active||!Array.isArray(ctx.results)||!ctx.results.length)return false;
  const index=wanted===-1?ctx.results.length-1:wanted;
@@ -44,7 +47,7 @@ const open=q=>{
  const advance=()=>{
   if(clickCurrent())return;
   ++attempts;
-  if(attempts>20){speak('I could not open that map result.');return}
+  if(attempts>60){speak('I could not open that map result.');return}
   /* Results 1-6 are already on the current page. Wait for Maps to finish
      rendering instead of incorrectly treating a missing NEXT button as a
      pagination failure. */
@@ -60,5 +63,5 @@ const voice=e=>{if(open(e.detail?.text))stop(e)};
 const submit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value;if(open(q))stop(e)};
 window.addEventListener('jarvis:voice-command',voice,true);
 document.addEventListener('submit',submit,true);
-window.jarvisMapReferencePreflight={version:'1.1.0',run:open};
+window.jarvisMapReferencePreflight={version:'1.2.0',run:open};
 })();
