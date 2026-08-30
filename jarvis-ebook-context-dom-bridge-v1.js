@@ -1,9 +1,23 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_EBOOK_CONTEXT_DOM_BRIDGE_V1__)return;
-window.__JARVIS_EBOOK_CONTEXT_DOM_BRIDGE_V1__=true;
+if(window.__JARVIS_EBOOK_CONTEXT_DOM_BRIDGE_V2__)return;
+window.__JARVIS_EBOOK_CONTEXT_DOM_BRIDGE_V2__=true;
 const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
+let lastSignature='';
+const isEbookSurface=()=>{
+  const nav=document.querySelector('.nav[data-app="files"]');
+  const tab=document.querySelector('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]');
+  const panel=document.querySelector('#jbe6Panel');
+  if(nav&&nav.classList.contains('selected')===false)return false;
+  if(tab&&tab.classList.contains('active')===false)return false;
+  if(panel){
+    const cs=getComputedStyle(panel);
+    if(cs.display==='none'||cs.visibility==='hidden')return false;
+  }
+  return !!document.querySelector('#jbe6Results');
+};
 const sync=()=>{try{
+  if(!isEbookSurface())return false;
   const panel=document.querySelector('#jbe6Panel');
   const cards=[...document.querySelectorAll('#jbe6Results .jbe6-book')];
   if(!panel||!cards.length)return false;
@@ -16,13 +30,20 @@ const sync=()=>{try{
   })).filter(x=>x.id||x.title);
   if(!results.length)return false;
   const query=clean(panel.querySelector('#jbe6Query')?.value||'');
+  const signature=`${query.toLowerCase()}|${results.map(x=>`${x.id}:${x.title}`).join('|')}`;
+  if(signature===lastSignature)return true;
+  lastSignature=signature;
+  const current=window.jarvisContextEngine?.get?.();
+  const currentSame=current?.domain==='BOOKS'&&clean(current?.query||'').toLowerCase()===query.toLowerCase()&&Array.isArray(current?.results)&&current.results.length===results.length&&current.results.every((r,i)=>String(r?.id||'')===String(results[i]?.id||''));
+  if(currentSame)return true;
   const ctx={domain:'BOOKS',active:true,intent:'BOOK_SEARCH',entity:{type:'BOOK',title:results[0]?.title||''},query,results,selected:null};
-  window.jarvisContextEngine?.set?.(ctx,'replace');
+  window.jarvisContextEngine?.set?.(ctx,'merge');
   window.dispatchEvent(new CustomEvent('jarvis:ebook-context',{detail:ctx}));
   return true;
 }catch{return false}};
-const observe=()=>{const box=document.querySelector('#jbe6Results');if(!box||box.dataset.jarvisEbookContext==='1')return;box.dataset.jarvisEbookContext='1';new MutationObserver(()=>sync()).observe(box,{childList:true,subtree:true});sync()};
+const observe=()=>{const box=document.querySelector('#jbe6Results');if(!box||box.dataset.jarvisEbookContext==='1')return;box.dataset.jarvisEbookContext='1';new MutationObserver(()=>sync()).observe(box,{childList:true,subtree:true,characterData:true});sync()};
 new MutationObserver(observe).observe(document.body,{childList:true,subtree:true});
-setInterval(sync,500);
-window.addEventListener('jarvis:ebook-context',e=>{const d=e.detail||{};if(!Array.isArray(d.results)||!d.results.length)return;try{window.jarvisContextEngine?.set?.({domain:'BOOKS',active:true,intent:d.intent||'BOOK_SEARCH',entity:d.entity||null,query:d.query||'',results:d.results,selected:d.selected||null},'replace')}catch{}});
+const timer=window.setInterval(sync,750);
+window.addEventListener('pagehide',()=>window.clearInterval(timer),{once:true});
+window.addEventListener('jarvis:ebook-context',e=>{const d=e.detail||{};if(!Array.isArray(d.results)||!d.results.length)return;try{window.jarvisContextEngine?.set?.({domain:'BOOKS',active:true,intent:d.intent||'BOOK_SEARCH',entity:d.entity||null,query:d.query||'',results:d.results,selected:d.selected||null},'merge')}catch{}});
 })();
