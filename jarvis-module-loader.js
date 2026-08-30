@@ -16,7 +16,7 @@
   const loaded = new Map();
   const pending = new Map();
   const assetUrl = name => {
-    const version = name === 'jarvis-web-search.js' ? '20260829-search-command-handoff-v1' : `20260829-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
+    const version = name === 'jarvis-web-search.js' ? '20260830-search-context-v2' : `20260830-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
     return `./${name}?v=${version}`;
   };
 
