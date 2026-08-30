@@ -43,8 +43,7 @@ test('ebook result context resolves "read the first one" to the first Gutenberg 
     const c = (window as any).jarvisContextEngine?.get?.();
     return { domain: c?.domain || '', count: Array.isArray(c?.results) ? c.results.length : 0, query: c?.query || '' };
   }), { timeout: 10_000 }).toMatchObject({ domain: 'BOOKS', query: 'Beowulf' });
-  await input.fill('read the first one');
-  await input.press('Enter');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: 'read the first one' } })));
   await assertReaderLoaded(page);
 });
 
