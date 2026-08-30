@@ -16,10 +16,11 @@ const trace=(stage,data={})=>{try{console.info('[JARVIS:ENTITY_TRACE]',stage,dat
 const cached=q=>{try{const x=JSON.parse(sessionStorage.getItem(CACHE+q.toLowerCase())||'');if(x&&Date.now()-x.at<TTL){trace('cache-hit',{query:q,type:x.result?.type,source:x.result?.source});return x.result}}catch{}return null};
 const store=(q,result)=>{if(!result||result.type==='UNKNOWN')return;try{sessionStorage.setItem(CACHE+q.toLowerCase(),JSON.stringify({at:Date.now(),result}))}catch{}};
 const words=s=>new Set(lower(s).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').split(/\s+/).filter(Boolean));
-const authorMatch=(query,name)=>{const q=words(query),a=words(name);if(!q.size||!a.size)return 0;let hit=0;for(const w of q)if(a.has(w))hit++;return hit/q.size};
-const sameAuthor=(query,name)=>{const q=words(query),a=words(name);return q.size===a.size&&authorMatch(query,name)===1};
+const authorWords=s=>new Set([...words(s)].filter(w=>!/^\d{4}$/.test(w)&&!/^\d+$/.test(w)));
+const authorMatch=(query,name)=>{const q=authorWords(query),a=authorWords(name);if(!q.size||!a.size)return 0;let hit=0;for(const w of q)if(a.has(w))hit++;return hit/q.size};
+const sameAuthor=(query,name)=>{const q=authorWords(query),a=authorWords(name);return q.size===a.size&&authorMatch(query,name)===1};
 const gutenberg=async entity=>{
- const queries=[entity];const parts=entity.split(/\s+/).filter(Boolean);if(parts.length>=2){const reversed=[...parts].reverse().join(', ');if(reversed.toLowerCase()!==entity.toLowerCase())queries.push(reversed)}
+ const queries=[entity];const parts=entity.split(/\s+/).filter(Boolean);if(parts.length>=2){const reversed=[...parts].reverse().join(', ');if(reversed.toLowerCase()!==entity.toLowerCase())queries.push(reversed)}if(parts.length>=3){const surname=parts[parts.length-1];if(!queries.some(q=>q.toLowerCase()===surname.toLowerCase()))queries.push(surname)}
  trace('gutenberg-request',{entity,queries});
  const settled=await Promise.allSettled(queries.map(q=>fetchJson(`https://gutendex.com/books/?search=${encodeURIComponent(q)}&languages=en`)));
  const rows=[];let successes=0;
@@ -44,5 +45,5 @@ const dispatch=(raw,res,mode)=>{const detail={text:raw,resolved:true,entity:{nam
 const intercept=e=>{const raw=normalize(e.detail?.text);if(!raw||e.detail?.resolved)return;const target=candidate(raw);if(!target)return;e.preventDefault?.();e.stopImmediatePropagation?.();resolve(target.entity).then(res=>dispatch(raw,res,target.mode))};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';const target=candidate(raw);if(!target)return;e.preventDefault();e.stopImmediatePropagation();resolve(target.entity).then(res=>{if(input instanceof HTMLInputElement)input.value='';dispatch(raw,res,target.mode)})},true);
-window.jarvisEntityIntelligence=Object.freeze({version:'6.0.0',resolve,candidate});
+window.jarvisEntityIntelligence=Object.freeze({version:'6.1.0',resolve,candidate});
 })();
