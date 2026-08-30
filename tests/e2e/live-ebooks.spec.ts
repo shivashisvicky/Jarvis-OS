@@ -29,6 +29,25 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
 });
 
+test('ebook result context resolves "read the first one" to the first Gutenberg card', async ({ page }) => {
+  await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  const input = page.locator('#commandInput');
+  await expect(input).toBeVisible({ timeout: 15_000 });
+  await input.fill('Beowulf');
+  await input.press('Enter');
+  await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
+  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toHaveClass(/active/, { timeout: 15_000 });
+  const results = page.locator('#jbe6Results .jbe6-book');
+  await expect(results.first()).toBeVisible({ timeout: 25_000 });
+  await expect.poll(async () => page.evaluate(() => {
+    const c = (window as any).jarvisContextEngine?.get?.();
+    return { domain: c?.domain || '', count: Array.isArray(c?.results) ? c.results.length : 0, query: c?.query || '' };
+  }), { timeout: 10_000 }).toMatchObject({ domain: 'BOOKS', query: 'Beowulf' });
+  await input.fill('read the first one');
+  await input.press('Enter');
+  await assertReaderLoaded(page);
+});
+
 test('Beowulf first result opens readable text and preserves chapter navigation', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
