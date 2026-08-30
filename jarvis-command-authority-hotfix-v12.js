@@ -3,6 +3,29 @@
 if(window.__JARVIS_COMMAND_AUTHORITY_HOTFIX_V14__)return;
 window.__JARVIS_COMMAND_AUTHORITY_HOTFIX_V14__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+/* Context bridge: the Maps authority owns the live result list. If another
+   layer has a stale/empty snapshot, expose that live list through the
+   canonical context getter before contextual open commands resolve. */
+try{
+ const engine=window.jarvisContextEngine;
+ const map=window.jarvisMapAuthority;
+ if(engine&&map&&typeof engine.get==='function'&&typeof map.getContext==='function'&&!engine.__JARVIS_MAP_LIVE_CONTEXT_BRIDGED__){
+  const originalGet=engine.get.bind(engine);
+  engine.get=()=>{
+   const base=originalGet()||{};
+   const live=map.getContext()||{};
+   const baseResults=Array.isArray(base.results)?base.results:[];
+   const liveResults=Array.isArray(live.results)?live.results:[];
+   if(String(base.domain||'').toUpperCase()==='MAPS'&&baseResults.length)return base;
+   if(String(live.domain||'').toUpperCase()==='MAPS'&&liveResults.length){
+    return {...base,...live,domain:'MAPS',active:true,results:liveResults};
+   }
+   return base;
+  };
+  engine.__JARVIS_MAP_LIVE_CONTEXT_BRIDGED__=true;
+ }
+}catch{}
+
 const reply=text=>{
  const el=document.querySelector('#jarvisReply');
  if(el){el.textContent=text;el.classList.add('visible')}
