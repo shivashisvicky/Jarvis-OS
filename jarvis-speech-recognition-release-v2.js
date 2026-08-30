@@ -22,7 +22,6 @@ const release=(reason='release')=>{
 const armCommandRelease=()=>{
   commandReleaseLatch=true;
   release('command-complete');
-  try{window.speechSynthesis?.cancel()}catch{}
 };
 
 const hardReleaseAfterFinalResult=r=>{
