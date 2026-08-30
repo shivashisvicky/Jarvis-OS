@@ -1,23 +1,44 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_WEB_SEARCH_V4__) return;
+  if (window.__JARVIS_WEB_SEARCH_V5__) return;
+  window.__JARVIS_WEB_SEARCH_V5__ = true;
   window.__JARVIS_WEB_SEARCH_V4__ = true;
-  window.__JARVIS_WEB_SEARCH_V3__ = true;
 
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
 
+  // Canonical search-query extraction. The Search Hub must never send the
+  // command wrapper ("search the internet for", etc.) to the provider.
   function normalizeSearchQuery(raw) {
     let q = String(raw || '').replace(/\s+/g, ' ').trim();
-    q = q.replace(/^search\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i, '');
-    q = q.replace(/^look\s+up\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i, '');
-    q = q.replace(/^find\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i, '');
-    q = q.replace(/^(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i, '');
-    q = q.replace(/^(?:search|look\s+up|find)\s+(?:for\s+)?/i, '');
-    q = q.replace(/\b1st\b/gi,'first').replace(/\b2nd\b/gi,'second').replace(/\b3rd\b/gi,'third').replace(/\b4th\b/gi,'fourth').replace(/\b5th\b/gi,'fifth');
-    q = q.replace(/\bUS\b/gi,'United States').replace(/\bUSA\b/gi,'United States');
+    q = q.replace(/[.!?]+$/, '').trim();
+
+    const prefixes = [
+      /^search\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^look\s+up\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i,
+      /^find\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i,
+      /^(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:search|look\s+up|find)\s+(?:for\s+)?/i,
+      /^(?:google|bing)\s+(?:search\s+)?(?:for\s+)?/i,
+    ];
+    for (const prefix of prefixes) {
+      q = q.replace(prefix, '').trim();
+      if (q) break;
+    }
+
+    q = q.replace(/\b1st\b/gi, 'first')
+         .replace(/\b2nd\b/gi, 'second')
+         .replace(/\b3rd\b/gi, 'third')
+         .replace(/\b4th\b/gi, 'fourth')
+         .replace(/\b5th\b/gi, 'fifth')
+         .replace(/\bUSA\b/gi, 'United States')
+         .replace(/\bUS\b/gi, 'United States');
     return q.trim();
   }
+
+  // Make the canonicalizer available to other Search Hub/context code so
+  // there is one definition of what the actual provider query means.
+  window.jarvisNormalizeSearchQuery = normalizeSearchQuery;
 
   async function search(provider, query) {
     const controller = new AbortController();
@@ -42,9 +63,10 @@
   }
 
   function publishContext(items, query, provider) {
+    const canonicalQuery = normalizeSearchQuery(query);
     const snapshot = {
       domain: 'SEARCH',
-      query: String(query || '').trim(),
+      query: canonicalQuery,
       provider: String(provider || '').toLowerCase(),
       results: Array.isArray(items) ? items.slice(0, 8) : [],
       selected: null,
@@ -53,8 +75,6 @@
     try {
       window.__JARVIS_SEARCH_CONTEXT__ = snapshot;
       window.dispatchEvent(new CustomEvent('jarvis:search-context', { detail: snapshot }));
-      // Write directly as well as broadcasting. This prevents a late-loaded
-      // feature listener from missing the search-context event entirely.
       window.jarvisContextEngine?.set?.({
         domain: 'SEARCH',
         query: snapshot.query || null,
@@ -66,16 +86,17 @@
   }
 
   function render(items, provider, query, results) {
+    const canonicalQuery = normalizeSearchQuery(query);
     const label = String(provider || 'web').toUpperCase();
     if (!items.length) {
       results.innerHTML = `<div class="empty">No web results found. <button class="secondary" id="webExternal">OPEN ${esc(label)} ↗</button></div>`;
-      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
-      publishContext([], query, provider);
+      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, canonicalQuery), { once: true });
+      publishContext([], canonicalQuery, provider);
       return;
     }
-    const visible = items.slice(0,8);
+    const visible = items.slice(0, 8);
     results.innerHTML = visible.map((x, i) => `<article class="web-result" data-jarvis-search-index="${i}"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
-    publishContext(visible, query, provider);
+    publishContext(visible, canonicalQuery, provider);
   }
 
   async function runSearch(provider, rawQuery, status, results) {
@@ -86,6 +107,16 @@
       publishContext([], '', provider);
       return;
     }
+
+    // Keep the visible Search Hub input canonical too. This prevents another
+    // command handler from leaving the raw voice phrase in #webQuery and later
+    // reintroducing it into result-reference context.
+    const input = document.querySelector('#webQuery');
+    if (input instanceof HTMLInputElement && input.value !== query) {
+      input.value = query;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
     status.textContent = `SEARCHING ${provider.toUpperCase()}…`;
     results.innerHTML = '<div class="empty">Searching…</div>';
     try {
@@ -97,8 +128,8 @@
     } catch {
       status.textContent = 'DEGRADED';
       results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
-      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query || rawQuery), { once: true });
-      publishContext([], query || rawQuery, provider);
+      results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query), { once: true });
+      publishContext([], query, provider);
     }
   }
 
@@ -111,11 +142,14 @@
       const status = document.querySelector('#jwsStatus');
       const results = document.querySelector('#jwsResults');
       if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLElement) || !status || !results) return;
+
       const query = normalizeSearchQuery(route.text);
       if (!query) return;
+
       window.__JARVIS_WEB_COMMAND_CONSUMED__ = route.at;
       input.value = query;
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      console.debug('[JARVIS][SEARCH_HANDOFF]', { raw: route.text, normalized: query });
       button.click();
     } catch {}
   }
