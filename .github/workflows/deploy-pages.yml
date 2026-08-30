@@ -113,23 +113,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Checkout source for expected ebook authority
+        uses: actions/checkout@v4
       - name: Poll deployed shell until current ebook authority is visible
         env:
           JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/
         run: |
           set -euo pipefail
+          expected=$(grep -oE 'jarvis-ebook-command-authority-v[0-9]+\.js' index.html | head -1)
+          if [ -z "$expected" ]; then
+            echo 'PAGES_PROPAGATION_FAILED=expected ebook authority not found in source index'
+            exit 1
+          fi
+          echo "EXPECTED_EBOOK_AUTHORITY=$expected"
           target="${JARVIS_LIVE_URL}?deploy=${GITHUB_SHA}&probe=$(date +%s)"
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 30); do
             echo "PAGES_PROPAGATION_CHECK=$attempt url=$target"
             html=$(curl --silent --show-error --fail --max-time 20 -H 'Cache-Control: no-cache' "$target" || true)
-            if printf '%s' "$html" | grep -q 'jarvis-ebook-command-v13'; then
-              echo 'PAGES_PROPAGATION_PASS=ebook-command-v13-visible'
+            if printf '%s' "$html" | grep -q "$expected"; then
+              echo "PAGES_PROPAGATION_PASS=$expected-visible"
               exit 0
             fi
-            echo 'PAGES_PROPAGATION_WAIT=ebook-command-v13-not-visible'
+            echo "PAGES_PROPAGATION_WAIT=$expected-not-visible"
             sleep 10
           done
-          echo 'PAGES_PROPAGATION_FAILED=ebook-command-v13-not-visible-after-200s'
+          echo "PAGES_PROPAGATION_FAILED=$expected-not-visible-after-300s"
           exit 1
 
   live-intelligence-smoke:
@@ -201,7 +209,6 @@ jobs:
     name: Live / In-Shell Web Search
     needs: pages-settle
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
