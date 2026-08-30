@@ -19,9 +19,8 @@
     q = q.replace(/[.!?]+$/, '').trim();
 
     const prefixes = [
-      /^(?:search|look\s+up|find)\s+(?:(?:on|in|from)\s+the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
-      /^(?:search|look\s+up|find)\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
-      /^(?:(?:on|in|from)\s+the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:search|look\s+up|find)\s+(?:(?:on|in|from)\s+)?(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:(?:on|in|from)\s+)?(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
       /^(?:search|look\s+up|find)\s+(?:for|about)?\s*/i,
       /^(?:google|bing)\s+(?:search\s+)?(?:for\s+)?/i,
     ];
