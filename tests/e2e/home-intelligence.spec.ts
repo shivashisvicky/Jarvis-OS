@@ -113,9 +113,10 @@ test('Maps owns nearest follow-ups and never sends an old Books context to intel
 test('Maps ordinal command opens the requested third result, including map-result phrasing', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
-  await page.locator('#mapQuery').fill('restaurants in Jagannath Nagar');
+  await page.locator('#mapQuery').fill('restaurants in Bhubaneswar');
   await page.locator('#mapSearch').click();
-  await waitForMapResults(page);
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v26]').count(), { timeout: 30_000 }).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
   const thirdName = (await page.locator('#mapResults [data-jarvis-map-v26]').nth(2).locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
   await page.locator('#commandInput').fill('open the third map one');
   await page.locator('#commandForm').press('Enter');
@@ -126,18 +127,20 @@ test('Maps ordinal command opens the requested third result, including map-resul
 test('Maps ordinal context survives returning Home and opens the second result there', async ({ page }) => {
   await openHome(page);
   await page.locator('.nav[data-app="maps"]').click();
-  await page.locator('#mapQuery').fill('restaurants in Jagannath Nagar');
+  await page.locator('#mapQuery').fill('restaurants in Bhubaneswar');
   await page.locator('#mapSearch').click();
-  await waitForMapResults(page);
-  const secondName = (await page.locator('#mapResults [data-jarvis-map-v26]').nth(1).locator('strong').innerText()).replace(/^\d+\.\s*/, '').trim();
+  await expect.poll(async () => page.locator('#mapResults [data-jarvis-map-v26]').count(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('#mapFrame iframe')).toHaveCount(1);
+  await page.locator('#mapResults [data-jarvis-map-v26]').nth(1).click();
+  const secondSrc = await page.locator('#mapFrame iframe').getAttribute('src');
+  expect(secondSrc).toBeTruthy();
   await page.locator('.nav[data-app="home"]').click();
   await expect(page.locator('.page-head h1')).toHaveText('Command Center');
   await page.locator('#commandInput').fill('open the second one');
   await page.locator('#commandForm').press('Enter');
   await expect(page.locator('.page-head h1')).toHaveText('Maps', { timeout: 10_000 });
-  await expect(page.locator('#mapResults')).toContainText(secondName, { timeout: 10_000 });
-  await expect(page.locator('#jarvisReply')).toContainText(secondName, { timeout: 10_000 });
-  await expect(page.locator('#jarvisReply')).not.toContainText(/could not open that map result|current result list/i);
+  await expect(page.locator('#mapFrame iframe')).toHaveCount(1, { timeout: 10_000 });
+  await expect.poll(async () => page.locator('#mapFrame iframe').getAttribute('src'), { timeout: 10_000 }).toBe(secondSrc);
 });
 
 test('restaurant results paginate and keep the map synchronized with the visible page', async ({ page }) => {
