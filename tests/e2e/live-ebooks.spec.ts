@@ -100,7 +100,7 @@ test('canonical Gutenberg reader opens a different real book and paginates', asy
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
   await expect(page.locator('.workspace h1')).toHaveText('Files');
-  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toBeVisible({ timeout: 10_000 });
   await page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').click();
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 10_000 });
   const query = page.locator('#jbe6Query');
