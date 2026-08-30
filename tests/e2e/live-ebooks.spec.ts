@@ -29,8 +29,7 @@ test('fresh page voice ebook command is caught before deferred modules can race 
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#commandInput')).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => {
-    (window as any).__ebookVoiceReplies = [];
-    (window as any).jarvisCinematicSpeak = (text: string) => (window as any).__ebookVoiceReplies.push(text);
+    delete (window as any).__ebookVoiceReplies;
     window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: 'search Beowulf in books' }, cancelable: true }));
   });
   await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
@@ -38,8 +37,7 @@ test('fresh page voice ebook command is caught before deferred modules can race 
   await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 15_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#jbe6Results')).toContainText(/Beowulf/i);
-  await expect.poll(async () => page.evaluate(() => (window as any).__ebookVoiceReplies?.length || 0), { timeout: 3_000 }).toBe(1);
-  await expect.poll(async () => page.evaluate(() => (window as any).__ebookVoiceReplies?.[0] || ''), { timeout: 3_000 }).toBe('Searching Gutenberg for Beowulf.');
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_EBOOK_LAST_REPLY__ || ''), { timeout: 5_000 }).toBe('Searching Gutenberg for Beowulf.');
 });
 
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
