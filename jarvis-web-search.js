@@ -42,11 +42,26 @@
   }
 
   function publishContext(items, query, provider) {
+    const snapshot = {
+      domain: 'SEARCH',
+      query: String(query || '').trim(),
+      provider: String(provider || '').toLowerCase(),
+      results: Array.isArray(items) ? items.slice(0, 8) : [],
+      selected: null,
+      updatedAt: Date.now()
+    };
     try {
-      window.dispatchEvent(new CustomEvent('jarvis:search-context', {
-        detail: { domain: 'SEARCH', query, provider, results: items.slice(0, 8), selected: null }
-      }));
-      console.debug('[JARVIS][SEARCH_CONTEXT]', { query, provider, count: items.length });
+      window.__JARVIS_SEARCH_CONTEXT__ = snapshot;
+      window.dispatchEvent(new CustomEvent('jarvis:search-context', { detail: snapshot }));
+      // Write directly as well as broadcasting. This prevents a late-loaded
+      // feature listener from missing the search-context event entirely.
+      window.jarvisContextEngine?.set?.({
+        domain: 'SEARCH',
+        query: snapshot.query || null,
+        results: snapshot.results,
+        selected: null
+      }, 'merge');
+      console.debug('[JARVIS][SEARCH_CONTEXT]', { query: snapshot.query, provider: snapshot.provider, count: snapshot.results.length });
     } catch {}
   }
 
@@ -59,7 +74,7 @@
       return;
     }
     const visible = items.slice(0,8);
-    results.innerHTML = visible.map(x => `<article class="web-result"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
+    results.innerHTML = visible.map((x, i) => `<article class="web-result" data-jarvis-search-index="${i}"><a href="${esc(x.link)}" target="_blank" rel="noreferrer"><strong>${esc(x.title)}</strong><small>${esc(x.source || label)}${x.snippet ? ` · ${esc(String(x.snippet).slice(0,180))}` : ''}</small></a></article>`).join('');
     publishContext(visible, query, provider);
   }
 
@@ -83,6 +98,7 @@
       status.textContent = 'DEGRADED';
       results.innerHTML = `<div class="empty">JARVIS search is unavailable. <button class="secondary" id="webExternal">OPEN ${esc(provider.toUpperCase())} SEARCH ↗</button></div>`;
       results.querySelector('#webExternal')?.addEventListener('click', () => external(provider, query || rawQuery), { once: true });
+      publishContext([], query || rawQuery, provider);
     }
   }
 
