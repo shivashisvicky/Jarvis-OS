@@ -26,9 +26,12 @@ const armCommandRelease=()=>{
 
 const hardReleaseAfterFinalResult=r=>{
   commandReleaseLatch=true;
-  release('final-result-mic-release');
-  // Deliberately do not touch speechSynthesis here. The command's response is
-  // produced after the recognition result reaches the normal command handler.
+  // Do not abort synchronously from the FINAL result capture handler. The
+  // application's normal result handler must receive the event first so it
+  // can route the command and produce the spoken response. The latch already
+  // blocks any onend/start restart; the actual abort can safely happen on the
+  // next task turn.
+  window.setTimeout(()=>release('final-result-mic-release'),0);
 };
 
 const attachFinalResultGuard=r=>{
@@ -37,9 +40,8 @@ const attachFinalResultGuard=r=>{
       try{
         for(let i=event.resultIndex;i<event.results.length;i++){
           if(event.results[i]?.isFinal){
-            // Capture-phase guard runs before the application's onresult handler.
-            // This closes the microphone and latches recognition before media,
-            // navigation, or any later onend restart can reopen it.
+            // Capture the final result only to arm the release boundary. Do not
+            // interrupt the result event before JARVIS's command handler runs.
             hardReleaseAfterFinalResult(r);
             return;
           }
@@ -102,11 +104,9 @@ window.jarvisArmVoiceRelease=(ms=2500)=>{
 window.jarvisVoiceRecognitionTrace=()=>({...window.__JARVIS_VOICE_TRACE__,commandReleaseLatch,activeSessions:active.size,generation:releaseGeneration});
 window.jarvisVoiceReliability={release,arm:armCommandRelease,allow:allowNextSession,trace:window.jarvisVoiceRecognitionTrace};
 
-// Permanent authority boundary: a FINAL recognition result is the hard stop
-// point. This runs at the recognition event boundary, before the app's normal
-// result handler, so navigation/media/text processing cannot keep the mic open
-// or restart recognition. Only a deliberate tap on the voice button opens the
-// next recognition session.
+// Permanent authority boundary: a FINAL recognition result arms the hard stop
+// without interrupting the application's result handler. Only a deliberate
+// tap on the voice button opens the next recognition session.
 window.addEventListener('jarvis:voice-command',armCommandRelease,true);
 document.addEventListener('pointerdown',e=>{const t=e.target;if(t instanceof Element&&t.closest('#voiceBtn,#testVoice'))allowNextSession()},true);
 document.addEventListener('touchstart',e=>{const t=e.target;if(t instanceof Element&&t.closest('#voiceBtn,#testVoice'))allowNextSession()},true);
