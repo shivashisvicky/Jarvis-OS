@@ -42,4 +42,23 @@ test.describe('deployed in-shell search', () => {
     await page.locator('#webSearch').click();
     await expect(page.locator('#webQuery')).toHaveValue('black shoes');
   });
+
+  test('search context recognizes numeric result references including no. 2', async ({ page }) => {
+    await page.goto(new URL(LIVE_URL!).toString(), { waitUntil: 'domcontentloaded' });
+    await page.locator('.nav[data-app="web"]').click();
+    await expect(page.locator('#webQuery')).toBeVisible({ timeout: 30_000 });
+    await page.locator('#webQuery').fill('black shoes');
+    await page.locator('#webSearch').click();
+    await expect(page.locator('#jwsStatus')).toContainText(/RESULTS/, { timeout: 45_000 });
+    await expect(page.locator('#jwsResults .web-result')).toHaveCount(8);
+
+    await page.locator('.nav[data-app="home"]').click();
+    const before = page.url();
+    const popupPromise = page.waitForEvent('popup', { timeout: 15_000 });
+    await page.locator('#commandInput').fill('open no. 2');
+    await page.locator('#commandForm').press('Enter');
+    const popup = await popupPromise;
+    await expect.poll(async () => popup.url()).not.toBe('about:blank');
+    expect(page.url()).toBe(before);
+  });
 });
