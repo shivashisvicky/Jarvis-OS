@@ -20,4 +20,26 @@ test.describe('deployed in-shell search', () => {
     const text = await page.locator('#jwsResults').innerText();
     expect(text).not.toMatch(/OPEN A BROWSER SEARCH|External results open/i);
   });
+
+  test('spoken internet-search wrappers are reduced to the actual query', async ({ page }) => {
+    await page.goto(new URL(LIVE_URL!).toString(), { waitUntil: 'domcontentloaded' });
+    await page.locator('.nav[data-app="web"]').click();
+    await expect(page.locator('#webQuery')).toBeVisible({ timeout: 30_000 });
+    await page.waitForFunction(() => typeof (window as Window & { jarvisNormalizeSearchQuery?: (value: string) => string }).jarvisNormalizeSearchQuery === 'function', null, { timeout: 30_000 });
+
+    const normalized = await page.evaluate(() => {
+      const normalize = (window as Window & { jarvisNormalizeSearchQuery?: (value: string) => string }).jarvisNormalizeSearchQuery!;
+      return [
+        normalize('search the internet for black shoes'),
+        normalize('in the internet for black shoes'),
+        normalize('on the internet for black shoes'),
+        normalize('search the web for black shoes'),
+      ];
+    });
+    expect(normalized).toEqual(['black shoes', 'black shoes', 'black shoes', 'black shoes']);
+
+    await page.locator('#webQuery').fill('in the internet for black shoes');
+    await page.locator('#webSearch').click();
+    await expect(page.locator('#webQuery')).toHaveValue('black shoes');
+  });
 });
