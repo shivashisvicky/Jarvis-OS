@@ -10,6 +10,34 @@ async function assertReaderLoaded(page: any) {
   await expect(page.locator('#e24cnt')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
 }
 
+test('fresh page first ebook search works without a refresh', async ({ page }) => {
+  await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#commandInput')).toBeVisible({ timeout: 15_000 });
+  await page.locator('.nav[data-app="files"]').click();
+  await expect(page.locator('.workspace h1')).toHaveText('Files');
+  await page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').click();
+  await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 10_000 });
+  const query = page.locator('#jbe6Query');
+  await query.fill('Beowulf');
+  await page.locator('#jbe6Search').click();
+  await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG|NO RESULTS/, { timeout: 5_000 });
+  await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#jbe6Results .jbe6-name').first()).toContainText(/Beowulf/i);
+});
+
+test('fresh page voice ebook command is caught before deferred modules can race', async ({ page }) => {
+  await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#commandInput')).toBeVisible({ timeout: 15_000 });
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('jarvis:voice-command', { detail: { text: 'search Beowulf in books' }, cancelable: true }));
+  });
+  await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
+  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toHaveClass(/active/, { timeout: 15_000 });
+  await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 15_000 });
+  await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#jbe6Results')).toContainText(/Beowulf/i);
+});
+
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
@@ -72,7 +100,7 @@ test('canonical Gutenberg reader opens a different real book and paginates', asy
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await page.locator('.nav[data-app="files"]').click();
   await expect(page.locator('.workspace h1')).toHaveText('Files');
-  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').toBeVisible({ timeout: 10_000 });
   await page.locator('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]').click();
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 10_000 });
   const query = page.locator('#jbe6Query');
