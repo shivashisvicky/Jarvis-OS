@@ -17,9 +17,11 @@ const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const indexOf=q=>{
  const s=clean(q).toLowerCase().replace(/[?.!]+$/,'');
  if(!/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|last|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:map\s+)?(?:one|result|place)|\s+map)?$/.test(s))return null;
- if(/\b(?:first|1st|one)\b/.test(s))return 0;
- if(/\b(?:second|2nd|two)\b/.test(s))return 1;
+ /* Check explicit ordinals before the generic "one" alias. Otherwise
+    "third map one" contains "one" and is incorrectly reduced to index 0. */
  if(/\b(?:third|3rd|three)\b/.test(s))return 2;
+ if(/\b(?:second|2nd|two)\b/.test(s))return 1;
+ if(/\b(?:first|1st|one)\b/.test(s))return 0;
  return -1;
 };
 const stop=e=>{try{e?.preventDefault?.();e?.stopImmediatePropagation?.()}catch{}};
@@ -63,5 +65,5 @@ const voice=e=>{if(open(e.detail?.text))stop(e)};
 const submit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value;if(open(q))stop(e)};
 window.addEventListener('jarvis:voice-command',voice,true);
 document.addEventListener('submit',submit,true);
-window.jarvisMapReferencePreflight={version:'1.2.0',run:open};
+window.jarvisMapReferencePreflight={version:'1.3.0',run:open};
 })();
