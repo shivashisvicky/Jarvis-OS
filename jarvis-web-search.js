@@ -11,17 +11,18 @@
   const endpoint = () => document.querySelector('meta[name="jarvis-search-endpoint"]')?.content || 'https://jarvis-search.shivashisvicky112.workers.dev/api/search';
 
   // Canonical search-query extraction. The Search Hub must never send the
-  // command wrapper ("search the internet for", etc.) to the provider.
+  // command wrapper ("search the internet for", "in the internet for", etc.)
+  // to the provider. Speech recognition can produce slightly awkward
+  // prepositions, so normalize the whole wrapper family consistently.
   function normalizeSearchQuery(raw) {
     let q = String(raw || '').replace(/\s+/g, ' ').trim();
     q = q.replace(/[.!?]+$/, '').trim();
 
     const prefixes = [
-      /^search\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
-      /^look\s+up\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i,
-      /^find\s+(?:on\s+the\s+)?(?:internet|web)\s+(?:for|about)\s+/i,
-      /^(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
-      /^(?:search|look\s+up|find)\s+(?:for\s+)?/i,
+      /^(?:search|look\s+up|find)\s+(?:(?:on|in|from)\s+the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:search|look\s+up|find)\s+(?:the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:(?:on|in|from)\s+the\s+)?(?:internet|web|world\s+wide\s+web)\s+(?:for|about|on)\s+/i,
+      /^(?:search|look\s+up|find)\s+(?:for|about)?\s*/i,
       /^(?:google|bing)\s+(?:search\s+)?(?:for\s+)?/i,
     ];
     for (const prefix of prefixes) {
