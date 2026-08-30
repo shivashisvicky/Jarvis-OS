@@ -43,8 +43,14 @@ const open=q=>{
  let attempts=0;
  const advance=()=>{
   if(clickCurrent())return;
+  ++attempts;
+  if(attempts>20){speak('I could not open that map result.');return}
+  /* Results 1-6 are already on the current page. Wait for Maps to finish
+     rendering instead of incorrectly treating a missing NEXT button as a
+     pagination failure. */
+  if(index<6){window.setTimeout(advance,100);return}
   const n=next();
-  if(index<6||!(n instanceof HTMLButtonElement)||n.disabled||++attempts>10){speak('I could not open that map result.');return}
+  if(!(n instanceof HTMLButtonElement)||n.disabled){window.setTimeout(advance,100);return}
   n.click();window.setTimeout(advance,120);
  };
  window.setTimeout(advance,80);
@@ -54,5 +60,5 @@ const voice=e=>{if(open(e.detail?.text))stop(e)};
 const submit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value;if(open(q))stop(e)};
 window.addEventListener('jarvis:voice-command',voice,true);
 document.addEventListener('submit',submit,true);
-window.jarvisMapReferencePreflight={version:'1.0.0',run:open};
+window.jarvisMapReferencePreflight={version:'1.1.0',run:open};
 })();
