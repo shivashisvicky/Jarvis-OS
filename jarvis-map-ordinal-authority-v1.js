@@ -1,0 +1,16 @@
+(()=>{'use strict';
+if(window.__JARVIS_MAP_ORDINAL_AUTHORITY_V1__)return;
+window.__JARVIS_MAP_ORDINAL_AUTHORITY_V1__=true;
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const ordinal=q=>{const s=clean(q).toLowerCase().replace(/[?.!]+$/,'');if(!/^(?:please\s+)?(?:open|show|read)\s+(?:the\s+)?(?:first|second|third|last|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result|place|map))?$/.test(s))return null;if(/\b(?:third|3rd|three)\b/.test(s))return 2;if(/\b(?:second|2nd|two)\b/.test(s))return 1;if(/\b(?:first|1st|one)\b/.test(s))return 0;if(/\blast\b/.test(s))return -1;return null};
+const stop=e=>{try{e?.preventDefault?.();e?.stopImmediatePropagation?.()}catch{}};
+const say=t=>{const el=document.querySelector('#jarvisReply');if(el){el.textContent=t;el.classList.add('visible')}try{window.jarvisVoiceAuthoritySpeak?.(t)||window.jarvisCinematicSpeak?.(t)||window.jarvisSpeak?.(t)}catch{}};
+const get=()=>{try{return window.jarvisMapAuthority?.getContext?.()||null}catch{return null}};
+const ctx=()=>{try{return window.jarvisContextEngine?.get?.()||null}catch{return null}};
+const results=()=>{const m=get(),c=ctx();if(Array.isArray(m?.results)&&m.results.length)return m.results;if(String(c?.domain||'').toUpperCase()==='MAPS'&&Array.isArray(c?.results)&&c.results.length)return c.results;return Array.isArray(window.__JARVIS_MAP_RESULTS__)?window.__JARVIS_MAP_RESULTS__:[]};
+const pinpoint=p=>{if(!p)return false;try{window.jarvisContextEngine?.set?.({domain:'MAPS',active:true,location:p.display||p.name||null,selected:{...p}},'merge')}catch{};const f=document.querySelector('#mapFrame');if(!(f instanceof HTMLElement))return false;const lat=Number(p.lat),lon=Number(p.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return false;const z=.006;const box=`${lon-z},${lat-z},${lon+z},${lat+z}`;f.style.display='block';f.innerHTML=`<iframe title="JARVIS map for ${String(p.name||'selected result').replace(/"/g,'&quot;')}" loading="eager" style="border:0;width:100%;height:100%;min-height:280px" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(box)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}"></iframe>`;try{window.dispatchEvent(new CustomEvent('jarvis:map-selected',{detail:{...p,index:results().indexOf(p)}}))}catch{};return true};
+const run=q=>{const i0=ordinal(q);if(i0===null)return false;const rs=results();const i=i0===-1?rs.length-1:i0;const p=rs[i];if(!p?.name)return false;stop();window.__JARVIS_PENDING_MAP_SELECTION__={index:i,result:{...p},at:Date.now()};const nav=document.querySelector('.nav[data-app="maps"]');const doIt=()=>{if(pinpoint(p)){say(`Opening ${clean(p.name)}.`);return true}return false};if(nav instanceof HTMLElement&&!nav.classList.contains('selected'))nav.click();let n=0;const wait=()=>{if(doIt())return;if(++n<160)window.setTimeout(wait,50);else say(`I could not pinpoint ${clean(p.name)} on the map.`)};window.setTimeout(wait,0);return true};
+window.jarvisMapOrdinalAuthority={version:'1.0.0',run};
+window.addEventListener('jarvis:voice-command',e=>{if(run(e.detail?.text))stop(e)},true);
+document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value;if(run(q))stop(e)},true);
+})();
