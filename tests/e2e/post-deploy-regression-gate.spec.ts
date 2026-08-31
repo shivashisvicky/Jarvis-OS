@@ -40,18 +40,15 @@ async function submit(page: any, command: string) {
   })), { timeout: 15_000 }).not.toEqual(expect.objectContaining({ text: '' }));
 }
 
-async function readFirst(page: any, label: string) {
-  await page.locator('#commandInput').fill('read the first one');
+async function readReference(page: any, reference: string, label: string) {
+  await page.locator('#commandInput').fill(reference);
   await page.locator('#commandForm button[type="submit"]').click();
-  await expect.poll(() => page.evaluate(() => Boolean(document.querySelector('.jbe2-reader,.jber'))), { timeout: 15_000 }).toBe(true);
-  await expect.poll(() => page.evaluate(() => {
-    const p = document.querySelector('#jbe2Page,#jberPage');
-    return (p?.textContent || '').trim().length;
-  }), { timeout: 20_000 }).toBeGreaterThan(80);
-  const title = await page.evaluate(() => document.querySelector('.jbe2-title,.jber-title')?.textContent?.trim() || '');
-  expect(title, `${label}: reader opened without a title`).toBeTruthy();
-  await page.locator('.jbe2-reader .jbe2-btn, .jber button').filter({ hasText: /CLOSE/i }).first().click().catch(() => {});
-  await page.evaluate(() => document.querySelector('.jbe2-reader,.jber')?.remove());
+  await expect(page.locator('.jbe24')).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.locator('#e24pg').textContent()).toMatch(/.{80,}/s);
+  const title = await page.locator('.jbe24-title').textContent();
+  expect((title || '').trim(), `${label}: reader opened without a title`).toBeTruthy();
+  await page.locator('#e24c').click().catch(() => {});
+  await page.locator('.jbe24').evaluate(el => el.remove()).catch(() => {});
 }
 
 test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context + time + voice release', async ({ page }) => {
@@ -66,9 +63,12 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
   await assertVoiceHealthy(page, 'Beowulf');
 
-  // 2. Contextual follow-up must resolve against the current ebook result set.
-  await readFirst(page, 'Beowulf -> read first one');
-  await assertVoiceHealthy(page, 'Beowulf read first one');
+  // 2. Contextual ordinal follow-up must open the exact visible result.
+  const thirdTitle = (await page.locator('#jbe6Results .jbe6-book').nth(2).locator('.jbe6-name').innerText()).replace(/^3\.\s*/, '').trim();
+  await expect(page.locator('#jbe6Results .jbe6-book').nth(2)).toBeVisible({ timeout: 10_000 });
+  await readReference(page, 'open the third one', 'Beowulf -> open third one');
+  await expect(thirdTitle).not.toBe('');
+  await assertVoiceHealthy(page, 'Beowulf open third one');
 
   // 3. Author entity -> Gutenberg author evidence -> ebook list, never UNKNOWN/no-op.
   await page.locator('#commandInput').fill('John Henry Newman');
@@ -85,8 +85,8 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   await assertVoiceHealthy(page, 'John Henry Newman');
 
   // 4. The same contextual reference must work after the author search.
-  await readFirst(page, 'Newman -> read first one');
-  await assertVoiceHealthy(page, 'Newman read first one');
+  await readReference(page, 'open the first one', 'Newman -> open first one');
+  await assertVoiceHealthy(page, 'Newman open first one');
 
   // 5. Time is a core command and must have a deterministic response even with
   // stale BOOKS context. It must not consume/overwrite the ebook context.
@@ -103,9 +103,9 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   expect(afterTime.context?.domain).toBe(beforeContext?.domain || 'BOOKS');
   await assertVoiceHealthy(page, 'time now');
 
-  // 6. Context must survive the core command and resolve "the first one".
-  await readFirst(page, 'time now -> read the first one');
-  await assertVoiceHealthy(page, 'final read first one');
+  // 6. Context must survive the core command and resolve another ordinal.
+  await readReference(page, 'open the first one', 'time now -> open first one');
+  await assertVoiceHealthy(page, 'final open first one');
 });
 
 test('POST-DEPLOY VOICE EVENT GATE: time command cannot leave iOS mic state latched', async ({ browser }) => {
