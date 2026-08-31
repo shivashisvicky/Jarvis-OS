@@ -1,0 +1,12 @@
+(()=>{'use strict';
+if(window.__JARVIS_EBOOK_SEARCH_HARDENING_V1__)return;window.__JARVIS_EBOOK_SEARCH_HARDENING_V1__=true;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const norm=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const relevant=(query)=>{const q=norm(query).split(/\s+/).filter(Boolean);if(!q.length)return true;const cards=[...document.querySelectorAll('#jbe6Results .jbe6-book')];return cards.some(card=>{const text=norm(card.textContent||'');return q.every(token=>text.includes(token))})};
+const original=window.jarvisEbookSearchAuthority?.search;
+if(typeof original!=='function')return;
+const wrapped=async query=>{let last=false;for(let attempt=0;attempt<3;attempt++){await original(query);for(let i=0;i<10;i++){if(document.querySelector('#jbe6Results .jbe6-book')||document.querySelector('#jbe6Results .jbe6-status'))break;await wait(100)}if(relevant(query)){console.info('[JARVIS:EBOOK_SEARCH_TRACE] validated',{query,attempt:attempt+1});return true}last=false;console.info('[JARVIS:EBOOK_SEARCH_TRACE] retry',{query,attempt:attempt+1});await wait(450*(attempt+1))}return last};
+window.jarvisEbookSearchAuthority.search=wrapped;
+window.jarvisEbookSearchAuthority.search.__jarvisOriginal=original;
+window.jarvisEbookSearchAuthority.search.__jarvisHardened=true;
+})();
