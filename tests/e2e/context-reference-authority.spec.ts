@@ -59,3 +59,32 @@ test('context reference authority resolves numbered book result references', asy
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Results')).toContainText(secondTitle);
 });
+
+test('Search ordinal wins over stale Maps context', async ({ page }) => {
+  await openHome(page);
+  await page.locator('.nav[data-app="web"]').click();
+  await expect(page.locator('#webQuery')).toBeVisible({ timeout: 15_000 });
+
+  await page.evaluate(() => {
+    const results = document.querySelector('#jwsResults');
+    if (!results) throw new Error('Search results surface missing');
+    results.innerHTML = [1, 2, 3].map(i => `<div class="web-result"><a target="_blank" href="https://example.com/search-result-${i}"><strong>Search result ${i}</strong><small>Example</small></a></div>`).join('');
+    const staleMaps = { domain: 'MAPS', active: true, results: [{ name: 'Red palm restaurant' }, { name: 'Map result two' }, { name: 'Map result three' }] };
+    const w = window as Window & { jarvisContextEngine?: any; jarvisMapAuthority?: any; __JARVIS_SEARCH_CONTEXT__?: any };
+    w.jarvisMapAuthority = { getContext: () => staleMaps };
+    w.jarvisContextEngine = { get: () => staleMaps, set: () => undefined };
+    w.__JARVIS_SEARCH_CONTEXT__ = {
+      domain: 'SEARCH',
+      active: true,
+      query: 'black shoes',
+      provider: 'bing',
+      results: [1, 2, 3].map(i => ({ index: i - 1, title: `Search result ${i}`, source: 'Example', link: `https://example.com/search-result-${i}`, type: 'WEB_RESULT' }))
+    };
+  });
+
+  const popupPromise = page.waitForEvent('popup', { timeout: 10_000 });
+  await submit(page, 'open the third one');
+  const popup = await popupPromise;
+  await expect.poll(async () => popup.url()).toContain('search-result-3');
+  await expect(page.locator('.nav[data-app="web"]')).toHaveClass(/selected/);
+});
