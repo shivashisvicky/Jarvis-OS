@@ -1,0 +1,14 @@
+(()=>{'use strict';
+if(window.__JARVIS_REFERENCE_SURFACE_GUARD_V1__)return;
+window.__JARVIS_REFERENCE_SURFACE_GUARD_V1__=true;
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const ref=/^(?:please\s+)?(?:open|show|read)\s+(?:the\s+)?(?:first|second|third|last|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three|result\s*\d+|number\s*\d+|no\.?\s*\d+)(?:\s+(?:one|result|place|map|video))?$/i;
+const idx=q=>{q=clean(q).toLowerCase();if(/(?:first|1st|one)/.test(q))return 0;if(/(?:second|2nd|two)/.test(q))return 1;if(/(?:third|3rd|three)/.test(q))return 2;if(/last/.test(q))return -1;const m=q.match(/(?:result|number|no\.?)\s*(\d+)/);return m?Number(m[1])-1:null};
+const stop=e=>{try{e?.preventDefault?.();e?.stopImmediatePropagation?.()}catch{}};
+const isWebActive=()=>{const nav=document.querySelector('.nav[data-app="web"]');return nav instanceof HTMLElement&&nav.classList.contains('selected')};
+const searchContext=()=>{try{const c=window.jarvisContextEngine?.get?.();if(String(c?.domain||'').toUpperCase()==='SEARCH'&&Array.isArray(c?.results)&&c.results.length)return c}catch{}try{const s=window.__JARVIS_SEARCH_CONTEXT__;if(s?.results?.length)return s}catch{}try{const s=JSON.parse(sessionStorage.getItem('jarvis-search-context-v4')||'null');if(s?.results?.length)return s}catch{}return null};
+const run=q=>{q=clean(q);if(!ref.test(q)||!isWebActive())return false;const ctx=searchContext();if(!ctx?.results?.length)return false;const i0=idx(q),i=i0===-1?ctx.results.length-1:i0;if(i==null||i<0||!ctx.results[i])return false;const nodes=[...document.querySelectorAll('#jwsResults .web-result a')];const a=nodes[i];if(!(a instanceof HTMLElement))return false;try{window.jarvisContextEngine?.set?.({domain:'SEARCH',active:true,query:ctx.query,results:ctx.results,selected:ctx.results[i]},'merge')}catch{}stop();a.click();return true};
+window.jarvisReferenceSurfaceGuard={version:'1.0.0',run};
+window.addEventListener('jarvis:voice-command',e=>{if(run(e.detail?.text))stop(e)},true);
+document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value;if(run(q))stop(e)},true);
+})();
