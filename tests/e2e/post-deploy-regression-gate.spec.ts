@@ -45,16 +45,16 @@ async function readReference(page: any, reference: string, label: string) {
   await page.locator('#commandForm button[type="submit"]').click();
   await expect(page.locator('.jbe24')).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => page.locator('#e24pg').textContent()).toMatch(/.{80,}/s);
-  const title = await page.locator('.jbe24-title').textContent();
-  expect((title || '').trim(), `${label}: reader opened without a title`).toBeTruthy();
+  const title = ((await page.locator('.jbe24-title').textContent()) || '').trim();
+  expect(title, `${label}: reader opened without a title`).toBeTruthy();
   await page.locator('#e24c').click().catch(() => {});
   await page.locator('.jbe24').evaluate(el => el.remove()).catch(() => {});
+  return title;
 }
 
 test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context + time + voice release', async ({ page }) => {
   await waitForShell(page);
 
-  // 1. Bare title -> Gutenberg result list.
   await submit(page, 'Beowulf');
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 10_000 });
@@ -63,14 +63,12 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
   await assertVoiceHealthy(page, 'Beowulf');
 
-  // 2. Contextual ordinal follow-up must open the exact visible result.
   const thirdTitle = (await page.locator('#jbe6Results .jbe6-book').nth(2).locator('.jbe6-name').innerText()).replace(/^3\.\s*/, '').trim();
   await expect(page.locator('#jbe6Results .jbe6-book').nth(2)).toBeVisible({ timeout: 10_000 });
-  await readReference(page, 'open the third one', 'Beowulf -> open third one');
-  await expect(thirdTitle).not.toBe('');
+  const openedThird = await readReference(page, 'open the third one', 'Beowulf -> open third one');
+  expect(openedThird).toContain(thirdTitle.slice(0, 50));
   await assertVoiceHealthy(page, 'Beowulf open third one');
 
-  // 3. Author entity -> Gutenberg author evidence -> ebook list, never UNKNOWN/no-op.
   await page.locator('#commandInput').fill('John Henry Newman');
   await page.locator('#commandForm button[type="submit"]').click();
   await expect.poll(() => page.evaluate(() => ({
@@ -84,12 +82,9 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   await expect(page.locator('#jbe6Results')).toContainText(/Newman/i);
   await assertVoiceHealthy(page, 'John Henry Newman');
 
-  // 4. The same contextual reference must work after the author search.
   await readReference(page, 'open the first one', 'Newman -> open first one');
   await assertVoiceHealthy(page, 'Newman open first one');
 
-  // 5. Time is a core command and must have a deterministic response even with
-  // stale BOOKS context. It must not consume/overwrite the ebook context.
   const beforeContext = await page.evaluate(() => (window as any).jarvisContextEngine?.get?.() || null);
   await submit(page, 'time now');
   await expect.poll(() => page.locator('#jarvisReply').textContent()).toMatch(/The local time is \d{1,2}:\d{2}:\d{2}/i);
@@ -103,7 +98,6 @@ test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context 
   expect(afterTime.context?.domain).toBe(beforeContext?.domain || 'BOOKS');
   await assertVoiceHealthy(page, 'time now');
 
-  // 6. Context must survive the core command and resolve another ordinal.
   await readReference(page, 'open the first one', 'time now -> open first one');
   await assertVoiceHealthy(page, 'final open first one');
 });
