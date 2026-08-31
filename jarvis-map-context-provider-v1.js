@@ -21,8 +21,17 @@ const install=()=>{
   const base=originalGet()||{};
   try{
    const live=map.getContext()||{};
+   const baseDomain=String(base.domain||'').toUpperCase();
+   const liveDomain=String(live.domain||'').toUpperCase();
    const liveResults=Array.isArray(live.results)?live.results:[];
-   if(String(live.domain||'').toUpperCase()==='MAPS'&&liveResults.length){
+   /*
+    * The context engine may already hold an explicit surface from the
+    * user's latest command. Never let stale Maps state replace SEARCH,
+    * BOOKS, MEDIA, or another concrete domain. Maps is only a fallback
+    * source when the canonical context has no meaningful domain.
+    */
+   if(baseDomain&&baseDomain!=='UNKNOWN')return base;
+   if(liveDomain==='MAPS'&&liveResults.length){
     return {...base,...live,domain:'MAPS',active:true,results:liveResults};
    }
   }catch{}
