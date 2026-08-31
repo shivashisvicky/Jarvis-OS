@@ -1,4 +1,4 @@
-(() => {
+(()=>{
   'use strict';
   if (window.__JARVIS_MODULE_LOADER__) return;
   window.__JARVIS_MODULE_LOADER__ = true;
@@ -10,13 +10,13 @@
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
     engineering: { scripts: ['jarvis-engineering.js'] },
     notes: { scripts: ['jarvis-notes.js'] },
-    games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'] },
+    games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'], css: [] },
   };
 
   const loaded = new Map();
   const pending = new Map();
   const assetUrl = name => {
-    const version = name === 'jarvis-web-search.js' ? '20260830-search-canonical-v4' : `20260830-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
+    const version = name === 'jarvis-web-search.js' ? '20260830-search-canonical-v4' : name === 'jarvis-search-provider-fidelity-v1.js' ? '20260831-search-fidelity-v3' : `20260830-reliability-${name.replace(/[^a-z0-9]/gi, '')}`;
     return `./${name}?v=${version}`;
   };
 
