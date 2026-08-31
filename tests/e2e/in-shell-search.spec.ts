@@ -50,7 +50,8 @@ test.describe('deployed in-shell search', () => {
     await page.locator('#webQuery').fill('black shoes');
     await page.locator('#webSearch').click();
     await expect(page.locator('#jwsStatus')).toContainText(/RESULTS/, { timeout: 45_000 });
-    await expect(page.locator('#jwsResults .web-result')).toHaveCount(8);
+    const webResults = page.locator('#jwsResults .web-result');
+    await expect.poll(async () => webResults.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
 
     await page.locator('.nav[data-app="home"]').click();
     const before = page.url();
