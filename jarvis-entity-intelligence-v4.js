@@ -1,13 +1,13 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_ENTITY_INTELLIGENCE_V9__)return;
-window.__JARVIS_ENTITY_INTELLIGENCE_V9__=true;
+if(window.__JARVIS_ENTITY_INTELLIGENCE_V10__)return;
+window.__JARVIS_ENTITY_INTELLIGENCE_V10__=true;
 const normalize=s=>String(s||'').replace(/\s+/g,' ').trim();
 const lower=s=>normalize(s).toLowerCase().replace(/[.!?]+$/,'').trim();
 const EXPLICIT_DOMAIN=/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|youtube|maps?|restaurants?|hospitals?|hotels?|weather|games?|news|headlines)\b/i;
 const WEB=/^(?:search|look\s*up|lookup|google|bing|web\s+search)\b/i;
 const COMMAND=/^(?:please\s+)?(?:tell me about|who is|what is|what's|what are|give me information about|give me info about|explain)\s+(.+)$/i;
-const CACHE='jarvis:entity-intelligence:v9:';const TTL=30*60*1000;
+const CACHE='jarvis:entity-intelligence:v10:';const TTL=30*60*1000;
 const reserved=/^(?:hi|hello|hey|thanks|thank you|good morning|good night|tell me a joke|what time is it|time now|time|what(?:'s| is|s) the time|what(?:'s| is|s) the local time|tell me the time|tell me the local time|what time is it now|what(?:'s| is|s) the time now)$/i;
 const identity=/^(?:what(?:'s| is|s)\s+my\s+name|who\s+am\s+i|what(?:'s| is|s)\s+your\s+name|who\s+are\s+you)$/i;
 const notes=/^(?:make\s+(?:me\s+)?a\s+note|make\s+note|write\s+(?:me\s+)?a\s+note|remember\s+to|remind\s+me)\b/i;
@@ -25,10 +25,10 @@ const gutenberg=async entity=>{const queries=[entity];const parts=entity.split(/
 const wikidata=async entity=>{try{const data=await fetchJson(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(entity)}&language=en&uselang=en&type=item&limit=6&format=json&origin=*`);const hits=Array.isArray(data?.search)?data.search:[];const exact=hits.find(h=>lower(h.label)===lower(entity))||hits[0];if(!exact)return null;const d=String(exact.description||'').toLowerCase();let type='UNKNOWN',score=.45;if(/epic poem|poem|novel|book|literary work|work of literature|written work|publication/.test(d)){type='BOOK';score=.9}else if(/person|human|politician|writer|author|actor|scientist|musician/.test(d)){type='PERSON';score=.86}else if(/city|town|village|place|country|state|district|river|mountain|temple/.test(d)){type='PLACE';score=.86}else if(/company|business|organization|corporation|brand/.test(d)){type='COMPANY';score=.86}else if(/film|movie|television series|tv series/.test(d)){type='MEDIA';score=.84}else if(/song|single|album|musical work/.test(d)){type='MUSIC';score=.84}return{type,score,source:'wikidata',entity,label:exact.label,description:exact.description||''}}catch(error){trace('wikidata-error',{entity,error:String(error?.message||error)});return null}};
 const resolve=async entity=>{const key=normalize(entity);if(!key)return{type:'UNKNOWN',score:0,source:'none',entity:key};const hit=cached(key);if(hit)return hit;const settled=await Promise.allSettled([gutenberg(key),wikidata(key)]);const book=settled[0].status==='fulfilled'?settled[0].value:null;const knowledge=settled[1].status==='fulfilled'?settled[1].value:null;let result=knowledge||book||{type:'UNKNOWN',score:.1,source:'none',entity:key};if(book?.type==='BOOK_AUTHOR')result=book;else if(book?.type==='BOOK'&&book.score>=(knowledge?.score||0))result=book;else if(book?.type==='BOOK_CANDIDATE'&&(!knowledge||knowledge.type==='UNKNOWN'))result=book;trace('resolve-final',{entity:key,type:result.type,score:result.score,source:result.source,evidenceCount:(result.results||[]).length});store(key,result);return result};
 const candidate=raw=>{const s=lower(raw);if(!s||WEB.test(s)||EXPLICIT_DOMAIN.test(s)||reserved.test(s)||identity.test(s)||notes.test(s))return null;const m=s.match(COMMAND);if(m)return{entity:normalize(m[1]),mode:'informational'};if(/^(?:read|open)\s+.+$/i.test(s))return null;if(/^(?:find|locate|show me|search for|look up)\s+.+$/i.test(s))return null;if(/^(?:play|watch|go to|take me to|navigate|directions?)\b/i.test(s))return null;if(/^[a-z0-9][a-z0-9 &'’\-:.]{1,100}$/i.test(s)&&s.split(/\s+/).length<=12)return{entity:normalize(s),mode:'bare'};return null};
-const ebookSurfaceActive=()=>Boolean(document.querySelector('.nav[data-app="files"].selected')&&document.querySelector('#jbe6Panel'));
+const ebookSurfaceActive=()=>{const p=document.querySelector('#jbe6Panel');return Boolean(p&&p.getBoundingClientRect().width&&p.getBoundingClientRect().height)};
 const intercept=e=>{const raw=normalize(e.detail?.text);if(!raw||e.detail?.resolved||ebookSurfaceActive())return;const target=candidate(raw);if(!target)return;e.preventDefault?.();e.stopImmediatePropagation?.();void resolve(target.entity).then(res=>dispatch(raw,res,target.mode))};
 const dispatch=(raw,res,mode)=>{const detail={text:raw,resolved:true,entity:{name:res.entity,type:res.type,score:res.score,source:res.source,description:res.description||'',results:res.results||[]},resolutionMode:mode};window.__JARVIS_ENTITY__=detail.entity;window.dispatchEvent(new CustomEvent('jarvis:entity-resolved',{detail}));window.dispatchEvent(new CustomEvent('jarvis:voice-command',{detail}))};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm'||ebookSurfaceActive())return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?normalize(input.value):'';const target=candidate(raw);if(!target)return;e.preventDefault();e.stopImmediatePropagation?.();void resolve(target.entity).then(res=>{if(input instanceof HTMLInputElement)input.value='';dispatch(raw,res,target.mode)})},true);
-window.jarvisEntityIntelligence=Object.freeze({version:'9.0.0',resolve,candidate});
+window.jarvisEntityIntelligence=Object.freeze({version:'10.0.0',resolve,candidate});
 })();
