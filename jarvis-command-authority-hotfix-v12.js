@@ -3,9 +3,9 @@
 if(window.__JARVIS_COMMAND_AUTHORITY_HOTFIX_V14__)return;
 window.__JARVIS_COMMAND_AUTHORITY_HOTFIX_V14__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
-/* Context bridge: the Maps authority owns the live result list. If another
-   layer has a stale/empty snapshot, expose that live list through the
-   canonical context getter before contextual open commands resolve. */
+/* Context bridge: Maps may expose its live result list only when the
+   canonical context has no competing explicit surface. Never overwrite a
+   current SEARCH/BOOKS/MEDIA context with stale Maps state. */
 try{
  const engine=window.jarvisContextEngine;
  const map=window.jarvisMapAuthority;
@@ -14,10 +14,12 @@ try{
   engine.get=()=>{
    const base=originalGet()||{};
    const live=map.getContext()||{};
+   const baseDomain=String(base.domain||'').toUpperCase();
+   const liveDomain=String(live.domain||'').toUpperCase();
    const baseResults=Array.isArray(base.results)?base.results:[];
    const liveResults=Array.isArray(live.results)?live.results:[];
-   if(String(base.domain||'').toUpperCase()==='MAPS'&&baseResults.length)return base;
-   if(String(live.domain||'').toUpperCase()==='MAPS'&&liveResults.length){
+   if(baseDomain&&baseDomain!=='UNKNOWN')return base;
+   if(liveDomain==='MAPS'&&liveResults.length){
     return {...base,...live,domain:'MAPS',active:true,results:liveResults};
    }
    return base;
