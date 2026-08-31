@@ -37,10 +37,8 @@ function isVideoUrl(link) {
 
 function videoIntent(query) { return /\b(video|videos|youtube|watch|trailer|song|music video)\b/i.test(query); }
 
-const SEARCH_STOPWORDS = new Set(['the', 'for', 'and', 'or', 'in', 'on', 'of', 'to', 'a', 'an', 'is', 'are', 'with', 'from', 'near', 'about', 'me']);
-
 function searchTerms(query) {
-  return String(query || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean).filter(term => term.length > 1 && !SEARCH_STOPWORDS.has(term));
+  return String(query || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
 }
 
 function resultScore(query, item) {
@@ -48,7 +46,7 @@ function resultScore(query, item) {
   const title = String(item?.title || '').toLowerCase();
   const snippet = String(item?.snippet || '').toLowerCase();
   const hay = `${title} ${snippet}`;
-  const terms = searchTerms(normalizedQuery);
+  const terms = searchTerms(normalizedQuery).filter(term => term.length > 1);
   let score = 0;
   if (normalizedQuery && title.includes(normalizedQuery)) score += 100;
   if (normalizedQuery && snippet.includes(normalizedQuery)) score += 45;
@@ -65,21 +63,12 @@ function resultScore(query, item) {
 
 function normalizeResults(items, query) {
   const allowVideo = videoIntent(query), seen = new Set();
-  const normalized = items.map(item => ({ title: clean(decodeHtml(item.title)), link: String(item.link || '').trim(), source: clean(decodeHtml(item.source || 'WEB')), snippet: clean(decodeHtml(item.snippet || '')) }))
+  return items.map(item => ({ title: clean(decodeHtml(item.title)), link: String(item.link || '').trim(), source: clean(decodeHtml(item.source || 'WEB')), snippet: clean(decodeHtml(item.snippet || '')) }))
     .filter(item => item.title && /^https?:\/\//i.test(item.link))
     .filter(item => allowVideo || !isVideoUrl(item.link))
     .filter(item => !seen.has(item.link) && (seen.add(item.link), true))
-    .sort((a, b) => resultScore(query, b) - resultScore(query, a));
-
-  const terms = searchTerms(query);
-  if (terms.length > 1) {
-    const relevant = normalized.filter(item => {
-      const hay = `${item.title} ${item.snippet}`.toLowerCase();
-      return terms.every(term => hay.includes(term));
-    });
-    return relevant.slice(0, 8);
-  }
-  return normalized.slice(0, 8);
+    .sort((a, b) => resultScore(query, b) - resultScore(query, a))
+    .slice(0, 8);
 }
 
 async function fetchText(url, headers = {}, ms = 6500) {
@@ -220,7 +209,7 @@ export default {
       try { const results = await places(kind, lat, lon, radius, limit); return json({ ok: true, kind, results }, 200, origin, 'public, max-age=20, stale-while-revalidate=30'); } catch (error) { return json({ error: String(error?.message || error), results: [] }, 502, origin); }
     }
     if (url.pathname !== '/api/search' || request.method !== 'GET') return json({ error: 'Not found' }, 404, origin);
-    if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed', results: [] }, 403, origin);
+    if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
     const q = String(url.searchParams.get('q') || '').trim(), provider = url.searchParams.get('provider') === 'brave' ? 'brave' : 'bing';
     if (!q) return json({ error: 'q is required', results: [] }, 400, origin); if (q.length > 300) return json({ error: 'q is too long', results: [] }, 413, origin);
     try { const result = await searchWeb(provider, q); return json({ ...result, query: q }, 200, origin); } catch (error) { return json({ error: String(error?.message || error), code: 'SEARCH_UNAVAILABLE', results: [], provider, requestedProvider: provider, fallback: false }, 502, origin); }
