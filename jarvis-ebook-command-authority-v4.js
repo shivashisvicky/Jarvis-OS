@@ -1,9 +1,9 @@
 (()=>{'use strict';
-if(window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V16__)return;window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V16__=true;
+if(window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V17__)return;window.__JARVIS_EBOOK_COMMAND_AUTHORITY_V17__=true;
 const norm=s=>String(s||'').trim();
 const ref=/^(?:read|open)\s+(?:the\s+)?(?:first|second|third|last|\d+(?:st|nd|rd|th)?)(?:\s+(?:one|result))?$/i;
 const clean=q=>norm(q).replace(/[?!.]+$/,'').replace(/\b(?:search|find|look up|show me|show|open|read|reading|book|books|ebook|ebooks|gutenberg|standard ebooks|library|for|on)\b/gi,' ').replace(/\s+/g,' ').trim();
-const ebookSurfaceActive=()=>Boolean(document.querySelector('.nav[data-app="files"].selected')&&document.querySelector('#jbe6Panel'));
+const ebookSurfaceActive=()=>{const p=document.querySelector('#jbe6Panel');return Boolean(p&&p.getBoundingClientRect().width&&p.getBoundingClientRect().height)};
 const bareEbookQuery=q=>{const s=norm(q);return ebookSurfaceActive()&&/^[a-z0-9][a-z0-9 &'’\-:.]{1,100}$/i.test(s)&&!/^(?:hi|hello|hey|thanks|thank you|good morning|good night|what time is it|time now|time|tell me a joke)$/i.test(s)};
 const isBook=q=>{const s=norm(q);return !ref.test(s)&&(bareEbookQuery(s)||/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|read|reading)\b/i.test(s)||Boolean(window.jarvisCommandAuthority?.route?.(s)?.type==='BOOKS'))&&!/^read\s+(?:my\s+)?notes?$/i.test(s)};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
