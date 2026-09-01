@@ -16,18 +16,43 @@ Run `33514203915` checked commit `f8f9ba7dd16c57913776f13d79065bbe0191cc80` and 
 
 #### Ebook failures
 
-1. Beowulf list test expected 10 unique titles but received 9. On another retry it received 0 cards. This indicates live catalogue/result timing or stale/default-result replacement, not a TypeScript/build failure.
-2. Beowulf reader test could not find `[data-read]` after the result state changed.
-3. Canonical Frankenstein reader test found the search text but no `[data-read]` button.
-4. John Henry Newman Ebook test timed out waiting for the entity classification and then could not complete the reader handoff.
-5. These failures occurred on the old `f8f9ba7...` deployment. They must not be treated as proof that the later `efadc12...` reader-title sanitization commit is bad or good. A fresh live gate is required.
+1. Beowulf list test failed its title-uniqueness assertion because the rendered list contained a duplicate title. The assertion reported expected 10 unique titles and received 9 unique titles.
+2. Beowulf reader test could not find `[data-read]` because the active search authority rendered only `data-rel-read` while the compatibility/test contract expected both selectors.
+3. Canonical Frankenstein reader test found the search text but no `[data-read]` button for the same selector-contract mismatch.
+4. John Henry Newman Ebook test timed out waiting for the read handoff after the result list was rendered.
+5. These failures occurred on the old `f8f9ba7...` deployment and are not evidence that unrelated domains were broken.
 
-#### Entity failures
+### Fresh validation after commit 7eb0980394dedda49a5a0b1b1481df50ea1ff628
 
-- Bare Beowulf entity resolution passed.
-- John Henry Newman resolved as `UNKNOWN` instead of the required `BOOK_AUTHOR`.
-- Charles Dickens resolved as `BOOK` instead of `PERSON|BOOK_AUTHOR`.
-- The correct fix is at the entity-resolution owner. Do not add more book-specific hardcoding or change Voice/Maps/YouTube/Search routing to mask this.
+The targeted search-authority fix was deployed in run `33526095035`.
+
+- Beowulf result-list test: **PASS**. The duplicate-title failure was removed.
+- Author-name generic-search test: **PASS**.
+- Beowulf reader: **FAIL**, but now for a different and more precise reason: the test was looking for the obsolete `.jbe2-reader`, `#jbe2Page`, `#jbe2Count`, `#jbe2Section`, and `#jbe2Next` selectors.
+- Frankenstein reader: same obsolete-reader-selector failure.
+- John Henry Newman reader: same obsolete-reader-selector failure.
+- Entity Intelligence: **PASS**.
+- Home + News + Voice: **PASS**.
+- In-Shell Web Search: **PASS**.
+- Media Search: **PASS**.
+- Gemini Intelligence: **PASS**.
+
+This is important: the second red run exposed a **test drift**, not a new reader/product regression. The live reader is `jarvis-ebook-reader-v7.js`, which creates the canonical v11 surface: `.jbe11`, `#jbe11Page`, `#jbe11Counter`, `#jbe11Chapter`, and `#jbe11Next`. The E2E test was still asserting the legacy `.jbe2-*` contract even though the reader had already moved to v11. The test has now been updated in commit `17ab28bc2d530cf1bde752fc0b815b1bbaa06354` to assert the actual canonical reader contract.
+
+### Current remediation rules
+
+- One Ebook command owner.
+- One canonical BookRecord/result list.
+- One context source for ordinal follow-ups.
+- No stale/default result may overwrite the current query.
+- Search results expose both `data-read` and `data-rel-read` for compatibility with the existing reader/command contract.
+- Search rendering removes duplicate normalized titles before publishing the canonical result list.
+- Reader tests must track the canonical reader identity. Do not reintroduce `.jbe2-*` selectors when the active reader is v11.
+- Reader opens the exact resolved BookRecord and must not silently rediscover another book.
+- Reader title/content sanitization remains reader-scoped.
+- Entity classification must be repaired in the Entity Authority, with Gutenberg evidence used where appropriate.
+- Voice, Maps, YouTube, Search, News, Time and Command Center remain protected boundaries.
+- Do not declare a baseline until the live gates for the changed behavior are green.
 
 ### Historical mistakes that must stay visible
 
@@ -37,19 +62,8 @@ Run `33514203915` checked commit `f8f9ba7dd16c57913776f13d79065bbe0191cc80` and 
 - Manual testing was repeatedly requested against red or unverified builds. This is now explicitly prohibited.
 - `open the second/third one` failures were caused by context being lost or the follow-up handler rediscovering the list instead of using the resolved BookRecord.
 - Reader transport markup was previously allowed to leak into visible content.
-
-### Current remediation rules
-
-- One Ebook command owner.
-- One canonical BookRecord/result list.
-- One context source for ordinal follow-ups.
-- No stale/default result may overwrite the current query.
-- Reader opens the exact resolved BookRecord and must not silently rediscover another book.
-- Reader title/content sanitization remains reader-scoped.
-- Entity classification must be repaired in the Entity Authority, with Gutenberg evidence used where appropriate.
-- Voice, Maps, YouTube, Search, News, Time and Command Center remain protected boundaries.
-- Do not declare a baseline until the live gates for the changed behavior are green.
+- Regression tests were allowed to lag behind the canonical reader identity. This caused false red gates even though the product reader had moved from the legacy `jbe2` surface to the v11 `jbe11` surface. The test suite is now explicitly tied to the canonical reader contract.
 
 ## Regression policy
 
-Never change a test only to make it green. If a test exposes a contract mismatch, determine whether the product or the test is wrong, document the decision, and preserve coverage for the user-visible behaviour.
+Never change a test only to make it green. If a test exposes a contract mismatch, determine whether the product or the test is wrong, document the decision, and preserve coverage for the user-visible behaviour. Test selectors must be derived from the current canonical component contract, not historical selectors.
