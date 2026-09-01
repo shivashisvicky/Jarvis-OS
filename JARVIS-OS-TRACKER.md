@@ -1,20 +1,20 @@
 # J.A.R.V.I.S. OS Engineering Tracker
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-01
 
 ## Golden baseline
 
 `ede622c6e7f35dbd67f2007806122116d724dcb5`
 
-Verified deployed baseline. Ebook/Gutenberg is frozen unless a new reproducible regression is reported.
+Verified deployed baseline. Ebook/Gutenberg remains frozen unless a new reproducible regression is reported.
 
 ## Current working commits
 
-- `670ebb554efb086ef747df732456409637cef27b` — Fix media ordinal context across navigation.
-- `e1621b1d6462870b173cd740c137ae75ad5cd54d` — deployment/cache-version update for the Media context fix.
-- `7e16a213e9600ddad036a7c63495b1568070ca34` — this session handoff checkpoint.
+- `782c51c0bb00f2410139a85132adfcf6adb59870` — Phase 2 Search Hub provider-fidelity guard wired into the module loader.
+- `1ddc591d5a15bb018435ef420468977106d93603` — baseline documentation refresh.
+- `a45a0ca2f28d0a85dd0b167ff785b40576762444` — continuation checkpoint refresh.
 
-These working commits are **not** promoted to the golden baseline until CI/deployment and manual validation are green.
+The Phase 2 code is **not** promoted to the golden baseline until CI/deployment and manual validation are green.
 
 ## Status
 
@@ -22,62 +22,82 @@ These working commits are **not** promoted to the golden baseline until CI/deplo
 |---|---|---|
 | 3.0 foundation | DONE | Runtime/architecture guardrails established |
 | Command authority cleanup | DONE | Compatibility and routing hardened |
-| Entity intelligence | DONE | Generic person/book resolution, no hardcoded names |
-| Ebook/Gutenberg | DONE / FROZEN | Search, readable filtering, MP3 exclusion, 404 exclusion, reader handoff verified |
-| Voice/iOS | STABLE | Protected from unrelated work |
-| Maps | STABLE | Previous hardening complete; future improvements are separate issues |
-| News | STABLE | Previous 3.0 hardening complete |
-| Media | ACTIVE FIX / VALIDATION | Ordinal result recovery after leaving Media was just patched; manual validation pending |
-| Shell / Intelligence | ACTIVE | Context/result reference layer |
+| Entity intelligence | DONE / STABLE | Generic person/book resolution, no hardcoded names |
+| Ebook/Gutenberg | DONE / FROZEN | Search, readable filtering, MP3 exclusion, 404 exclusion, reader handoff protected |
+| Voice/iOS | STABLE | Spoken response lifecycle and mic release restored in latest verified cycle |
+| Time Now | STABLE | `What time is it` tested with written + spoken response when voice is active |
+| Maps | STABLE | Destination routing fixed; small UI/Stop Voice polish issue remains separate |
+| News | STABLE | Previous hardening complete |
+| Media | STABLE / CONTEXT READY | YouTube search/playback works; result-reference continuity remains intelligence work |
+| Search Hub | ACTIVE PHASE 2 | Provider fidelity guard just wired; manual validation pending |
+| Shell / Intelligence | ACTIVE | Context/result-reference layer |
 | API Lab | PLANNED | After Shell / Intelligence |
 | SFTP / Files | PLANNED | After API Lab |
 | Terminal | PLANNED | After SFTP / Files |
 | Proactive intelligence | PLANNED | Later Phase C |
 
-## Active issue
+## Phase 2: Search Hub provider fidelity
 
-### Media ordinal result recovery across navigation
+**Goal:** provider selection must remain authoritative from user selection through request, response and UI rendering.
 
-**Reported behavior:** after a Media/YouTube result list is shown, returning to Command Center and saying `Play the first one` produced `I do not have a current result list to open` instead of playing the first result.
+**Patch:** `782c51c0bb00f2410139a85132adfcf6adb59870`.
 
-**Patch:** context engine `3.4.0` now reads the most recent valid `jarvis-youtube:*` session result cache when live Media context is missing, restores the query/results, navigates back to Media when required, reruns the stored query, finds the matching YouTube result by ID, and activates that card.
+**Implementation:** `jarvis-search-provider-fidelity-v1.js` is loaded by `jarvis-module-loader.js`; the Web feature now uses the Phase 2 asset version.
 
-**Validation pending:**
+**Validation:**
 
-1. Search YouTube with multiple results.
-2. Leave Media for Command Center.
-3. Say `Play the first one`.
-4. Confirm the exact first result plays.
-5. Repeat `Play the second one` and `Play result 2`.
+1. Brave + `cabs`.
+2. Bing + `cabs`.
+3. Switch providers without a reload and repeat.
+4. Confirm result/status labels never inherit the previous provider.
+5. Confirm search result content itself is not altered by the guard.
 
-Do not call this fixed/baselined until the deployed behavior is manually verified.
+## Next intelligence queue
 
-## Next queue after Media validation
+After Phase 2 validation, proceed one issue at a time:
 
-1. Numbered result references: `open result 2`, `open number 2`, `open no. 2`.
-2. Ordinal/result references: first, second, third, last.
+1. Numbered result references: `open result 2`, `open result 3`, `open number 2`, `open no. 2`.
+2. Ordinal references: first, second, third, last.
 3. Contextual locations: here, there, nearby.
 4. Context clearing and expiry.
 5. Explicit intent versus stale context.
 6. Action/result chaining.
 7. Entity continuity.
 8. Ambiguity resolution.
-9. Graceful clarification when context is insufficient.
+9. Graceful clarification.
 
-Each item is a separate issue and separate push.
+## Product-furnishing goals
+
+These are deliberately separate from the next routing fix:
+
+- One shared context model across Command, Search, Maps, Media and Books.
+- Voice and text must enter the same command authority and produce the same `CommandResult` contract.
+- Natural language variations must not require hardcoded exact phrases.
+- Search Hub should receive a clean search query, not the command wrapper.
+- Result references should resolve by domain + result identity, not by DOM position alone.
+- Failed speech recognition must release the mic and leave the app ready for the next command.
+- UI polish must not be allowed to change intelligence behavior.
 
 ## Development rule
 
 **One issue → one fix → one push → one validation.**
 
-For each issue: reproduce it, identify the owning authority, change only that authority/test surface, push once, wait for CI/deployment, manually validate, then freeze the result if it becomes the best verified state.
+For each issue: reproduce it, identify the owning authority, compare to the best baseline, change only that authority/test surface, push once, wait for CI/deployment, manually validate, then freeze if verified.
 
-Do not combine unrelated fixes. Do not use speculative cache busts as a substitute for a root-cause fix. Do not touch a frozen subsystem to solve a different problem.
+Do not combine unrelated fixes. Do not use speculative cache busts as a substitute for a root-cause fix.
 
 ## Protected subsystems
 
-During Shell / Intelligence work, do not modify Ebook/Gutenberg, Voice/iOS, Time Now, Maps, News, Command Center, Games, Notes/Calculator or core navigation unless a separate regression is demonstrated. Media is protected from unrelated changes after the current ordinal-navigation issue is validated.
+During Shell / Intelligence work, do not modify Ebook/Gutenberg, Voice/iOS, Time Now, Maps, News, Media, Command Center, Games, Notes/Calculator or core navigation unless a separate reproducible regression is demonstrated.
 
-## Session handoff
+## Handoff
 
-Before starting work in a new chat, read `JARVIS-BASELINES.md`, `JARVIS-CONTINUATION.md`, `JARVIS-OS-TRACKER.md`, and `JARVIS_ROADMAP.md`. Then check CI/deployment for the current Media fix and manually validate the exact reported flow before moving to numbered result references.
+Before starting a new session, read:
+
+- `JARVIS-BASELINES.md`
+- `JARVIS-CONTINUATION.md`
+- `JARVIS-OS-TRACKER.md`
+- `JARVIS_ROADMAP.md`
+- `NEXT_PHASE_CONTEXT_PLAN.md`
+
+Then inspect CI/deployment for the current Phase 2 Search Hub change and validate it before starting the next numbered-reference issue.
