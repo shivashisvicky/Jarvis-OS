@@ -15,6 +15,19 @@ JARVIS should understand what the user means, choose the correct capability, exe
 - **One issue → one fix → one push → one validation cycle.**
 - The 2026-08-29 Ebook/Gutenberg baseline is frozen and must not be touched by unrelated changes.
 
+## Current product checkpoint: 2026-09-01
+
+The application shell is currently in a usable/stable state across iOS and Android. The active engineering work is no longer basic capability restoration. It is making JARVIS behave consistently as a context-aware assistant.
+
+Recent manual observations:
+
+- Voice response lifecycle is working again, including the previous iOS microphone/orange-indicator failure mode.
+- `What time is it` works as a global utility intent when voice is active.
+- Maps destination routing works; remaining Stop Voice/button placement is a UI issue, not a routing blocker.
+- Media/YouTube and Books are functioning.
+- Search Hub normal search routing was repaired; `cabs` is a confirmed working case.
+- Natural-language variations such as `black or yellow` exposed the remaining boundary between conversational command handling and browser search. This is now being handled as a clean intent/query contract rather than a growing list of exact phrases.
+
 ## Completed tracks
 
 ### Foundation
@@ -43,42 +56,53 @@ Status: COMPLETE / FROZEN
 
 Golden baseline: `ede622c6e7f35dbd67f2007806122116d724dcb5`
 
-Verified in the deployed build:
-
-- Beowulf and John Henry Newman searches work.
-- Read-in-JARVIS handoff works.
-- Audio/MP3 records are excluded from ebook results.
-- Gutenberg 404 records are filtered before reader rendering.
-- Reader content loads and pagination works.
-
-Do not modify this subsystem unless a new reproducible regression is reported.
+Verified behavior includes Beowulf and John Henry Newman resolution, Read-in-JARVIS handoff, audio/MP3 exclusion and Gutenberg 404 filtering. Do not modify this subsystem unless a new reproducible regression is reported.
 
 ## Active track: Shell / Intelligence
 Status: IN PROGRESS
 
-### Current issue: Media ordinal recovery across navigation
+### Phase 2: Search Hub provider fidelity
 
-The reported flow was: search YouTube, leave Media for Command Center, then say `Play the first one`. JARVIS previously lost the result context and reported that no current result list was available.
+Commit: `782c51c0bb00f2410139a85132adfcf6adb59870`.
 
-Patch: `670ebb554efb086ef747df732456409637cef27b`.
-Deployment/cache update: `e1621b1d6462870b173cd740c137ae75ad5cd54d`.
-Context engine version: `3.4.0`.
+A provider-fidelity guard now keeps the selected Search Hub provider authoritative in the UI even if backend result records contain a different internal source label. The Web feature is loaded with a Phase 2 cache version.
 
-The patch recovers the latest valid YouTube result set from session storage, restores Media, replays the stored query and selects the exact result by YouTube ID. **Manual deployed validation is still pending.**
+**Status: PUSHED / VALIDATION PENDING.**
 
-### Next after Media validation
+### Phase 3+ intelligence sequence
 
-1. Numbered result references: `open result 2`, `open result 3`, `open number 2`, `open no. 2`.
-2. Ordinal/result references: first, second, third, last.
-3. Contextual locations: here, there, nearby.
-4. Context clearing and expiry.
-5. Explicit intent versus stale context.
-6. Action/result chaining.
-7. Entity continuity.
-8. Ambiguity resolution.
-9. Graceful clarification when context is insufficient.
+After Phase 2 is verified, build the context layer in this order:
+
+1. **Numbered result references**: `open result 2`, `open result 3`, `open number 2`, `open no. 2`.
+2. **Ordinal references**: first, second, third, last.
+3. **Contextual locations**: here, there, nearby.
+4. **Context clearing and expiry**: stale context must not survive beyond its useful lifetime.
+5. **Explicit intent precedence**: direct commands must outrank stale/inferred context.
+6. **Action/result chaining**: search → select → open/play/navigate without restating the entity.
+7. **Entity continuity**: preserve logical identity across surface changes.
+8. **Ambiguity resolution**: ask a concise clarification instead of guessing.
+9. **Graceful clarification**: explain what context is missing and offer the smallest next step.
 
 Each item is a separate issue and separate push.
+
+## Product-furnishing goals
+
+### Intelligence
+- Move from phrase matching toward intent + slots + domain routing.
+- Keep domain context separate from global utility intents.
+- Preserve result identity, not just visible card position.
+- Make voice and typed commands use the same normalization and authority path.
+
+### Reliability
+- Any recognition failure must return the microphone to idle and allow the next command without refresh.
+- No feature may require a typed command to initialize voice behavior.
+- No successful response should disappear because another surface was briefly opened.
+
+### UX
+- Clear the command text field after every submitted command.
+- Keep the activation control reliable on touch devices.
+- Keep Stop Voice inside the command interaction area without obscuring other navigation.
+- Keep cosmetic changes isolated from command logic.
 
 ## Later 3.0 subsystem migration
 
