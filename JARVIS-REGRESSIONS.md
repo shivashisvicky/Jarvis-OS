@@ -1,6 +1,36 @@
 # J.A.R.V.I.S. OS Regression Ledger
 
-## 2026-08-28 Ebook regression
+## 2026-09-01 Search / Voice / Context checkpoint
+
+### Current observations
+
+- iOS and Android app opening is stable in the latest verified cycle.
+- iOS voice response lifecycle is restored; the previous orange/stuck microphone issue was fixed and later testing did not reproduce it.
+- `What time is it` can return both written and spoken output when the voice lifecycle is active.
+- A historical failure where voice required a typed command to activate speech is now treated as a protected regression contract: voice input must initialize the same response authority without a prior text command.
+- Maps destination routing is functioning; remaining Stop Voice/button placement is a UI issue and must not be used to alter routing.
+- Media/YouTube search and playback are functioning.
+- Ebook search and reader loading are functioning in recent manual tests; Ebook remains protected.
+- Search Hub returned unrelated results for commands such as `search the internet for black or yellow` when the command wrapper was forwarded as the search query. The query-normalization work corrected normal cases such as `cabs`.
+- Phase 2 now adds a provider-fidelity guard so the selected Search Hub provider remains authoritative in the user-facing UI.
+
+### Active regression contract
+
+**Search Hub provider fidelity**
+
+Commit: `782c51c0bb00f2410139a85132adfcf6adb59870`.
+
+Required checks:
+
+1. Brave selection stays Brave in status/result labels.
+2. Bing selection stays Bing in status/result labels.
+3. Switching provider does not leave stale labels.
+4. Result content and links remain unchanged by the guard.
+5. Normal search routing remains intact.
+
+Status: **pushed / validation pending**.
+
+## Historical 2026-08-28 Ebook regression
 
 ### Symptoms observed
 
@@ -11,30 +41,14 @@
 - Reader has shown a blank white/error screen.
 - Reader has shown `1 / …` without completing pagination.
 - John Henry Newman can resolve to the ebook/author path but previously failed to open the book.
-- `Time now` previously failed while `What time is it` worked; the latest reported test had `Time now` working.
+- `Time now` previously failed while `What time is it` worked; later testing had `Time now` working.
 - iOS voice has previously become stuck with the microphone orange and unable to return to idle.
 
-### Latest manual verification
+### Latest interpretation
 
-- **Beowulf:** correct result list returned and ebook opened successfully in the reader with spoken response.
-- **Reader:** content now loads and pagination is present (`1 / 350` in the reported test).
-- **John Henry Newman:** resolved/opened successfully in repeated tests, but initial open can take approximately **20–30 seconds**. This is now a performance/reliability concern rather than the previous total routing/open failure.
-- **Remaining reader defect:** Gutenberg raw/metadata front matter was being rendered as visible book content, including `Title`, `URL Source`, `Published Time`, and `Markdown Content`.
-- **Latest fix pushed:** the guard-only Ebook stability layer now strips that known transport envelope from `.jbe2-page` after reader content is rendered. It does not touch command routing, result buttons, IDs, entity classification, voice, Time Now, maps, YouTube, news, or Command Center.
-- **Current interpretation:** the core routing and reader-opening regression appears substantially improved. Do not declare the Ebook feature fully fixed until the front-matter fix and Newman latency are verified in deployment.
+The core Ebook routing/reader regression was substantially improved through isolated Ebook fixes and cache/deployment guards. Do not reopen the Ebook investigation unless a new reproducible Ebook failure appears.
 
-### Evidence / CI findings
-
-- Beowulf search regression can pass in clean Chromium while reader-opening tests fail.
-- Author entity classification can legitimately be `BOOK_AUTHOR`; do not weaken the product contract merely to force a green test. The important contract is that author resolution must not fall into generic Web/Search routing.
-- A prior CI run showed production deployment green while only Gutenberg Ebook tests failed. This validates the desired isolation of the Books regression.
-- A cancelled deployment caused a post-deploy gate to fail before tests ran. Do not interpret that as a product regression.
-
-### Current hypothesis
-
-The ebook surface accumulated overlapping authority/reader/stability/compatibility paths. Stale result races and inconsistent reader handoffs were more plausible than independent random Gutenberg failures. The latest test suggests those handoff problems are now much less severe, while source normalization remains incomplete.
-
-### Current remediation direction
+### Current Ebook protection
 
 - One owner for Ebook command routing.
 - One canonical Gutenberg search result model.
@@ -43,10 +57,14 @@ The ebook surface accumulated overlapping authority/reader/stability/compatibili
 - Reader must not claim success until content and page count are initialized.
 - Strip Gutenberg transport/metadata front matter from the reader before pagination/rendering.
 - Preserve real book headings, chapters and structured contents rather than rendering transport metadata.
-- Investigate Newman 20–30 second latency separately from routing correctness. Prefer faster source selection/caching without changing the public command contract.
-- Ebook stability code should be guard-only and must not rewrite buttons/IDs or compete with the Ebook authority.
+- Investigate Newman latency separately from routing correctness.
+- Ebook stability code remains guard-only and must not compete with Ebook authority.
 - Voice lifecycle must be protected and always return to idle on success/failure.
 
 ## Regression policy
 
 Never change a test only to make it green. If a test exposes a contract mismatch, determine whether the product or the test is wrong, document the decision, and preserve coverage for the user-visible behaviour.
+
+## Protected rule
+
+A regression in Voice, Time, Maps, Media, News, Ebook or Command Center must be fixed as its own issue. Do not use an unrelated context/search/UI change as a workaround.
