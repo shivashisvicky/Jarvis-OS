@@ -1,0 +1,12 @@
+(()=>{'use strict';
+if(window.__JARVIS_EBOOK_INPUT_PREFLIGHT_V1__)return;
+window.__JARVIS_EBOOK_INPUT_PREFLIGHT_V1__=true;
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const reserved=/^(?:hi|hello|hey|thanks|thank you|good morning|good night|what time is it|time now|time|tell me a joke)$/i;
+const bare=s=>{const q=clean(s);return q.length>=2&&q.length<=100&&/^[a-z0-9][a-z0-9 &'’\-:.]*$/i.test(q)&&q.split(/\s+/).length<=12&&!reserved.test(q)&&!/^\d+(?:\s*[+\-*/]\s*\d+)+$/.test(q)};
+const trace=(e,d={})=>{try{console.info('[JARVIS:EBOOK_INPUT_PREFLIGHT]',e,d)}catch{}};
+const resolve=async q=>{try{const fn=window.jarvisEntityIntelligence?.resolve;if(typeof fn!=='function')return null;const r=await fn(q);if(r&&['BOOK','BOOK_AUTHOR'].includes(String(r.type||'').toUpperCase())&&Number(r.score||0)>=.88)return r}catch(e){trace('RESOLVE_ERROR',{query:q,error:String(e?.message||e)})}return null};
+const accept=(q,r)=>{window.__JARVIS_ENTITY__={name:q,type:r.type,score:r.score,source:r.source,description:r.description||'',results:r.results||[]};const detail={text:q,resolved:true,entity:window.__JARVIS_ENTITY__,resolutionMode:'bare'};window.dispatchEvent(new CustomEvent('jarvis:entity-resolved',{detail}));window.dispatchEvent(new CustomEvent('jarvis:voice-command',{detail}));trace('ACCEPT',{query:q,type:r.type,score:r.score})};
+const onKey=ev=>{if(ev.key!=='Enter'||ev.isComposing)return;const input=ev.target;if(!(input instanceof HTMLInputElement)||input.id!=='commandInput')return;const q=clean(input.value);if(!bare(q))return;ev.preventDefault();ev.stopImmediatePropagation();void resolve(q).then(r=>{if(r)accept(q,r);else{trace('NO_BOOK_MATCH',{query:q});input.form?.requestSubmit()}})};
+document.addEventListener('keydown',onKey,true);
+})();
