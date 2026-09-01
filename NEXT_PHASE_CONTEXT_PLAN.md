@@ -1,12 +1,24 @@
 # Next Phase: Context & Entity Memory v1
 
-Goal: make JARVIS retain structured conversational context across a short command chain without changing working domain routers.
+## Goal
+Make JARVIS retain structured conversational context across short command chains without changing stable domain routers.
 
-Examples:
-- Show me restaurants in Jagannath Nagar -> remember domain/location/results
-- Which one is nearest? -> resolve against remembered results
-- Take me there -> resolve selected entity, canonicalize the place name, navigate
-- Find Beowulf -> remember BOOK entity
-- Open the first one -> resolve ordinal against remembered results
+## Confirmed target behavior
 
-Guardrail: additive layer only. Do not rewrite stable map/search/media routers unless tests demonstrate a concrete regression.
+- `show me restaurants in Jagannath Nagar` -> remember domain/location/results.
+- `open the third one` -> resolve against the remembered result set and open that exact entity.
+- `Find Beowulf` -> remember a BOOK entity and its canonical BookRecord list.
+- `Open the third one` after a book search -> use the preserved resolved BookRecord, not a fresh search.
+
+## Current Ebook context result
+
+The ordinal path now accepts the resolved context item directly in `jarvis-ebook-command-authority-v1.js`. This was the narrow change that made the user-confirmed `open the third one` work for John Henry Newman.
+
+## Guardrails
+
+- Additive context layer only.
+- Do not rewrite stable Maps/Search/Media routers.
+- Do not route through Voice as a side effect of context resolution.
+- Do not use hardcoded book-title branches to compensate for missing entity context.
+- The context object must preserve `domain`, `query`, `results`, selected/resolved item, canonical title, author and book ID where available.
+- Follow-up handlers must consume the resolved item when supplied rather than re-searching.

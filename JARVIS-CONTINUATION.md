@@ -1,76 +1,61 @@
 # J.A.R.V.I.S. OS Continuation Checkpoint
 
-**Last updated:** 2026-08-28
-**Purpose:** Session-to-session engineering handoff. Read this before continuing work on Jarvis OS.
+**Last updated:** 2026-09-01
 
-## Current baseline
+## Current engineering state
 
-The current working repository is `shivashisvicky/Jarvis-OS` on the default branch.
+Jarvis is in a controlled Ebook/Gutenberg stabilization phase. The last verified user-facing build had Beowulf working, John Henry Newman working, and `open the third one` working through preserved result context. The remaining reader defect was malformed Gutenberg transport/metadata markup leaking into visible titles/content.
 
-Latest engineering work is focused on **ebook intelligence / Gutenberg routing and reader reliability**. The most recent push was intended to fix a Gutenberg network race and ebook reader source failures.
+### Recent commits
 
-### Latest commits
+- `efadc12ec24f01617b5a41dabd6a73d8cfe989f2` - `fix: sanitize malformed Gutenberg book titles in reader`.
+- `f8f9ba7dd16c57913776f13d79065bbe0191cc80` - `fix: preserve resolved book context for ordinal followups`.
+- `4889f763ad8234724fe8414e43a2a4dd6baf386e` - restored Ebook search reconciliation authority.
 
-- `3c4ff4918265304e67b640b9e3528a52c0d31537` - latest push. Ebook network/race and reader-path fix, with index loading configuration corrected/retained.
-- `85978e7690f66daf85b57bfedf9f8ef9ee30e2e6` - `Fix Gutenberg ebook network race and reader source`.
+## Important Actions evidence
 
-## What was already working before this checkpoint
+Run `33514203915` was for `f8f9ba7...` and was **red**.
 
-- Command Center internet search routing is working for queries such as "search the internet for black or blue".
-- Books are generally recognized/routed as an ebook domain, rather than being treated as an arbitrary keyword.
-- Gutenberg book listing infrastructure exists.
-- Voice functionality on iOS was restored and duplicate voice-response issues have had dedicated fixes.
-- YouTube command routing/playback work has been iterated and is separate from the current ebook task.
-- Maps, News, weather, command authority, context/reference authority, entity authority and other Jarvis subsystems have dedicated patches in the repository. Avoid regressing these while fixing ebooks.
+- Pages build/deploy: passed.
+- Home + News + Voice: passed.
+- Gemini: passed.
+- In-Shell Web Search: passed.
+- Media Search: passed.
+- Gutenberg Ebooks: failed all 5 tests.
+- Entity Intelligence: failed Newman author resolution while bare Beowulf passed.
 
-## Ebook problem being worked on
+The Ebook failures were specific: nondeterministic result counts (9 unique then 0 on a retry), missing `[data-read]` controls after result replacement, and Newman entity timeout. Entity failures were `UNKNOWN` for John Henry Newman and `BOOK` for Charles Dickens where a person/author classification was required.
 
-Observed failures included:
+This proves the run did **not** break every subsystem. It proves the changed Ebook/context/entity contracts were not green in that deployment.
 
-1. Searching **Beowulf** did not reliably produce ebook results.
-2. Searching **John Henry Newman** did not reliably produce ebook results.
-3. Searching both terms could remain idle instead of opening/activating the Ebooks surface.
-4. Initial ebook loading could take roughly a minute and then appear to start working later, indicating a race/timing/network problem.
-5. `READ IN JARVIS` previously failed or the reader remained at a loading state such as `1 / …`.
-6. Gutenberg itself has valid listings for the affected books, so the issue is Jarvis routing/network/source handling, not absence of the books.
+## What is already known to work
 
-## Latest fix details
+- Voice lifecycle has been fragile historically. Do not touch global voice code for a Books fix.
+- Maps and YouTube must remain isolated from Ebook changes.
+- Search Hub must not inherit book queries merely because entity resolution is uncertain.
+- `open the third one` must use the resolved context item/BookRecord instead of rediscovering the current list.
+- Default/stale Gutenberg results must never replace a newer requested result list.
 
-The latest implementation introduced a network/race mitigation around Gutenberg/Gutendex and improved the reader's source retrieval path. The reader now has fallback source candidates including Gutenberg text endpoints and Jina-backed retrieval where appropriate.
+## Ebook implementation guardrails
 
-Important existing files/components include:
+- One command owner.
+- One canonical Ebook search/result owner.
+- One resolved BookRecord passed into reader/follow-up actions.
+- Stale/default result replacement must be rejected.
+- Reader is loaded only when readable content and pagination are initialized.
+- Reader sanitization must remain reader-scoped.
+- Entity classification belongs to Entity Authority, not ad-hoc book keyword lists.
 
-- `jarvis-ebook-authority-v2.js`
-- `jarvis-ebook-command-authority-v1.js`
-- `jarvis-ebook-reader-v3.js`
-- `jarvis-ebook-stability-v1.js`
-- `jarvis-ebook-library-v2.js`
-- `jarvis-ebook-compat-v1.js`
-- `jarvis-ebook-network-race-fix-v1.js`
+## Current next goals
 
-`index.html` currently loads the ebook authority/command/reader/stability modules and the ebook library/compat modules. Preserve this loading order unless there is a demonstrated reason to change it.
+1. Run a fresh live regression against the exact current head `efadc12...`.
+2. Verify Beowulf result list stability and `READ IN JARVIS`.
+3. Verify John Henry Newman author classification and opening.
+4. Verify `open the third one` again after deployment.
+5. Verify reader title/content contains no `$b`, `$i`, raw HTML, or transport-envelope metadata.
+6. Verify voice response remains present for Ebook commands.
+7. Verify Maps, YouTube, Search, News, Time and Command Center remain green.
 
-## Critical next step
+## Process rule
 
-**Do not assume the latest ebook fix is successful until CI/live testing confirms it.**
-
-Next engineer/session should:
-
-1. Check the newest GitHub Actions run for commit `3c4ff4918265304e67b640b9e3528a52c0d31537`.
-2. If CI fails, inspect the exact failing job/test and fix only the relevant regression.
-3. If CI passes, manually test at minimum:
-   - `Beowulf`
-   - `John Henry Newman`
-   - a combined/multi-term ebook query
-   - `READ IN JARVIS`
-   - reader pagination / close / retry
-4. Verify that opening the Ebooks tab is immediate and does not sit idle.
-5. Verify no regressions in Command Center, voice, Maps, News, YouTube and Time Now.
-
-## Engineering rule for continuation
-
-Treat the latest verified green build as the **best baseline**. Do not stack speculative fixes on top of a failing or unverified build. For every push, record the commit SHA, what changed, the failing symptom it targets, and the resulting Actions status here.
-
-## Session continuity note
-
-When starting a new chat, use this file as the first project handoff document. The goal is to continue from the latest verified Jarvis state rather than restarting diagnosis from scratch.
+Never hand over a build for manual testing while the relevant live gate is red or unverified. After every push: inspect the exact failing job, compare with the last known-good revision, make the smallest owner-local fix, push, wait for Actions, and record the result here. Do not stack speculative fixes.
