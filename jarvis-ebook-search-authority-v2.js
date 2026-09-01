@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V10__) return;
-  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V10__ = true;
+  if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V11__) return;
+  window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V11__ = true;
 
   const API = 'https://gutendex.com/books/';
   const JINA = 'https://r.jina.ai/http://gutendex.com/books/';
@@ -107,9 +107,6 @@
       await new Promise(r => setTimeout(r, 300));
     }
 
-    // Author-name fallback: Gutendex search is word based, so a full personal
-    // name can occasionally miss the author's catalogue entries. Search the
-    // surname, then keep only real text editions and rank matching authors first.
     if (surname && surname !== q) {
       trace('AUTHOR_SURNAME_FALLBACK', { query: cleanQuery, surname: decodeURIComponent(surname) });
       const authorCandidates = [
@@ -148,7 +145,7 @@
       const e = epub(b);
       return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
     }).join('');
-    if (line) line.textContent = `${Math.min(20, ranked.length)} RESULTS · GUTENBERG TEXT`; 
+    if (line) line.textContent = `${Math.min(20, ranked.length)} RESULTS · GUTENBERG TEXT`;
     trace('RENDER_RESULTS', { query: clean(query), count: ranked.length, firstTitle: ranked[0]?.title || '' });
     remember(ranked, query);
   };
@@ -198,15 +195,70 @@
   document.addEventListener('keydown', handleSearchKeydown, true);
 
   const wirePanel = (panel) => {
-    if (!panel || panel.__jarvisSearchV10) return;
-    panel.__jarvisSearchV10 = true;
+    if (!panel || panel.__jarvisSearchV11) return;
+    panel.__jarvisSearchV11 = true;
     const input = panel.querySelector('#jbe6Query'); const button = panel.querySelector('#jbe6Search'); if (!input || !button) return;
     const submit = (event) => { event?.preventDefault?.(); event?.stopImmediatePropagation?.(); search(input.value); };
     button.addEventListener('click', submit, true); input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(e); }, true); input.addEventListener('input', () => { input.dataset.jarvisUserQuery = '1'; }, true);
   };
   const scan = () => wirePanel(document.querySelector('#jbe6Panel'));
-  const observer = new MutationObserver(scan); observer.observe(document.documentElement, { childList: true, subtree: true }); scan(); setInterval(scan, 500);
+  const observer = new MutationObserver(scan);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  scan(); setInterval(scan, 500);
 
-  window.jarvisEbookSearchAuthority = { version: '10.0.0', search, searchResolved, rank: stableRank };
+  // Reconcile the ebook panel after other UI layers mount or replace the
+  // default catalogue. This preserves voice-resolved searches such as
+  // "John Henry Newman" without touching other domains.
+  let reconciledQuery = '';
+  let reconcileTimer = null;
+  const reconcile = () => {
+    const input = document.querySelector('#jbe6Query');
+    const results = document.querySelector('#jbe6Results');
+    if (!input || !results) return false;
+    const query = clean(input.value);
+    if (!query || query.length < 2) return false;
+    const normalizedQuery = normalize(query);
+    if (normalizedQuery === reconciledQuery) return false;
+
+    const books = [...results.querySelectorAll('.jbe6-book')];
+    const line = document.querySelector('#jbe6StatusLine')?.textContent || '';
+    const searching = /SEARCHING/i.test(line) || !!results.querySelector('.jbe6-status');
+    if (searching) return false;
+
+    const matchingBook = books.some((el) => {
+      const title = normalize(el.querySelector('.jbe6-name')?.textContent || '');
+      const author = normalize(el.querySelector('.jbe6-author')?.textContent || '');
+      return title.includes(normalizedQuery) || author.includes(normalizedQuery);
+    });
+    if (matchingBook) {
+      reconciledQuery = normalizedQuery;
+      return false;
+    }
+
+    reconciledQuery = normalizedQuery;
+    trace('RECONCILE_DEFAULT_CATALOGUE', { query, displayedBooks: books.length });
+    search(query);
+    return true;
+  };
+  const scheduleReconcile = () => {
+    clearTimeout(reconcileTimer);
+    reconcileTimer = setTimeout(() => {
+      reconcile();
+      setTimeout(reconcile, 150);
+      setTimeout(reconcile, 450);
+      setTimeout(reconcile, 1000);
+    }, 0);
+  };
+  document.addEventListener('input', (event) => {
+    if (event.target?.id === 'jbe6Query') {
+      reconciledQuery = '';
+      scheduleReconcile();
+    }
+  }, true);
+  const reconcileObserver = new MutationObserver(scheduleReconcile);
+  reconcileObserver.observe(document.documentElement, { childList: true, subtree: true });
+  scheduleReconcile();
+
+  window.jarvisEbookSearchAuthority = { version: '11.0.0', search, searchResolved, rank: stableRank };
   window.__JARVIS_GUTENBERG_WARM__ = async (query='Beowulf') => { try { const results = await fetchJson(`${API}?search=${encodeURIComponent(query)}&languages=en&mime_type=text%2F`, 12000); if(results.length) warmCache(query, results.filter(isTextBook)); trace('WARM_FETCH_COMPLETE', { query, count: results.length }); return results; } catch(error) { trace('WARM_FETCH_ERROR', { query, error:String(error) }); return []; } };
 })();
