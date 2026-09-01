@@ -129,6 +129,19 @@
     } catch {}
   };
 
+  const uniqueTitles = (results) => {
+    const seen = new Set();
+    const out = [];
+    for (const b of results) {
+      const key = normalize(b.title || '') || `id:${b.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(b);
+      if (out.length >= 20) break;
+    }
+    return out;
+  };
+
   const render = (results, query) => {
     const resultsEl = document.querySelector('#jbe6Results');
     const line = document.querySelector('#jbe6StatusLine');
@@ -139,13 +152,13 @@
       trace('RENDER_EMPTY', { query: clean(query) });
       return;
     }
-    const ranked = stableRank(results.filter(isTextBook), query);
-    resultsEl.innerHTML = ranked.slice(0, 20).map((b, i) => {
+    const ranked = uniqueTitles(stableRank(results.filter(isTextBook), query));
+    resultsEl.innerHTML = ranked.map((b, i) => {
       const image = cover(b) ? `<img class="jbe6-cover" src="${esc(cover(b))}" alt="">` : '<div class="jbe6-cover"></div>';
       const e = epub(b);
-      return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
+      return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-read="${esc(b.id)}" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
     }).join('');
-    if (line) line.textContent = `${Math.min(20, ranked.length)} RESULTS · GUTENBERG TEXT`;
+    if (line) line.textContent = `${ranked.length} RESULTS · GUTENBERG TEXT`;
     trace('RENDER_RESULTS', { query: clean(query), count: ranked.length, firstTitle: ranked[0]?.title || '' });
     remember(ranked, query);
   };
@@ -170,7 +183,7 @@
 
   const searchResolved = async (raw, resolvedResults) => {
     const query = clean(raw);
-    const results = Array.isArray(resolvedResults) ? stableRank(resolvedResults.filter(isTextBook), query) : [];
+    const results = Array.isArray(resolvedResults) ? uniqueTitles(stableRank(resolvedResults.filter(isTextBook), query)) : [];
     if (!query || !results.length) return false;
     const input = document.querySelector('#jbe6Query');
     const resultsEl = document.querySelector('#jbe6Results');
@@ -206,9 +219,6 @@
   observer.observe(document.documentElement, { childList: true, subtree: true });
   scan(); setInterval(scan, 500);
 
-  // Reconcile the ebook panel after other UI layers mount or replace the
-  // default catalogue. This preserves voice-resolved searches such as
-  // "John Henry Newman" without touching other domains.
   let reconciledQuery = '';
   let reconcileTimer = null;
   const reconcile = () => {
