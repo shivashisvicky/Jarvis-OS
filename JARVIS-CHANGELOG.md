@@ -1,5 +1,34 @@
 # J.A.R.V.I.S. OS Engineering Changelog
 
+## 2026-09-01
+
+### Phase 2: Search Hub provider fidelity
+
+- Added `jarvis-search-provider-fidelity-v1.js` as an isolated Search Hub guard.
+- Wired the guard through `jarvis-module-loader.js`.
+- Updated the Web feature asset version for the Phase 2 deployment.
+- The guard keeps the user-selected provider authoritative in the Search Hub UI/status layer even when returned records carry an internal source label from another engine.
+- **Validation status:** pushed, manual validation pending. This is not a new baseline yet.
+
+### Product checkpoint
+
+Latest development-cycle observations recorded for continuation:
+
+- iOS and Android app opening is stable.
+- Voice response lifecycle and iOS microphone release are stable after the latest verified fix.
+- `What time is it` is a global utility route and has been tested with spoken + written output when voice is active.
+- Maps destination routing is working; remaining Stop Voice/button positioning is a separate UI polish issue.
+- YouTube/Media search and playback are working.
+- Ebook search/reader behavior is working in manual tests and remains protected.
+- Search Hub normal query routing is working for confirmed cases such as `cabs`.
+- The previous unrelated-results case (`black or yellow`) established the requirement that the Search Hub receive the cleaned search query, not the command wrapper.
+
+### Next-session validation
+
+1. Validate Phase 2 provider fidelity with Brave and Bing.
+2. If green, freeze/document the Phase 2 result.
+3. Begin numbered result references as the next isolated intelligence issue.
+
 ## 2026-08-30
 
 ### Media ordinal context recovery
@@ -11,19 +40,7 @@
 - Added Media restoration, stored-query replay and exact YouTube-ID result matching before playback.
 - Updated `index.html` cache/version references in commit `e1621b1d6462870b173cd740c137ae75ad5cd54d`.
 - Updated session handoff/tracker in commits `7e16a213e9600ddad036a7c63495b1568070ca34` and `711b4babe910ea8943b6c2d52e010cbd65c1c51c`.
-- **Validation status:** pending deployed/manual verification. Do not promote these working commits to the golden baseline yet.
-
-### Next-session test
-
-1. Search YouTube for a query with multiple results.
-2. Leave Media and return to Command Center.
-3. Say `Play the first one`.
-4. Confirm JARVIS restores Media, restores the relevant search and plays the exact first result.
-5. Repeat `Play the second one` and `Play result 2`.
-
-### Next queue
-
-After Media ordinal recovery is green, continue with numbered result references: `open result 2`, `open number 2`, `open no. 2`, followed by the remaining context-reference sequence documented in `JARVIS-CONTINUATION.md`.
+- **Validation status:** the current context plan should treat Media result continuity as a completed/stable capability only after the exact deployed flow is manually confirmed. Do not use Ebook or Voice changes as a workaround.
 
 ## 2026-08-29
 
@@ -41,7 +58,7 @@ After Media ordinal recovery is green, continue with numbered result references:
 
 - Ebook/Gutenberg is now protected from unrelated changes.
 - Shell / Intelligence is the next active 3.0 track.
-- The next single issue is numbered result references: `open result 2`, `open number 2`, `open no. 2`.
+- The intelligence goal is reusable context/result resolution rather than growing hardcoded command phrases.
 - Historical/duplicate Ebook and Media experiments should not be treated as active work.
 - Session handoff is documented in `JARVIS-CONTINUATION.md`, `JARVIS-OS-TRACKER.md`, `JARVIS_ROADMAP.md`, and `NEXT_PHASE_CONTEXT_PLAN.md`.
 
