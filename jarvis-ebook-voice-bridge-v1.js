@@ -1,0 +1,13 @@
+(()=>{'use strict';
+if(window.__JARVIS_EBOOK_VOICE_BRIDGE_V1__)return;
+window.__JARVIS_EBOOK_VOICE_BRIDGE_V1__=true;
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(!isIOS||!('speechSynthesis'in window))return;
+const ebook=q=>{const s=String(q||'').toLowerCase();return /\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|read|reading)\b/i.test(s)||/^[a-z0-9][a-z0-9 &'’\-:.]{1,100}$/i.test(String(q||'').trim())};
+const clean=q=>String(q||'').replace(/\s+/g,' ').trim().replace(/[?!.]+$/,'').replace(/\b(?:search|find|look up|show me|show|open|read|reading|book|books|ebook|ebooks|gutenberg|standard ebooks|library|for|on)\b/gi,' ').replace(/\s+/g,' ').trim();
+const native=window.speechSynthesis;
+const speakNative=text=>{const t=String(text||'').trim();if(!t)return false;try{native.cancel();native.resume();const u=new SpeechSynthesisUtterance(t);u.rate=.92;u.pitch=.54;u.volume=.96;u.lang='en-GB';const voices=native.getVoices();const v=voices.find(x=>/^en-GB/i.test(x.lang)&&/Daniel|Arthur|George|Oliver|James|Thomas/i.test(x.name))||voices.find(x=>/^en-GB/i.test(x.lang))||voices.find(x=>/^en-IN/i.test(x.lang))||voices[0];if(v)u.voice=v;native.speak(u);return true}catch(e){try{console.warn('[JARVIS:EBOOK_VOICE]',String(e?.message||e))}catch{}return false}};
+const fallback=text=>{if(typeof window.jarvisVoiceAuthoritySpeak==='function'||typeof window.jarvisCinematicSpeak==='function'||typeof window.jarvisSpeak==='function')return false;return speakNative(text)};
+const handle=e=>{const d=e.detail||{},q=String(d.text||'').trim();if(!q||!ebook(q))return;if(d.resolved){const type=String(d.entity?.type||'').toUpperCase(),score=Number(d.entity?.score||0);if(d.resolutionMode==='bare'&&!['BOOK','BOOK_AUTHOR'].includes(type)||score<.9)return;setTimeout(()=>fallback(`Searching Gutenberg for ${clean(q)}.`),0);return}if(/\b(?:ebook|ebooks|book|books|novel|novels|gutenberg|standard ebooks|read|reading)\b/i.test(q))setTimeout(()=>fallback(clean(q)?`Searching Gutenberg for ${clean(q)}.`:'Opening the public-domain ebook library.'),0)};
+window.addEventListener('jarvis:voice-command',handle,false);
+})();
