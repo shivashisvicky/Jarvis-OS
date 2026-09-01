@@ -25,6 +25,7 @@ const publishContext=()=>{
  if(!results.length)return false;
  const snapshot={domain:'SEARCH',query:q,provider:'web',results,selected:null,updatedAt:Date.now()};
  window.__JARVIS_SEARCH_CONTEXT__=snapshot;
+ try{sessionStorage.setItem('jarvis-search-context-v3',JSON.stringify(snapshot))}catch{}
  window.dispatchEvent(new CustomEvent('jarvis:search-context',{detail:snapshot}));
  window.jarvisContextEngine?.set?.({domain:'SEARCH',query:q,results,selected:null},'merge');
  return true;
