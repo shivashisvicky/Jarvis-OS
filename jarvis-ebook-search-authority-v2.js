@@ -140,14 +140,23 @@
       return;
     }
     const ranked = stableRank(results.filter(isTextBook), query);
-    resultsEl.innerHTML = ranked.slice(0, 20).map((b, i) => {
+    const display = [];
+    const seenTitles = new Set();
+    for (const book of ranked) {
+      const titleKey = normalize(book.title || '');
+      if (titleKey && seenTitles.has(titleKey)) continue;
+      if (titleKey) seenTitles.add(titleKey);
+      display.push(book);
+      if (display.length >= 20) break;
+    }
+    resultsEl.innerHTML = display.map((b, i) => {
       const image = cover(b) ? `<img class="jbe6-cover" src="${esc(cover(b))}" alt="">` : '<div class="jbe6-cover"></div>';
       const e = epub(b);
-      return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
+      return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
     }).join('');
-    if (line) line.textContent = `${Math.min(20, ranked.length)} RESULTS · GUTENBERG TEXT`;
-    trace('RENDER_RESULTS', { query: clean(query), count: ranked.length, firstTitle: ranked[0]?.title || '' });
-    remember(ranked, query);
+    if (line) line.textContent = `${display.length} RESULTS · GUTENBERG TEXT`;
+    trace('RENDER_RESULTS', { query: clean(query), count: display.length, firstTitle: display[0]?.title || '' });
+    remember(display, query);
   };
 
   let seq = 0;
