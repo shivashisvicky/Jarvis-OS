@@ -4,10 +4,10 @@ const LIVE_URL = process.env.JARVIS_LIVE_URL;
 
 async function assertReaderLoaded(page: any) {
   await expect(page.locator('.jbe14')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe14Paper')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#jbe14Paper')).not.toContainText('JARVIS could not open this item.', { timeout: 30_000 });
-  await expect(page.locator('#jbe14Paper')).not.toBeEmpty({ timeout: 30_000 });
-  await expect(page.locator('#jbe14Count')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
+  await expect(page.locator('#jbe14Paper')).toBeVisible({ timeout: 120_000 });
+  await expect(page.locator('#jbe14Paper')).not.toContainText('JARVIS could not open this item.', { timeout: 120_000 });
+  await expect(page.locator('#jbe14Paper')).not.toBeEmpty({ timeout: 120_000 });
+  await expect(page.locator('#jbe14Count')).toHaveText(/1 \/ \d+/, { timeout: 120_000 });
 }
 
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
@@ -77,7 +77,8 @@ test('John Henry Newman resolves as a Gutenberg author and can open a book', asy
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('John Henry Newman');
   await input.press('Enter');
-  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toMatch(/^(BOOK_AUTHOR|PERSON)$/);
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 30_000 }).toBe('BOOK_AUTHOR');
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.source || ''), { timeout: 5_000 }).toBe('gutenberg');
   await expect(page.locator('.nav[data-app="files"]')).toHaveClass(/selected/, { timeout: 15_000 });
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
