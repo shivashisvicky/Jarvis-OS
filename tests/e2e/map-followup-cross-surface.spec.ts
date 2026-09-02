@@ -67,3 +67,20 @@ test('MAPS context blocks stale book references instead of falling into web sear
   await expect(page.locator('.nav[data-app="web"]')).not.toHaveClass(/selected/);
   await expect(page.locator('#jarvisReply')).toContainText(/current book result list|search for a book first/i, { timeout: 8_000 });
 });
+
+test('BOOKS to MAPS cross-surface sequence keeps latest MAPS ownership', async ({ page }) => {
+  await openHome(page);
+  await submitCommand(page, 'Beowulf');
+  await expect(page.locator('.page-head h1')).toHaveText(/Files|Ebooks/i, { timeout: 30_000 });
+  await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+
+  await submitCommand(page, 'read the first one');
+  await expect(page.locator('#jarvisReply')).not.toContainText(/current book result list|search for a book first/i, { timeout: 8_000 });
+
+  await submitCommand(page, 'show me restaurants in Jagannath Nagar');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps', { timeout: 8_000 });
+  await waitForMapResults(page);
+
+  await submitCommand(page, 'open the third one');
+  await expect.poll(async () => page.locator('#mapFrame iframe').count(), { timeout: 8_000 }).toBeGreaterThan(0);
+});
