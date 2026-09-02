@@ -84,3 +84,36 @@ test('BOOKS to MAPS cross-surface sequence keeps latest MAPS ownership', async (
   await submitCommand(page, 'open the third one');
   await expect.poll(async () => page.locator('#mapFrame iframe').count(), { timeout: 8_000 }).toBeGreaterThan(0);
 });
+
+test('BOOKS to MAPS to YOUTUBE transfers ordinal ownership to the latest result list', async ({ page }) => {
+  await page.route('**/api/search*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [
+          { id: 'yt-test-001', title: 'Test Video One', channel: 'JARVIS Test', thumbnail: '' },
+          { id: 'yt-test-002', title: 'Test Video Two', channel: 'JARVIS Test', thumbnail: '' },
+          { id: 'yt-test-003', title: 'Test Video Three', channel: 'JARVIS Test', thumbnail: '' },
+        ],
+      }),
+    });
+  });
+
+  await openHome(page);
+  await submitCommand(page, 'Beowulf');
+  await expect(page.locator('.page-head h1')).toHaveText(/Files|Ebooks/i, { timeout: 30_000 });
+  await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+
+  await submitCommand(page, 'show me restaurants in Delhi');
+  await expect(page.locator('.page-head h1')).toHaveText('Maps', { timeout: 8_000 });
+  await waitForMapResults(page);
+
+  await submitCommand(page, 'search YouTube for test videos');
+  await expect(page.locator('.nav[data-app="media"]')).toHaveClass(/selected/, { timeout: 15_000 });
+  await expect.poll(async () => page.locator('#videoResults [data-jvc-id]').count(), { timeout: 15_000 }).toBe(3);
+
+  await submitCommand(page, 'open the third one');
+  await expect(page.locator('.nav[data-app="media"]')).toHaveClass(/selected/, { timeout: 8_000 });
+  await expect.poll(async () => page.locator('#jarvisPlayer').getAttribute('data-video-id'), { timeout: 8_000 }).toBe('yt-test-003');
+});
