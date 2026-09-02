@@ -20,6 +20,25 @@ async function submitCommand(page, text) {
   await page.locator('#commandForm').press('Enter');
 }
 
+test('standalone Beowulf command opens Gutenberg and speaks', async ({ page }) => {
+  await page.addInitScript(() => {
+    const spoken: string[] = [];
+    Object.defineProperty(window, '__JARVIS_TEST_SPOKEN__', { value: spoken, configurable: true });
+    const original = window.speechSynthesis?.speak?.bind(window.speechSynthesis);
+    if (original) {
+      window.speechSynthesis.speak = ((utterance: SpeechSynthesisUtterance) => {
+        spoken.push(String(utterance.text || ''));
+      }) as typeof window.speechSynthesis.speak;
+    }
+  });
+  await openHome(page);
+  await submitCommand(page, 'Beowulf');
+  await expect(page.locator('.page-head h1')).toHaveText(/Files|Ebooks/i, { timeout: 30_000 });
+  await expect.poll(async () => page.locator('#jbe6Results .jbe6-book').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_TEST_SPOKEN__?.length || 0), { timeout: 8_000 }).toBeGreaterThan(0);
+  await expect(page.evaluate(() => (window as any).__JARVIS_TEST_SPOKEN__?.join(' '))).toMatch(/Gutenberg|ebook|library/i);
+});
+
 test('MAPS context survives returning home and owns natural nearest follow-ups', async ({ page }) => {
   await openHome(page);
   await submitCommand(page, 'show me restaurants in Jagannath Nagar');
