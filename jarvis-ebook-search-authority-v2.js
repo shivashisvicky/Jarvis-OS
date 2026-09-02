@@ -11,7 +11,7 @@
   const cover = (b) => b.formats?.['image/jpeg'] || '';
   const epub = (b) => b.formats?.['application/epub+zip'] || '';
   const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
-  const isTextBook = (b) => String(b?.media_type || '').toLowerCase() === 'text' || Object.keys(b?.formats || {}).some(k => /^text\/(plain|html)/i.test(k));
+  const isTextBook = (b) => { const media = String(b?.media_type || '').toLowerCase(); if (media === 'sound') return false; return media === 'text' || Object.keys(b?.formats || {}).some(k => /^text\/(plain|html)/i.test(k)); };
   const authorMatches = (b, query) => {
     const wanted = normalize(query).split(' ').filter(Boolean);
     const names = (b.authors || []).map(a => normalize(a.name || ''));
