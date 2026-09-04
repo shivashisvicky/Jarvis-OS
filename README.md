@@ -41,3 +41,5 @@ The project intentionally avoids a heavyweight desktop wrapper at this stage. El
 ## CI/CD
 
 Production Pages deployment is validated through the GitHub Actions deployment workflow. Live Media verification requires the repository `YOUTUBE_API_KEY` Actions secret, restricted to YouTube Data API v3 and the GitHub Pages site origin.
+
+<!-- Pages deployment trigger: preserve the application tree while exercising the normal main-branch deployment path. -->
