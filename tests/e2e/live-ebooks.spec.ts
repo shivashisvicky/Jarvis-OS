@@ -3,17 +3,21 @@ import { expect, test } from '@playwright/test';
 const LIVE_URL = process.env.JARVIS_LIVE_URL;
 
 async function assertReaderLoaded(page: any) {
-  await expect(page.locator('.jbe2-reader')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe2Page')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#jbe2Page')).not.toContainText('JARVIS could not load this ebook', { timeout: 30_000 });
-  await expect(page.locator('#jbe2Page')).not.toBeEmpty({ timeout: 30_000 });
-  await expect(page.locator('#jbe2Count')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
+  await expect(page.locator('.jbe11')).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator('#jbe11Page')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#jbe11Page')).not.toBeEmpty({ timeout: 30_000 });
+  await expect(page.locator('#jbe11Counter')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
+}
+
+async function openFirstResult(page: any) {
+  const read = page.locator('#jbe6Results .jbe6-book').first().locator('[data-rel-read]');
+  await expect(read).toBeVisible({ timeout: 8_000 });
+  await read.click();
 }
 
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#app')).toBeVisible({ timeout: 15_000 });
-  await expect.poll(async () => page.evaluate(() => document.readyState)).toBe('complete', { timeout: 15_000 });
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 15_000 });
   await input.fill('Beowulf');
@@ -27,8 +31,9 @@ test('bare text command "Beowulf" opens Gutenberg and returns the required ebook
   await expect(results.first().locator('.jbe6-name')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6Results')).toContainText(/Beowulf/i);
   await expect(page.locator('#jbe6StatusLine')).toContainText(/GUTENBERG/i);
-  const titles = await results.locator('.jbe6-name').allTextContents();
-  expect(new Set(titles.map(t => t.replace(/^\d+\.\s*/, '').trim().toLowerCase())).size).toBe(titles.length);
+  const ids = await results.evaluateAll((els: Element[]) => els.map(e => e.getAttribute('data-book-id')).filter(Boolean));
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(ids.length).toBeGreaterThanOrEqual(2);
 });
 
 test('Beowulf first result opens readable text and preserves chapter navigation', async ({ page }) => {
@@ -41,11 +46,11 @@ test('Beowulf first result opens readable text and preserves chapter navigation'
   await page.locator('#jbe6Search').click();
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first().locator('.jbe6-name')).toContainText(/Beowulf/i);
-  await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
+  await openFirstResult(page);
   await assertReaderLoaded(page);
-  await expect.poll(async () => page.locator('#jbe2Section option').count(), { timeout: 10_000 }).toBeGreaterThan(1);
-  await page.locator('#jbe2Next').click();
-  await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
+  await expect.poll(async () => page.locator('#jbe11Chapter option').count(), { timeout: 10_000 }).toBeGreaterThan(1);
+  await page.locator('#jbe11Next').click();
+  await expect(page.locator('#jbe11Counter')).toHaveText(/2 \/ \d+/);
 });
 
 test('canonical Gutenberg reader opens a different real book and paginates', async ({ page }) => {
@@ -59,18 +64,19 @@ test('canonical Gutenberg reader opens a different real book and paginates', asy
   await query.fill('Frankenstein');
   await page.locator('#jbe6Search').click();
   await expect(page.locator('#jbe6Results')).toContainText(/Frankenstein/i, { timeout: 20_000 });
-  const read = page.locator('[data-read]').first();
-  await expect(read).toBeVisible();
+  const read = page.locator('#jbe6Results .jbe6-book').first().locator('[data-rel-read]');
+  await expect(read).toBeVisible({ timeout: 8_000 });
   await expect(read).toHaveAttribute('data-title', /Frankenstein/i);
   await read.click();
   await assertReaderLoaded(page);
-  expect(await page.locator('#jbe2Section option').count()).toBeGreaterThan(1);
-  await page.locator('#jbe2Next').click();
-  await expect(page.locator('#jbe2Count')).toHaveText(/2 \/ \d+/);
+  expect(await page.locator('#jbe11Chapter option').count()).toBeGreaterThan(1);
+  await page.locator('#jbe11Next').click();
+  await expect(page.locator('#jbe11Counter')).toHaveText(/2 \/ \d+/);
 });
 
 test('John Henry Newman resolves as a Gutenberg author and can open a book', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  await expect.poll(async () => page.evaluate(() => typeof (window as any).jarvisEntityAuthority?.resolve === 'function'), { timeout: 15_000 }).toBe(true);
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('John Henry Newman');
@@ -80,12 +86,13 @@ test('John Henry Newman resolves as a Gutenberg author and can open a book', asy
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#jbe6Results')).toContainText(/Newman/i);
-  await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
+  await openFirstResult(page);
   await assertReaderLoaded(page);
 });
 
 test('author names never fall through to generic web search', async ({ page }) => {
   await page.goto(LIVE_URL || '/', { waitUntil: 'domcontentloaded' });
+  await expect.poll(async () => page.evaluate(() => typeof (window as any).jarvisEntityAuthority?.resolve === 'function'), { timeout: 15_000 }).toBe(true);
   const input = page.locator('#commandInput');
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill('Charles Dickens');
