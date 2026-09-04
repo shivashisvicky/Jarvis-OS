@@ -40,7 +40,15 @@ async function submit(page: any, command: string) {
   })), { timeout: 15_000 }).not.toEqual(expect.objectContaining({ text: '' }));
 }
 
+async function submitBook(page: any, command: string) {
+  const input = page.locator('#commandInput');
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill(command);
+  await page.locator('#commandForm button[type="submit"]').click();
+}
+
 async function readFirst(page: any, label: string) {
+  await expect(page.locator('#commandInput')).toBeVisible({ timeout: 10_000 });
   await page.locator('#commandInput').fill('read the first one');
   await page.locator('#commandForm button[type="submit"]').click();
   await expect.poll(() => page.evaluate(() => Boolean(document.querySelector('.jbe2-reader,.jber'))), { timeout: 15_000 }).toBe(true);
@@ -57,8 +65,8 @@ async function readFirst(page: any, label: string) {
 test('POST-DEPLOY REGRESSION GATE: sequential command authority + ebook context + time + voice release', async ({ page }) => {
   await waitForShell(page);
 
-  // 1. Bare title -> Gutenberg result list.
-  await submit(page, 'Beowulf');
+  // 1. Bare title -> Gutenberg result list. Ebook search is validated by its result surface, not reply text.
+  await submitBook(page, 'Beowulf');
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jbe6Query')).toHaveValue('Beowulf', { timeout: 10_000 });
   await expect(page.locator('#jbe6Results .jbe6-book').first()).toBeVisible({ timeout: 25_000 });
