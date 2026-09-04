@@ -4,6 +4,9 @@ const LIVE_URL = process.env.JARVIS_LIVE_URL || '/';
 
 async function command(page: any, text: string) {
   const input = page.locator('#commandInput');
+  if (!(await input.isVisible().catch(() => false))) {
+    await page.locator('.nav[data-app="command"]').click();
+  }
   await expect(input).toBeVisible({ timeout: 15_000 });
   await input.fill(text);
   await input.press('Enter');
@@ -27,8 +30,7 @@ test('critical JARVIS sequence remains stable in one browser session', async ({ 
   await expect.poll(async () => page.evaluate(() => (window as any).__JARVIS_ENTITY__?.type || ''), { timeout: 20_000 }).toMatch(/^(BOOK|BOOK_AUTHOR)$/);
 
   // Read first: must use the existing BOOKS context and open the actual reader.
-  await page.locator('#commandInput').fill('read the first one');
-  await page.locator('#commandInput').press('Enter');
+  await command(page, 'read the first one');
   await expect(page.locator('.jber')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.jber-title')).toContainText(/Beowulf/i, { timeout: 15_000 });
   await expect(page.locator('#jberPage')).not.toBeEmpty({ timeout: 30_000 });
@@ -45,8 +47,7 @@ test('critical JARVIS sequence remains stable in one browser session', async ({ 
   await waitForBookResults(page, /Dickens|Christmas|Oliver|Great Expectations/i);
 
   // Contextual read must still resolve after the author search.
-  await page.locator('#commandInput').fill('read the first one');
-  await page.locator('#commandInput').press('Enter');
+  await command(page, 'read the first one');
   await expect(page.locator('.jber')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#jberPage')).not.toBeEmpty({ timeout: 30_000 });
 
@@ -58,8 +59,7 @@ test('critical JARVIS sequence remains stable in one browser session', async ({ 
   await expect(page.locator('.nav[data-app="files"]')).not.toHaveClass(/selected/);
 
   // A stale read reference without a current BOOKS context must never hang the command surface.
-  await page.locator('#commandInput').fill('read the first one');
-  await page.locator('#commandInput').press('Enter');
+  await command(page, 'read the first one');
   await expect(page.locator('#commandInput')).toBeVisible({ timeout: 10_000 });
 
   // The page must remain a single live document throughout the sequence.
