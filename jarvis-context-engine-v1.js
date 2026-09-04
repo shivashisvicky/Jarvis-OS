@@ -16,7 +16,7 @@ const resolveReference=text=>{const q=String(text||'').trim().toLowerCase().repl
 const isReference=text=>{const q=String(text||'').trim().toLowerCase();return resultRef(q)!==null||/^(?:there|here|nearby|around\s+there|that place|that location|it|that|this|that one|this one)$/.test(q)};
 const nextPage=()=>{if(!active()||!Array.isArray(state.results))return false;state.selected=null;state.updatedAt=now();state.turn+=1;return true};
 window.jarvisContextEngine={version:'3.1.0',get:snapshot,set:setContext,clear:reset,resolveReference,isReference,nextPage,isActive:active};
-window.addEventListener('jarvis:entity-resolved',e=>{const d=e.detail||{};setContext({domain:d.type||d.domain||null,entity:d.entity||null,query:d.query||null},'merge')});
+window.addEventListener('jarvis:entity-resolved',e=>{const d=e.detail||{};const current=state.domain;const entityType=d.type||d.domain||null;const preserveBookContext=current==='BOOKS'&&['BOOK','BOOK_AUTHOR'].includes(String(entityType).toUpperCase());setContext({domain:preserveBookContext?'BOOKS':entityType,entity:d.entity||null,query:d.query||null},'merge')});
 window.addEventListener('jarvis:map-context',e=>{const d=e.detail||{};setContext({domain:'MAPS',location:d.location||d.place||null,query:d.query||null,results:d.results||null,selected:d.selected||null},'merge')});
 window.addEventListener('jarvis:map-intent',e=>{const d=e.detail||{};if(d.place||d.query)setContext({domain:'MAPS',location:d.place||d.query,query:d.query||d.place,results:null,selected:null},'merge')});
 window.addEventListener('jarvis:search-context',e=>{const d=e.detail||{};setContext({domain:'SEARCH',query:d.query||null,results:d.results||null,selected:d.selected||null},'merge')});
