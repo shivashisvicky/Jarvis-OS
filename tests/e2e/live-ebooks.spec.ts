@@ -3,11 +3,12 @@ import { expect, test } from '@playwright/test';
 const LIVE_URL = process.env.JARVIS_LIVE_URL;
 
 async function assertReaderLoaded(page: any) {
-  await expect(page.locator('.jbe11')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('#jbe11Page')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#jbe11Page')).not.toContainText('JARVIS could not validate this ebook source', { timeout: 30_000 });
-  await expect(page.locator('#jbe11Page')).not.toBeEmpty({ timeout: 30_000 });
-  await expect(page.locator('#jbe11Counter')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
+  await expect(page.locator('.jbe14')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#jbe14Paper')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#jbe14Paper')).not.toContainText('JARVIS could not open this item.', { timeout: 30_000 });
+  await expect(page.locator('#jbe14Paper')).not.toBeEmpty({ timeout: 30_000 });
+  await expect(page.locator('#jbe14Count')).toHaveText(/1 \/ \d+/, { timeout: 30_000 });
+  await expect(page.locator('#jbe14Close')).toBeVisible({ timeout: 5_000 });
 }
 
 test('bare text command "Beowulf" opens Gutenberg and returns the required ebook result list', async ({ page }) => {
@@ -43,9 +44,9 @@ test('Beowulf first result opens readable text and preserves chapter navigation'
   await expect(page.locator('#jbe6Results .jbe6-book').first().locator('.jbe6-name')).toContainText(/Beowulf/i);
   await page.locator('#jbe6Results .jbe6-book').first().locator('[data-read]').click();
   await assertReaderLoaded(page);
-  await expect.poll(async () => page.locator('#jbe11Chapter option').count(), { timeout: 10_000 }).toBeGreaterThan(1);
-  await page.locator('#jbe11Next').click();
-  await expect(page.locator('#jbe11Counter')).toHaveText(/2 \/ \d+/);
+  await expect.poll(async () => page.locator('.jbe14-chapter').count(), { timeout: 10_000 }).toBeGreaterThan(1);
+  await page.locator('#jbe14Next').click();
+  await expect(page.locator('#jbe14Count')).toHaveText(/2 \/ \d+/);
 });
 
 test('canonical Gutenberg reader opens a different real book and paginates', async ({ page }) => {
@@ -64,9 +65,9 @@ test('canonical Gutenberg reader opens a different real book and paginates', asy
   await expect(read).toHaveAttribute('data-title', /Frankenstein/i);
   await read.click();
   await assertReaderLoaded(page);
-  expect(await page.locator('#jbe11Chapter option').count()).toBeGreaterThan(1);
-  await page.locator('#jbe11Next').click();
-  await expect(page.locator('#jbe11Counter')).toHaveText(/2 \/ \d+/);
+  expect(await page.locator('.jbe14-chapter').count()).toBeGreaterThan(1);
+  await page.locator('#jbe14Next').click();
+  await expect(page.locator('#jbe14Count')).toHaveText(/2 \/ \d+/);
 });
 
 test('John Henry Newman resolves as a Gutenberg author and can open a book', async ({ page }) => {
