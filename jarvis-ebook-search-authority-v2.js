@@ -1,4 +1,4 @@
-(() => {
+(()=>{
   'use strict';
   if (window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V9__) return;
   window.__JARVIS_EBOOK_SEARCH_AUTHORITY_V9__ = true;
@@ -7,7 +7,13 @@
   const JINA = 'https://r.jina.ai/http://gutendex.com/books/';
   const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
   const normalize = (s) => clean(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-  const authors = (b) => (b.authors || []).map(a => a.name).join(', ') || 'Unknown author';
+  const authors = (b) => {
+    const people = Array.isArray(b?.authors) ? b.authors : [];
+    if (people.length) return people.map(a => a.name).filter(Boolean).join(', ');
+    const translators = Array.isArray(b?.translators) ? b.translators : [];
+    if (translators.length) return translators.map(a => a.name).filter(Boolean).join(', ');
+    return 'Unknown author';
+  };
   const cover = (b) => b.formats?.['image/jpeg'] || '';
   const epub = (b) => b.formats?.['application/epub+zip'] || '';
   const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
@@ -49,11 +55,11 @@
   };
 
   const warmCache = (query, results) => {
-    try { sessionStorage.setItem(`jarvis:gutenberg:warm:${normalize(query)}`, JSON.stringify({ at: Date.now(), results })); } catch {}
+    try { sessionStorage.setItem(`jarvis:gutenberg:warm:v2:${normalize(query)}`, JSON.stringify({ at: Date.now(), results })); } catch {}
   };
   const readWarmCache = (query) => {
     try {
-      const x = JSON.parse(sessionStorage.getItem(`jarvis:gutenberg:warm:${normalize(query)}`) || '');
+      const x = JSON.parse(sessionStorage.getItem(`jarvis:gutenberg:warm:v2:${normalize(query)}`) || '');
       if (x && Array.isArray(x.results) && Date.now() - x.at < 30 * 60 * 1000) return x.results;
     } catch {}
     return null;
@@ -114,7 +120,7 @@
       return `<article class="jbe6-book" data-book-id="${esc(b.id)}" data-book-query="${esc(query)}"><div>${image}</div><div><div class="jbe6-name">${i + 1}. ${esc(b.title)}</div><div class="jbe6-author">${esc(authors(b))}</div><div class="jbe6-desc">${esc((b.subjects || []).slice(0, 3).join(' · '))}</div></div><div class="jbe6-actions"><button type="button" class="jbe6-link primary" data-rel-read="${esc(b.id)}" data-title="${esc(b.title)}" data-epub="${esc(e)}">READ IN JARVIS</button><a class="jbe6-link" href="https://www.gutenberg.org/ebooks/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">OPEN GUTENBERG</a></div></article>`;
     }).join('');
     if (line) line.textContent = `${Math.min(20, ranked.length)} RESULTS · GUTENBERG`;
-    trace('RENDER_RESULTS', { query: clean(query), count: ranked.length, firstTitle: ranked[0]?.title || '' });
+    trace('RENDER_RESULTS', { query: clean(query), count: ranked.length, firstTitle: ranked[0]?.title || '', firstId: ranked[0]?.id || '' });
     remember(ranked, query);
   };
 
@@ -146,7 +152,7 @@
     ++seq;
     input.value = query;
     render(results, query);
-    trace('RESOLVED_RENDER', { query, count: results.length, firstTitle: results[0]?.title || '' });
+    trace('RESOLVED_RENDER', { query, count: results.length, firstTitle: results[0]?.title || '', firstId: results[0]?.id || '' });
     return true;
   };
 
@@ -172,6 +178,6 @@
   const scan = () => wirePanel(document.querySelector('#jbe6Panel'));
   const observer = new MutationObserver(scan); observer.observe(document.documentElement, { childList: true, subtree: true }); scan(); setInterval(scan, 500);
 
-  window.jarvisEbookSearchAuthority = { version: '9.0.0', search, searchResolved, rank: stableRank };
+  window.jarvisEbookSearchAuthority = { version: '9.1.0', search, searchResolved, rank: stableRank };
   window.__JARVIS_GUTENBERG_WARM__ = async (query='Beowulf') => { try { const results = await fetchJson(`${API}?search=${encodeURIComponent(query)}&languages=en`, 12000); if(results.length) warmCache(query, results); trace('WARM_FETCH_COMPLETE', { query, count: results.length }); return results; } catch(error) { trace('WARM_FETCH_ERROR', { query, error:String(error) }); return []; } };
 })();
