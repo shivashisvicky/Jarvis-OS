@@ -29,7 +29,7 @@ test('DEPLOYED GATE: bare Beowulf resolves as a book entity', async ({ page }) =
   expect(result.route).toBe('BOOKS');
 });
 
-test('DEPLOYED GATE: John Henry Newman resolves from Gutenberg author evidence', async ({ page }) => {
+test('DEPLOYED GATE: John Henry Newman resolves as a person from Wikidata', async ({ page }) => {
   const baseURL = process.env.JARVIS_LIVE_URL;
   if (!baseURL) throw new Error('JARVIS_LIVE_URL is required');
 
@@ -51,13 +51,15 @@ test('DEPLOYED GATE: John Henry Newman resolves from Gutenberg author evidence',
       score: resolved.score,
       source: resolved.source,
       route: (window as any).jarvisCommandAuthority?.route?.('John Henry Newman')?.type || null,
-      evidenceCount: (resolved.results || []).length
+      label: resolved.label || '',
+      description: resolved.description || ''
     };
   });
 
-  expect(result.type).toBe('BOOK_AUTHOR');
+  expect(result.type).toBe('PERSON');
   expect(result.score).toBeGreaterThanOrEqual(0.9);
-  expect(result.source).toBe('gutenberg');
-  expect(result.evidenceCount).toBeGreaterThan(0);
-  expect(result.route).toBe('BOOKS');
+  expect(result.source).toBe('wikidata');
+  expect(result.label).toMatch(/John Henry Newman/i);
+  expect(result.description).toMatch(/cleric|cardinal|human|person/i);
+  expect(result.route).toBe('CONVERSATION_OR_INTELLIGENCE');
 });
