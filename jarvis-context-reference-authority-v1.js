@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V8__)return;
-window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V8__=true;
+if(window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V9__)return;
+window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V9__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isBookDomain=d=>d==='BOOKS'||d==='BOOK'||d==='BOOK_AUTHOR';
 const reference=/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result))?$/i;
@@ -12,16 +12,13 @@ const ordinalIndex=target=>{const q=clean(target).toLowerCase().replace(/[?.!]+$
 const readLastBook=()=>{try{const x=window.jarvisBookContextPersistence?.get?.()||JSON.parse(localStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V2')||'null')||JSON.parse(sessionStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V1')||'null');if(!x||!Array.isArray(x.results)||!x.results.length)return null;if(Date.now()-Number(x.savedAt||0)>30*60*1000)return null;return x}catch{return null}};
 const getBooksContext=()=>{const live=window.jarvisContextEngine?.get?.();if(live?.active&&isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return{ctx:live,source:'live'};const last=readLastBook();if(last)return{ctx:last,source:'last-book'};const saved=window.jarvisContextMemory?.get?.();if(saved?.domain&&isBookDomain(saved.domain)&&Array.isArray(saved.results)&&saved.results.length)return{ctx:saved,source:'memory'};return null};
 const mediaResults=()=>Array.from(document.querySelectorAll('#videoResults [data-jvc-id]'));
-const runMediaReference=target=>{const idx=ordinalIndex(target);if(idx===null)return false;const cards=mediaResults();if(!cards[idx])return false;cards[idx].click();return true};
+const clickMediaOrdinal=target=>{const idx=ordinalIndex(target);if(idx===null)return false;const cards=mediaResults();if(cards[idx]){cards[idx].click();return true}return false};
+const waitForMediaOrdinal=target=>{const idx=ordinalIndex(target);if(idx===null)return false;let tries=0;const timer=window.setInterval(()=>{tries+=1;const cards=mediaResults();if(cards[idx]){window.clearInterval(timer);cards[idx].click();return}if(tries>=120)window.clearInterval(timer)},50);return true};
 const explainNoContext=()=>{const text='I do not have a current book result list to read from. Search for a book first, then ask me to read a result.';const el=document.querySelector('#jarvisReply');if(el){el.textContent=text;el.classList.add('visible')}try{window.jarvisVoiceAuthoritySpeak?.(text)||window.jarvisCinematicSpeak?.(text)||window.jarvisSpeak?.(text)}catch{}};
 const resolve=(target,ctx,source)=>{const engine=window.jarvisContextEngine;if(source==='live'){const r=engine?.resolveReference?.(target);if(r?.matched&&isBookDomain(r.domain))return r}if(source==='memory'){const r=window.jarvisContextMemory?.resolveReference?.(target);if(r?.matched&&isBookDomain(r.domain))return r}const list=Array.isArray(ctx?.results)?ctx.results:[],idx=ordinalIndex(target);if(idx!==null&&list[idx])return{matched:true,type:'RESULT',index:idx,value:list[idx],domain:'BOOKS'};return{matched:false,reason:'unresolved'}};
-const run=raw=>{const q=clean(raw);const live=window.jarvisContextEngine?.get?.();if(nearestRef.test(q)&&live?.active&&String(live.domain||'').toUpperCase()==='MAPS'){const p=window.jarvisMapAuthority?.nearest?.()||live.results?.[0];if(p?.name){const text=`Nearest option: ${p.name}.`;const el=document.querySelector('#jarvisReply');if(el){el.textContent=text;el.classList.add('visible')}try{window.jarvisVoiceAuthoritySpeak?.(text)||window.jarvisCinematicSpeak?.(text)||window.jarvisSpeak?.(text)}catch{}return true}}
-if(!isRef(q))return false;
-const target=clean(q.replace(/^(?:please\s+)?(?:open|read|show)\s+/i,''));
-if(runMediaReference(target))return true;
-const hit=getBooksContext();if(!hit){explainNoContext();return true}const resolved=resolve(target,hit.ctx,hit.source);if(!resolved?.matched){explainNoContext();return true}window.dispatchEvent(new CustomEvent('jarvis:context-followup',{detail:{type:'SELECT',text:target,context:hit.ctx,source:hit.source,resolved}}));return true};
+const run=raw=>{const q=clean(raw);const live=window.jarvisContextEngine?.get?.();if(nearestRef.test(q)&&live?.active&&String(live.domain||'').toUpperCase()==='MAPS'){const p=window.jarvisMapAuthority?.nearest?.()||live.results?.[0];if(p?.name){const text=`Nearest option: ${p.name}.`;const el=document.querySelector('#jarvisReply');if(el){el.textContent=text;el.classList.add('visible')}try{window.jarvisVoiceAuthoritySpeak?.(text)||window.jarvisCinematicSpeak?.(text)||window.jarvisSpeak?.(text)}catch{}return true}}if(!isRef(q))return false;const target=clean(q.replace(/^(?:please\s+)?(?:open|read|show)\s+/i,''));if(clickMediaOrdinal(target))return true;if(ordinalIndex(target)!==null&&document.querySelector('#videoResults'))return waitForMediaOrdinal(target);const hit=getBooksContext();if(!hit){explainNoContext();return true}const resolved=resolve(target,hit.ctx,hit.source);if(!resolved?.matched){explainNoContext();return true}window.dispatchEvent(new CustomEvent('jarvis:context-followup',{detail:{type:'SELECT',text:target,context:hit.ctx,source:hit.source,resolved}}));return true};
 const intercept=e=>{const raw=clean(e.detail?.text);if(!run(raw))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(!run(raw))return;e.preventDefault();e.stopImmediatePropagation();if(input instanceof HTMLInputElement)input.value=''},true);
-window.jarvisContextReferenceAuthority={version:'2.7.0',run};
+window.jarvisContextReferenceAuthority={version:'2.8.0',run};
 })();
