@@ -8,7 +8,7 @@ const route=q=>{try{return window.jarvisCommandAuthority?.route?.(q)||null}catch
 const splitChain=text=>{
  const s=clean(text);
  if(!s)return [];
- const parts=s.split(/,\s*(?=(?:(?:and|then)\s+)?(?:open|read|show|select|choose|play|watch|take|navigate|go|find|search|look\s+up|lookup|google|tell|give|what|what's|what\s+is)\b)/i).map(normalize).filter(Boolean);
+ const parts=s.split(/,\s*(?=(?:(?:and|then)\s+)?(?:(?:open|read|show|select|choose|play|watch|take|navigate|go|find|search|look\s+up|lookup|google|tell|give|what|what's|what\s+is)\b|(?:the\s+)?(?:first|second|third|fourth|one|two|three|four)\b|(?:it|that|this)\b))/i).map(normalize).filter(Boolean);
  if(parts.length<2)return [];
  return parts;
 };
@@ -16,6 +16,7 @@ const safeType=t=>['MAP_POI','MAP_NAV','YOUTUBE','MEDIA','BOOKS','SEARCH','CONTE
 const inferType=q=>{
  const s=clean(q);
  if(/\b(?:open|read|show|select|choose|play|watch)\b.*\b(?:first|second|third|fourth|one|two|three|four|it|that|this|the)\b/i.test(s))return 'CONTEXT_FOLLOWUP';
+ if(/^(?:(?:the\s+)?(?:first|second|third|fourth|one|two|three|four)|it|that|this)\b/i.test(s))return 'CONTEXT_FOLLOWUP';
  if(/\b(?:take me|navigate|go)\b.*\b(?:there|here|to it|to that|to this)\b/i.test(s))return 'MAP_NAV';
  return null;
 };
@@ -51,7 +52,7 @@ const interceptSubmit=e=>{
  const parsed=parse(input.value);
  if(!parsed)return;
  e.preventDefault();e.stopImmediatePropagation();
- window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.1.0'}}));
+ window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.2.0'}}));
  void runChain(parsed);
 };
 const interceptVoice=e=>{
@@ -61,10 +62,10 @@ const interceptVoice=e=>{
  e.preventDefault();e.stopImmediatePropagation();
  const input=document.querySelector('#commandInput');
  if(input instanceof HTMLInputElement)input.value=text;
- window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.1.0',source:'voice'}}));
+ window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.2.0',source:'voice'}}));
  void runChain(parsed);
 };
 document.addEventListener('submit',interceptSubmit,true);
 window.addEventListener('jarvis:voice-command',interceptVoice,true);
-window.jarvisCommandChain={version:'1.1.0',parse};
+window.jarvisCommandChain={version:'1.2.0',parse};
 })();
