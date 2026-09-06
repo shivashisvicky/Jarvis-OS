@@ -106,15 +106,15 @@ jobs:
           enablement: true
 
       - name: Upload dual Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./_site
 
   deploy:
-    name: Deploy dual Pages
+    name: Deploy dual Pages TEST
     needs: build
     environment:
-      name: github-pages
+      name: github-pages-test
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
