@@ -13,7 +13,14 @@ const splitChain=text=>{
  return parts;
 };
 const safeType=t=>['MAP_POI','MAP_NAV','YOUTUBE','MEDIA','BOOKS','SEARCH','CONTEXT_FOLLOWUP'].includes(String(t||'').toUpperCase());
-const parse=text=>{const parts=splitChain(text);if(parts.length<2||parts.length>4)return null;const routes=parts.map(route);if(routes.some(r=>!r||!safeType(r.type)))return null;return {parts,routes}};
+const inferType=q=>{
+ const s=clean(q);
+ if(/\b(?:open|read|show|select|choose|play|watch)\b.*\b(?:first|second|third|fourth|one|two|three|four|it|that|this|the)\b/i.test(s))return 'CONTEXT_FOLLOWUP';
+ if(/\b(?:take me|navigate|go)\b.*\b(?:there|here|to it|to that|to this)\b/i.test(s))return 'MAP_NAV';
+ return null;
+};
+const resolveRoute=q=>{const r=route(q);if(r&&safeType(r.type))return r;const inferred=inferType(q);return inferred?{type:inferred,inferred:true}:null};
+const parse=text=>{const parts=splitChain(text);if(parts.length<2||parts.length>4)return null;const first=resolveRoute(parts[0]);if(!first)return null;return {parts,routes:[first,...parts.slice(1).map(p=>({type:inferType(p)||null,inferred:!!inferType(p)}))]}};
 const wait=ms=>new Promise(r=>window.setTimeout(r,ms));
 const waitForContext=(expected,timeout=10000)=>new Promise(resolve=>{
  const started=Date.now();
@@ -27,8 +34,10 @@ const runChain=async(parsed)=>{
  try{
   for(let i=0;i<parsed.parts.length;i++){
    const clause=parsed.parts[i];
+   const resolved=resolveRoute(clause);
+   if(!resolved)return;
    if(!dispatchClause(clause))return;
-   await waitForContext(parsed.routes[i]?.type, i===0?10000:5000);
+   await waitForContext(resolved.type, i===0?10000:5000);
    await wait(i===parsed.parts.length-1?150:450);
   }
  }finally{window.__JARVIS_COMMAND_CHAIN_RUNNING__=false}
@@ -42,7 +51,7 @@ const interceptSubmit=e=>{
  const parsed=parse(input.value);
  if(!parsed)return;
  e.preventDefault();e.stopImmediatePropagation();
- window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.0.0'}}));
+ window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.1.0'}}));
  void runChain(parsed);
 };
 const interceptVoice=e=>{
@@ -52,10 +61,10 @@ const interceptVoice=e=>{
  e.preventDefault();e.stopImmediatePropagation();
  const input=document.querySelector('#commandInput');
  if(input instanceof HTMLInputElement)input.value=text;
- window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.0.0',source:'voice'}}));
+ window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:parsed.parts,routes:parsed.routes,version:'1.1.0',source:'voice'}}));
  void runChain(parsed);
 };
 document.addEventListener('submit',interceptSubmit,true);
 window.addEventListener('jarvis:voice-command',interceptVoice,true);
-window.jarvisCommandChain={version:'1.0.0',parse};
+window.jarvisCommandChain={version:'1.1.0',parse};
 })();
