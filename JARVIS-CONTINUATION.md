@@ -1,76 +1,146 @@
 # J.A.R.V.I.S. OS Continuation Checkpoint
 
-**Last updated:** 2026-08-28
+**Last updated:** 2026-09-06
 **Purpose:** Session-to-session engineering handoff. Read this before continuing work on Jarvis OS.
 
-## Current baseline
+## STOP POINT: current stable baseline
 
-The current working repository is `shivashisvicky/Jarvis-OS` on the default branch.
+The current repository is `shivashisvicky/Jarvis-OS` on `main`.
 
-Latest engineering work is focused on **ebook intelligence / Gutenberg routing and reader reliability**. The most recent push was intended to fix a Gutenberg network race and ebook reader source failures.
+**Stable user-verified commit:** `6010a558da5cb14894a46880ed7c2c6c35e2699f`
 
-### Latest commits
+**Protected rollback branch:** `baseline/2026-09-06-stable-reader`
 
-- `3c4ff4918265304e67b640b9e3528a52c0d31537` - latest push. Ebook network/race and reader-path fix, with index loading configuration corrected/retained.
-- `85978e7690f66daf85b57bfedf9f8ef9ee30e2e6` - `Fix Gutenberg ebook network race and reader source`.
+This state was manually verified by the user after the latest deployment. It is the preferred rollback target. Do not restart diagnosis from older August baselines unless forensic comparison requires it.
 
-## What was already working before this checkpoint
+## What is working together at this checkpoint
 
-- Command Center internet search routing is working for queries such as "search the internet for black or blue".
-- Books are generally recognized/routed as an ebook domain, rather than being treated as an arbitrary keyword.
-- Gutenberg book listing infrastructure exists.
-- Voice functionality on iOS was restored and duplicate voice-response issues have had dedicated fixes.
-- YouTube command routing/playback work has been iterated and is separate from the current ebook task.
-- Maps, News, weather, command authority, context/reference authority, entity authority and other Jarvis subsystems have dedicated patches in the repository. Avoid regressing these while fixing ebooks.
+### Ordinal context
 
-## Ebook problem being worked on
+All three surfaces are required to work simultaneously:
 
-Observed failures included:
+1. **Books:** `Beowulf` or another book query -> `open/read/show the third one` opens the third current Gutenberg result.
+2. **Maps:** a multi-result query such as restaurants in a city -> `open/show the third one` acts on the third current map result.
+3. **YouTube/Video:** a video search -> `open/show/play the third one` acts on the third current media result.
 
-1. Searching **Beowulf** did not reliably produce ebook results.
-2. Searching **John Henry Newman** did not reliably produce ebook results.
-3. Searching both terms could remain idle instead of opening/activating the Ebooks surface.
-4. Initial ebook loading could take roughly a minute and then appear to start working later, indicating a race/timing/network problem.
-5. `READ IN JARVIS` previously failed or the reader remained at a loading state such as `1 / …`.
-6. Gutenberg itself has valid listings for the affected books, so the issue is Jarvis routing/network/source handling, not absence of the books.
+The critical architectural rule is **domain-first ordinal ownership**. A stale selected UI surface must not steal an ordinal from the currently active domain.
 
-## Latest fix details
+### Reader
 
-The latest implementation introduced a network/race mitigation around Gutenberg/Gutendex and improved the reader's source retrieval path. The reader now has fallback source candidates including Gutenberg text endpoints and Jina-backed retrieval where appropriate.
+Reader v11 is the canonical reader. It currently provides live Gutenberg text retrieval, page splitting/pagination, chapter/section detection, Previous/Next controls, page jump, retry and official Gutenberg handoff.
 
-Important existing files/components include:
+Reader presentation is separate from reader behaviour. The current reader polish gives the reader body a fitted sans-serif/iOS-friendly treatment and gives the reader subject/title a bold treatment. This is cosmetic only.
 
-- `jarvis-ebook-authority-v2.js`
-- `jarvis-ebook-command-authority-v1.js`
-- `jarvis-ebook-reader-v3.js`
-- `jarvis-ebook-stability-v1.js`
-- `jarvis-ebook-library-v2.js`
-- `jarvis-ebook-compat-v1.js`
-- `jarvis-ebook-network-race-fix-v1.js`
+## Current active stack
 
-`index.html` currently loads the ebook authority/command/reader/stability modules and the ebook library/compat modules. Preserve this loading order unless there is a demonstrated reason to change it.
+`index.html` currently activates, among other protected modules:
 
-## Critical next step
+- Context engine v3.
+- Context memory v2.
+- Context reference authority v31.
+- Command authority v12.
+- Entity authority v3.3.
+- Command intelligence v2.
+- Conversation choice authority v10.
+- Context intelligence v5.
+- Deterministic command authority v6.
+- YouTube command authority v2.
+- YouTube gesture fix v5.
+- Ebook network race fix v1.
+- Ebook authority v2.5.
+- Ebook command authority v11.
+- Ebook search authority v20.1.
+- Resolved Ebook handoff fix v1.
+- Ebook text transport v2.
+- Ebook reader v11 live fix.
+- Ebook stability v3.2.
+- Map authority v27.
+- Voice response authority v4.
 
-**Do not assume the latest ebook fix is successful until CI/live testing confirms it.**
+The live media module also persists actual rendered YouTube results into context so ordinal references can resolve against the live media result set.
 
-Next engineer/session should:
+## Important implementation facts
 
-1. Check the newest GitHub Actions run for commit `3c4ff4918265304e67b640b9e3528a52c0d31537`.
-2. If CI fails, inspect the exact failing job/test and fix only the relevant regression.
-3. If CI passes, manually test at minimum:
-   - `Beowulf`
-   - `John Henry Newman`
-   - a combined/multi-term ebook query
-   - `READ IN JARVIS`
-   - reader pagination / close / retry
-4. Verify that opening the Ebooks tab is immediate and does not sit idle.
-5. Verify no regressions in Command Center, voice, Maps, News, YouTube and Time Now.
+### Ebook context
 
-## Engineering rule for continuation
+`jarvis-ebook-search-authority-v2.js` remembers rendered Gutenberg results as `BOOKS` context. The current result set is therefore the source of truth for `read/open the first/second/third one`.
 
-Treat the latest verified green build as the **best baseline**. Do not stack speculative fixes on top of a failing or unverified build. For every push, record the commit SHA, what changed, the failing symptom it targets, and the resulting Actions status here.
+### Media context
 
-## Session continuity note
+`jarvis-live-media.js` publishes the rendered YouTube result list as `MEDIA` context. This is required for cross-surface ordinal ownership and must not be allowed to permanently overwrite a newer Books context.
 
-When starting a new chat, use this file as the first project handoff document. The goal is to continue from the latest verified Jarvis state rather than restarting diagnosis from scratch.
+### Ordinal authority
+
+`jarvis-context-reference-authority-v1.js` v2.12.0 uses domain-first ordering:
+
+- active `MAPS` domain gets map ordinal ownership first;
+- active `MEDIA/VIDEOS/VIDEO/YOUTUBE` domain gets media ordinal ownership first;
+- otherwise the Books context is resolved;
+- selected surface is only a fallback, not a stronger authority than the live domain.
+
+This ordering was introduced specifically because a stale selected surface previously caused YouTube ordinals to fall into Books, and subsequent media fixes could then make Books ordinals stop working. The current implementation is intended to solve both directions without breaking either surface.
+
+## Recent commits leading to the stable state
+
+- `195817852e3aeb12455bbffcc4620ffff16b2225` - preserve BOOKS context across entity resolution.
+- `67909830479f111038a6878aab7cf296dd8b3880` - prevent duplicate Gutenberg results while preserving reader authority.
+- `d07f7a0fdeafb963c39f79edce949ec36972e63c` - restore full Gutenberg result surface and author ranking.
+- `84139b2daf761bd7c9c9acc451cae8a49fa4795f` - cache-bust entity ebook handoff fix.
+- `9fe6d1456d50441bba28ff2c4533ef4275b09580` - expand single-result ebook handoff without disrupting resolved context.
+- `265ff6f6ffd494018a4812ae6bc76002a441cd82` - persist live YouTube result context.
+- `8551b37fadee9b659cb23d34bb331e12039d2726` - cache-bust live media context fix.
+- `f6b2cd265436984a6170c7654acdc1dcd3e98a05` - restore cross-surface map/media ordinal ownership.
+- `004e913a03f0831c718051c098ad9b5f8b69553c` - make ordinal ownership domain-first across Books, Maps and Video.
+- `868be71f04f45ff884f6f0ef888fcea206d2c5aa` - activate/cache-bust context-reference authority v31.
+- `1297e50a2ad9a8146a8d1c68ac4c0b9f3be41360` - isolated reader typography and bold reader title/subject presentation.
+- `6010a558da5cb14894a46880ed7c2c6c35e2699f` - cache-bust reader typography CSS.
+
+## Known historical failures and lessons
+
+### Do not repeat the V20 Ebook race
+
+Earlier Ebook search authority V20 performed a second remote Gutenberg search before using entity-resolved results, introducing an asynchronous race in entity -> Books -> reader handoff. Resolved results should be rendered deterministically when already available.
+
+### Do not fix one ordinal surface by blocking another
+
+The Books/Maps/Video ordinal stack is a synchronized dependency graph. Do not add a broad `blockingDomains` rule, stale selected-surface preference, or global media interception that can steal an ordinal from another active domain.
+
+### Do not resurrect older reader versions
+
+The current canonical reader is v11. Older reader implementations are historical references only. Do not replace v11 with an older reader merely because an old test once passed.
+
+### Do not casually reintroduce map followup code
+
+The current `index.html` does not load the historical `jarvis-map-followup-authority-v1.js`. Maps currently rely on the active map authority/context-reference path. Do not add the historical followup module without evidence that the current map ordinal path is failing.
+
+## Safe engineering workflow
+
+1. Start from the current stable baseline, not an old parent commit.
+2. Identify the exact owner of the failing behaviour.
+3. Change the smallest possible surface.
+4. Do not mix cosmetic work with routing/context work.
+5. Push one logical change.
+6. Wait for its Actions result before deciding the next code change.
+7. If a regression appears, compare against `6010a558da5cb14894a46880ed7c2c6c35e2699f` and revert rather than stacking speculative patches.
+8. Preserve the three-way ordinal contract after every functional change: Books + Maps + YouTube.
+
+## Manual smoke test before declaring a future baseline
+
+At minimum verify:
+
+- Book search and `open the third one`.
+- Map multi-result search and `open the third one`.
+- YouTube/video search and `open/play the third one`.
+- Reader opens, text loads, page counter is populated, pagination works.
+- Chapter/section selector works.
+- Reader title/subject remains bold and body typography remains consistent.
+- Close returns to the expected surface.
+- Existing voice, Time Now, Command Center and unrelated routes remain intact.
+
+## Baseline qualification
+
+The 2026-09-06 state is **user-verified functional**. At the time it was recorded, GitHub Actions had not yet exposed a workflow run for the typography cache-bust commit. Do not misrepresent this as CI-certified. If CI later reports a regression, investigate the exact job and use the protected baseline branch for rollback.
+
+## Golden rule for future agents
+
+**Do not make the next chat rediscover the last four days.** Read this file, read `JARVIS-BASELINES.md`, then inspect the current code at the protected baseline before proposing changes. Preserve working behaviour first, then improve one isolated thing at a time.
