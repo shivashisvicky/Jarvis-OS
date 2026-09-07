@@ -1,18 +1,54 @@
 # J.A.R.V.I.S. OS Baselines
 
-## Known-good reference
+## Protected recovery anchor
+
+`6010a558da5cb14894a46880ed7c2c6c35e2699f`
+
+This is the mature whole-tree recovery anchor selected after user verification. It is not the historical Phase 1 reference and must not be confused with it.
+
+## Historical reference
 
 `f6b43298ff823dc0420ba6cbdce9274afba7baab`
 
-This is the historical Phase 1 known-good reference. Do not casually reset to it. Use it as the comparison point when diagnosing regressions.
+Use this only as an older comparison point. Do not reset to it casually.
 
-## Current rule
+## Deployment branches
 
-A commit becomes the new baseline only after the relevant CI/live regression suite is green. A deployment that merely builds successfully is **not** a baseline.
+- PROD: `prod/2026-09-06-stable`
+- TEST: `test/jarvis-intelligence-next`
+- `main`: production GitHub Pages source in the repository architecture
 
-## Current status (2026-08-28)
+TEST experiments must never be assumed to be production-ready. PROD is protected from experimental Ebook/context changes.
 
-- Current development is focused on Gutenberg/Ebook reliability.
-- Protected behaviour: Voice, Time Now, Maps, YouTube, News, Command Center and unrelated command routes should not be changed as part of an Ebook fix.
-- Latest pushed Ebook candidate: `3c4ff4918265304e67b640b9e3528a52c0d31537`.
-- This candidate is **not yet a proven baseline** until Ebook CI is green.
+## Current recovery status: 2026-09-07
+
+- Broken user-visible candidate: Actions run `34113235306`, commit `a6885092d29f9bb077d87ef090ff03ea9a489548`.
+- That run was CI-green but behaviourally failed for Beowulf and John Henry Newman after deployment.
+- TEST has been recovered to the `6010a...` tree, with preservation branches created for the broken and intermediate experimental states.
+- The next deployment must be verified by Actions head SHA before manual testing.
+- The recovered tree is the candidate for validation, not a newly declared baseline until user-visible tests pass.
+
+## Baseline promotion rule
+
+A commit becomes a behavioural baseline only after:
+
+1. Actions build/deploy is green.
+2. The deployed TEST artifact is confirmed to match the intended commit.
+3. The relevant user-visible smoke tests pass.
+4. No protected surface regresses.
+
+A green Actions deployment alone is never sufficient.
+
+## Protected behaviour
+
+The following must remain intact while fixing Ebook reliability:
+
+- Books search and ordinal selection.
+- Maps search, third-result selection and `take me there`.
+- YouTube/video search and third-result selection.
+- Reader content, pagination/counter, chapter/section selection, previous/next and close/Gutenberg handoff.
+- Voice lifecycle and unrelated command routes.
+
+## Recovery rule
+
+If the Ebook experiment fails, roll back only the experimental layer that introduced the regression when the dependency graph allows it. Preserve unrelated fixes, cache-busters and domain authorities. Prefer a small reversible change over a broad historical reset.
