@@ -1,76 +1,132 @@
 # J.A.R.V.I.S. OS Continuation Checkpoint
 
-**Last updated:** 2026-08-28
-**Purpose:** Session-to-session engineering handoff. Read this before continuing work on Jarvis OS.
+**Last updated:** 2026-09-07
+**Purpose:** Mandatory session-to-session engineering handoff. A new agent must read this file plus `JARVIS-ARCHITECTURE.md`, `JARVIS-BASELINES.md`, and `JARVIS-REGRESSIONS.md` before changing code.
 
-## Current baseline
+## 1. Deployment architecture
 
-The current working repository is `shivashisvicky/Jarvis-OS` on the default branch.
+This repository deliberately separates production from experimentation.
 
-Latest engineering work is focused on **ebook intelligence / Gutenberg routing and reader reliability**. The most recent push was intended to fix a Gutenberg network race and ebook reader source failures.
+### PROD
 
-### Latest commits
+- Production source branch: `prod/2026-09-06-stable`.
+- Production promotion is deliberate. Do not debug or experiment on PROD.
+- Last promoted production commit: `58e22a659c93951271119e37a0c30a930c37259e`.
+- Protected whole-tree recovery anchor: `6010a558da5cb14894a46880ed7c2c6c35e2699f`.
 
-- `3c4ff4918265304e67b640b9e3528a52c0d31537` - latest push. Ebook network/race and reader-path fix, with index loading configuration corrected/retained.
-- `85978e7690f66daf85b57bfedf9f8ef9ee30e2e6` - `Fix Gutenberg ebook network race and reader source`.
+### TEST
 
-## What was already working before this checkpoint
+- Experimental branch: `test/jarvis-intelligence-next`.
+- TEST is where Ebook/context/entity/command experiments are deployed and manually verified.
+- TEST uses `.github/workflows/deploy-dual-pages-test.yml`.
+- The workflow builds PROD and TEST trees separately and publishes TEST under `/test/`.
+- Intended TEST URL: `https://shivashisvicky.github.io/Jarvis-OS/test/`.
+- A green build/deploy is not a user-verified behavioural baseline.
 
-- Command Center internet search routing is working for queries such as "search the internet for black or blue".
-- Books are generally recognized/routed as an ebook domain, rather than being treated as an arbitrary keyword.
-- Gutenberg book listing infrastructure exists.
-- Voice functionality on iOS was restored and duplicate voice-response issues have had dedicated fixes.
-- YouTube command routing/playback work has been iterated and is separate from the current ebook task.
-- Maps, News, weather, command authority, context/reference authority, entity authority and other Jarvis subsystems have dedicated patches in the repository. Avoid regressing these while fixing ebooks.
+### Main
 
-## Ebook problem being worked on
+- `main` remains the GitHub Pages production source in the repository architecture.
+- Do not use `main` as a scratch branch.
+- Do not merge TEST experiments into production merely because Actions is green.
 
-Observed failures included:
+## 2. Current recovery state
 
-1. Searching **Beowulf** did not reliably produce ebook results.
-2. Searching **John Henry Newman** did not reliably produce ebook results.
-3. Searching both terms could remain idle instead of opening/activating the Ebooks surface.
-4. Initial ebook loading could take roughly a minute and then appear to start working later, indicating a race/timing/network problem.
-5. `READ IN JARVIS` previously failed or the reader remained at a loading state such as `1 / …`.
-6. Gutenberg itself has valid listings for the affected books, so the issue is Jarvis routing/network/source handling, not absence of the books.
+The latest user-visible broken deployment was Actions run `34113235306`, commit `a6885092d29f9bb077d87ef090ff03ea9a489548`, titled `fix: restore TEST static asset path`.
 
-## Latest fix details
+That run was green at CI/deployment level but the user subsequently reported that both Beowulf and John Henry Newman ebook behaviour was broken. Therefore that build is not a behavioural baseline.
 
-The latest implementation introduced a network/race mitigation around Gutenberg/Gutendex and improved the reader's source retrieval path. The reader now has fallback source candidates including Gutenberg text endpoints and Jina-backed retrieval where appropriate.
+The TEST branch has been moved back to the protected whole-tree anchor `6010a558da5cb14894a46880ed7c2c6c35e2699f`. This is a recovery of the mature pre-experiment tree, not permission to discard unrelated prior work.
 
-Important existing files/components include:
+Important: moving a Git ref does not itself guarantee that GitHub Pages has rebuilt. Always verify a new TEST Actions run and its head SHA before asking the user to test.
 
-- `jarvis-ebook-authority-v2.js`
-- `jarvis-ebook-command-authority-v1.js`
-- `jarvis-ebook-reader-v3.js`
-- `jarvis-ebook-stability-v1.js`
-- `jarvis-ebook-library-v2.js`
-- `jarvis-ebook-compat-v1.js`
-- `jarvis-ebook-network-race-fix-v1.js`
+## 3. What must remain protected
 
-`index.html` currently loads the ebook authority/command/reader/stability modules and the ebook library/compat modules. Preserve this loading order unless there is a demonstrated reason to change it.
+The following accumulated behaviour must survive Ebook work:
 
-## Critical next step
+- Books result search and ordinal selection.
+- Maps result search, third-result selection and `take me there`.
+- YouTube/video multi-result search and third-result selection.
+- Reader opening, live Gutenberg text, page navigation/counter, chapter/section selector, previous/next and close/Gutenberg handoff.
+- Voice lifecycle and unrelated command routes.
 
-**Do not assume the latest ebook fix is successful until CI/live testing confirms it.**
+Do not fix Books by changing Maps or YouTube authority. Do not fix Reader by creating another competing search/router path.
 
-Next engineer/session should:
+## 4. Ebook/user regression target
 
-1. Check the newest GitHub Actions run for commit `3c4ff4918265304e67b640b9e3528a52c0d31537`.
-2. If CI fails, inspect the exact failing job/test and fix only the relevant regression.
-3. If CI passes, manually test at minimum:
-   - `Beowulf`
-   - `John Henry Newman`
-   - a combined/multi-term ebook query
-   - `READ IN JARVIS`
-   - reader pagination / close / retry
-4. Verify that opening the Ebooks tab is immediate and does not sit idle.
-5. Verify no regressions in Command Center, voice, Maps, News, YouTube and Time Now.
+The two named regression cases are:
 
-## Engineering rule for continuation
+1. `Beowulf`
+2. `John Henry Newman`
 
-Treat the latest verified green build as the **best baseline**. Do not stack speculative fixes on top of a failing or unverified build. For every push, record the commit SHA, what changed, the failing symptom it targets, and the resulting Actions status here.
+The user expects each to work reliably, with at most one retry during this recovery phase. A first-load timing/network issue may be investigated, but repeated retries must not conceal a deterministic routing bug.
 
-## Session continuity note
+Desired chain:
 
-When starting a new chat, use this file as the first project handoff document. The goal is to continue from the latest verified Jarvis state rather than restarting diagnosis from scratch.
+`search book -> current Ebook result set -> ordinal/reference resolution -> exact BookRecord -> canonical Reader -> readable content/page count`
+
+The reader must never rediscover a different book from a title query after the result has already been selected.
+
+## 5. Investigation method
+
+When a regression appears:
+
+1. Identify the last user-verified working build.
+2. Compare the next experimental commit against that build.
+3. Find the first owner that changed the contract.
+4. Revert/remove only that experimental layer where possible.
+5. Preserve unrelated fixes and their cache-busters.
+6. Add a trace at the ownership boundary before adding another interceptor.
+7. Run CI.
+8. Only after CI is green, deploy TEST and run the smallest relevant manual smoke test.
+9. Do not promote to PROD until the user-visible regression suite is verified.
+
+Do not perform a wholesale historical rollback simply because an Ebook experiment failed.
+
+## 6. Current pending tasks
+
+### P0: Deployment recovery
+
+- Ensure TEST has a fresh Actions run whose head tree is the recovered stable tree.
+- Verify the deployed TEST artifact corresponds to that run, not run `34113235306`.
+- Do not ask for behavioural testing until this is confirmed.
+
+### P0: Ebook reliability
+
+- Verify Beowulf and John Henry Newman from clean TEST state.
+- If either fails, capture which ownership boundary failed: search, context, ordinal resolver, entity authority, handoff, network transport, or Reader.
+- Determine whether the intermittent failure is caused by duplicate listeners/routing or asynchronous source acquisition.
+
+### P1: Mature fix design
+
+- Prefer one canonical path and idempotent state transitions.
+- Use request IDs / stale-response rejection for asynchronous search.
+- Persist the exact selected BookRecord, not merely a title string.
+- Let the canonical Reader own opening/rendering.
+- Keep Ebook stability guard-only.
+- Use bounded retry/fallback for network acquisition, with tracing and no duplicate UI actions.
+
+### P1: Regression protection
+
+- Keep Beowulf, John Henry Newman, Books ordinal, Maps ordinal and YouTube ordinal as separate smoke cases.
+- Run the broader three-surface suite when shared context/authority infrastructure changes.
+- Do not make unrelated subsystems pay the cost of every Ebook experiment.
+
+## 7. Version/rollback rule
+
+Every future engineering checkpoint must record:
+
+- commit SHA
+- branch
+- Actions run ID/status
+- user-visible symptom targeted
+- files changed
+- active component versions/cache-busters
+- rollback anchor
+
+Create preservation branches before destructive recovery operations. Never delete experimental history merely to make the branch look clean.
+
+## 8. Current rollback anchor
+
+`6010a558da5cb14894a46880ed7c2c6c35e2699f`
+
+This anchor is the mature whole-tree recovery point. It must not be silently replaced by a later unverified build.
