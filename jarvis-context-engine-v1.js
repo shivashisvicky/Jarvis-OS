@@ -21,5 +21,6 @@ window.addEventListener('jarvis:map-context',e=>{const d=e.detail||{};setContext
 window.addEventListener('jarvis:map-intent',e=>{const d=e.detail||{};if(d.place||d.query)setContext({domain:'MAPS',location:d.place||d.query,query:d.query||d.place,results:null,selected:null},'merge')});
 window.addEventListener('jarvis:search-context',e=>{const d=e.detail||{};setContext({domain:'SEARCH',query:d.query||null,results:d.results||null,selected:d.selected||null},'merge')});
 window.addEventListener('jarvis:ebook-context',e=>{const d=e.detail||{};setContext({domain:'BOOKS',entity:d.entity||null,query:d.query||null,results:d.results||null,selected:d.selected||null},'merge')});
+window.addEventListener('jarvis:context-followup',e=>{const d=e.detail||{};if(d.type!=='SELECT')return;const r=d.resolved;if(!r?.matched||!['BOOKS','BOOK','BOOK_AUTHOR'].includes(String(r.domain||'').toUpperCase()))return;const item=r.value;if(!item)return;setContext({domain:'BOOKS',selected:item},'merge')});
 window.addEventListener('jarvis:context-reset',reset);
 })();
