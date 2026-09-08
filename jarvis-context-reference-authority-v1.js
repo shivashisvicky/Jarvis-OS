@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V12__)return;
-window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V12__=true;
+if(window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V13__)return;
+window.__JARVIS_CONTEXT_REFERENCE_AUTHORITY_V13__=true;
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const isBookDomain=d=>d==='BOOKS'||d==='BOOK'||d==='BOOK_AUTHOR';
 const reference=/^(?:please\s+)?(?:open|read|show)\s+(?:the\s+)?(?:first|second|third|1(?:st)?|2(?:nd)?|3(?:rd)?|one|two|three)(?:\s+(?:one|result))?$/i;
@@ -10,7 +10,8 @@ const nearestRef=/^(?:please\s+)?(?:what(?:'s| is|s)|where(?:'s| is)|which is|sh
 const isRef=q=>reference.test(q)||numberRef.test(q);
 const ordinalIndex=target=>{const q=clean(target).toLowerCase().replace(/[?.!]+$/,'');return /^(?:the\s+)?(?:first|1(?:st)?|one)(?:\s+(?:one|result))?$/.test(q)?0:/^(?:the\s+)?(?:second|2(?:nd)?|two)(?:\s+(?:one|result))?$/.test(q)?1:/^(?:the\s+)?(?:third|3(?:rd)?|three)(?:\s+(?:one|result))?$/.test(q)?2:null};
 const readLastBook=()=>{try{const x=window.jarvisBookContextPersistence?.get?.()||JSON.parse(localStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V2')||'null')||JSON.parse(sessionStorage.getItem('JARVIS_LAST_BOOK_CONTEXT_V1')||'null');if(!x||!Array.isArray(x.results)||!x.results.length)return null;if(Date.now()-Number(x.savedAt||0)>30*60*1000)return null;return x}catch{return null}};
-const getBooksContext=()=>{const live=window.jarvisContextEngine?.get?.();if(live?.active&&isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return{ctx:live,source:'live'};const last=readLastBook();if(last)return{ctx:last,source:'last-book'};const saved=window.jarvisContextMemory?.get?.();if(saved?.domain&&isBookDomain(saved.domain)&&Array.isArray(saved.results)&&saved.results.length)return{ctx:saved,source:'memory'};return null};
+const domBooksContext=()=>{try{const panel=document.querySelector('#jbe6Panel'),cards=[...panel?.querySelectorAll('#jbe6Results .jbe6-book')||[]];if(!cards.length)return null;const results=cards.map((card,index)=>({index,id:card.getAttribute('data-book-id')||card.querySelector('[data-rel-read],[data-read]')?.getAttribute('data-rel-read')||card.querySelector('[data-rel-read],[data-read]')?.getAttribute('data-read')||'',title:card.querySelector('.jbe6-name')?.textContent?.trim()||'',author:card.querySelector('.jbe6-author')?.textContent?.trim()||'',type:'BOOK'})).filter(x=>x.id||x.title);if(!results.length)return null;const query=panel.querySelector('#jbe6Query')?.value?.trim()||'';return{ctx:{domain:'BOOKS',active:true,entity:{type:'BOOK',title:results[0]?.title||''},query,results,selected:null},source:'dom'}}catch{return null}};
+const getBooksContext=()=>{const live=window.jarvisContextEngine?.get?.();if(live?.active&&isBookDomain(live.domain)&&Array.isArray(live.results)&&live.results.length)return{ctx:live,source:'live'};const dom=domBooksContext();if(dom)return dom;const last=readLastBook();if(last)return{ctx:last,source:'last-book'};const saved=window.jarvisContextMemory?.get?.();if(saved?.domain&&isBookDomain(saved.domain)&&Array.isArray(saved.results)&&saved.results.length)return{ctx:saved,source:'memory'};return null};
 const mediaResults=()=>Array.from(document.querySelectorAll('#videoResults [data-jvc-id]'));
 const mapResults=()=>Array.from(document.querySelectorAll('#mapResults [data-jarvis-map-v27]'));
 const rememberMedia=()=>{const ids=mediaResults().map(x=>String(x.getAttribute('data-jvc-id')||'').trim()).filter(Boolean);if(ids.length)window.__JARVIS_MEDIA_IDS__=ids};
@@ -26,5 +27,5 @@ const run=raw=>{const q=clean(raw);const live=window.jarvisContextEngine?.get?.(
 const intercept=e=>{const raw=clean(e.detail?.text);if(!run(raw))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
 window.addEventListener('jarvis:voice-command',intercept,true);
 document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm')return;const input=f.querySelector('#commandInput');const raw=input instanceof HTMLInputElement?input.value:'';if(!run(raw))return;e.preventDefault();e.stopImmediatePropagation();if(input instanceof HTMLInputElement)input.value=''},true);
-window.jarvisContextReferenceAuthority={version:'2.12.0',run};
+window.jarvisContextReferenceAuthority={version:'2.13.0',run};
 })();
