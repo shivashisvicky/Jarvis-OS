@@ -2,7 +2,7 @@
 if(window.__JARVIS_EBOOK_AUTHOR_RELATION_V2__)return;window.__JARVIS_EBOOK_AUTHOR_RELATION_V2__=true;
 const norm=s=>String(s||'').trim();
 const clean=s=>norm(s).replace(/[?!.]+$/,'').replace(/\s+/g,' ');
-const ctxGet=()=>{try{return window.jarvisContextEngine?.get?.()||window.jarvisContextMemory?.get?.()||null}catch{return null}};
+const ctxGet=()=>{try{const e=window.jarvisContextEngine?.get?.();if(e?.active)return e;const m=window.jarvisContextMemory?.get?.();return m||e||null}catch{return null}};
 const bookCtx=()=>{const c=ctxGet();if(!c||!c.active||!['BOOKS','BOOK','BOOK_AUTHOR'].includes(String(c.domain||'').toUpperCase()))return null;const e=c.entity||{};const selected=c.selected||{};const first=Array.isArray(c.results)?c.results.find(Boolean)||{}:{};const title=norm(e.title||selected.title||first.title||c.query);const author=norm(e.author||selected.author||first.author);return title||author?{ctx:c,title,author}:null};
 const anonymous=a=>{const s=norm(a).toLowerCase();return !s||/^(?:anonymous|unknown|unknown author|author unknown|no known author|anon\.?|various|traditional|traditional author)$/i.test(s)};
 const authorQuery=q=>{const s=clean(q);if(!s)return null;if(/\b(?:who|which person)\s+(?:wrote|is the author of)\s+(?:this|it|that)\b/i.test(s))return{kind:'who'};if(/\b(?:what|which)\s+(?:are|were)\s+(?:his|her|their|the author's)\s+(?:other\s+)?(?:books|works|novels)\b/i.test(s))return{kind:'works'};if(/\bshow\s+(?:me\s+)?(?:his|her|their|the author's)\s+(?:other\s+)?(?:books|works|novels)\b/i.test(s))return{kind:'works'};if(/\b(?:what|which)\s+(?:else|other)\s+(?:did|has|have)\s+(?:he|she|they|the author)\s+(?:write|written)\b/i.test(s))return{kind:'works'};if(/\b(?:show|list|find|get)\s+(?:me\s+)?(?:more|other)\s+(?:books|works|novels)\s+(?:by|from)\s+(?:him|her|them|the author)\b/i.test(s))return{kind:'works'};if(/\b(?:tell|say)\s+(?:me\s+)?(?:about|more about)\s+(?:the )?(?:author|writer)\b/i.test(s))return{kind:'about'};return null};
@@ -20,6 +20,6 @@ if(anonymous(b.author)){speak(`${b.title||'This book'} has no reliably known ind
 speak(`Looking up other books by ${b.author}.`);(async()=>{const works=await findWorks(b.author);if(!works.length){speak(`I could not verify a reliable list of other books by ${b.author}.`);return}await establish(b.author,b,works);speak(`I found ${works.length} books by ${b.author}.`)})();return true};
 const intercept=e=>{const q=e.detail?.text||'';if(run(q)){e.preventDefault?.();e.stopImmediatePropagation?.()}};
 window.addEventListener('jarvis:voice-command',intercept,true);
-document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof Element)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value||'';if(run(q)){e.preventDefault();e.stopImmediatePropagation()}},true);
-window.jarvisEbookAuthorRelationAuthority={version:'2.0.0',candidate:q=>!!authorQuery(q),handle:run};
+document.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof Element)||f.id!=='commandForm')return;const q=f.querySelector('#commandInput')?.value||'';if(run(q)){e.preventDefault();e.stopImmediatePropagation()}} ,true);
+window.jarvisEbookAuthorRelationAuthority={version:'2.0.1',candidate:q=>!!authorQuery(q),handle:run};
 })();
