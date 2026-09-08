@@ -15,7 +15,7 @@ const route=q=>{
  if(/\b(?:tell|give|make)\s+me\s+(?:a\s+)?joke\b|\bmake\s+me\s+laugh\b/.test(s))return {type:'CONVERSATION',owner:'jarvis-conversational-choice-authority-v1.js'};
  if(/^(?:nice|good|great|awesome|cool|perfect|brilliant|haha+|lol+|lmao+|thanks|thank you|thx)$/.test(s))return {type:'CONVERSATION',owner:'jarvis-context-intelligence-v2.js'};
  const poiWords='restaurants?|resturants?|restaraunts?|restaurents?|restuarants?|caf(?:e|es)|hospitals?|pharmacies?|hotels?|schools?|banks?|atms?|petrol(?:\\s+stations?)?|fuel|gyms?|supermarkets?|temples?';
- const explicitPoi=new RegExp('\\b(?:show\\s+me|show|find|locate|where\\s+are|look\\s+for)\\b[\\s\\S]*\\b(?:'+poiWords+')\\b[\\s\\S]*\\b(?:in|near|around|at|to)\\b').test(s);
+ const explicitPoi=new RegExp('\\b(?:show\\s+me|show|find|locate|where\\s+are|look\\s+for)\\b[\\s\S]*\\b(?:'+poiWords+')\\b[\\s\S]*\\b(?:in|near|around|at|to)\\b').test(s);
  const contextualPoi=new RegExp('^(?:please\\s+)?(?:show\\s+me|show|find|locate|where\\s+are|look\\s+for)\\s+(?:'+poiWords+')\\s+(?:there|here|nearby|around\\s+there)$').test(s);
  if(explicitPoi||(contextualPoi&&ctx?.active&&ctx?.location))return {type:'MAP_POI',owner:'jarvis-command-final-routing-v2.js',context:ctx?.location||null};
  if(/^(?:please\s+)?(?:give me directions? to|take me to|take me|navigate me to|navigate to|directions? to|go to|open maps? for)\s+.+/.test(s))return {type:'MAP_NAV',owner:'jarvis-command-deterministic-fix-v1.js'};
@@ -32,6 +32,8 @@ const route=q=>{
  if(/\b(?:calculator|calculate|math|compute)\b/.test(s))return {type:'CALCULATOR',owner:'command-runtime'};
  if(/\b(?:game|games|arcade|snake|tetris|2048|tic tac toe|minesweeper|memory)\b/.test(s))return {type:'GAMES',owner:'jarvis-games-mobile-fix.js'};
  if(/\b(?:media|movie)\b/.test(s))return {type:'MEDIA',owner:'jarvis-youtube-command-authority-v1.js'};
+ const authorFollowup=/^(?:(?:who|who's|who is)\s+(?:the\s+)?(?:author|writer)(?:\s+(?:of|for))?(?:\s+(?:this|it|this book|this one))?|who\s+(?:wrote|has written)\s+(?:this|it|this book|this one)|who\s+(?:wrote|has written)\s+(?:the\s+)?book|(?:show|list)\s+(?:me\s+)?(?:his|her|their|the author's)\s+(?:other\s+)?(?:books|works|novels)|what\s+(?:are|were)\s+(?:his|her|their|the author's)\s+(?:other\s+)?books|what\s+other\s+(?:books|works|novels)\s+(?:did|has|have)\s+(?:he|she|they|the author)\s+(?:write|written)|what\s+else\s+(?:did|has|have)\s+(?:he|she|they|the author)\s+(?:write|written))$/i.test(s);
+ if(authorFollowup&&ctx?.active&&['BOOKS','BOOK','BOOK_AUTHOR'].includes(String(ctx.domain||'').toUpperCase()))return {type:'BOOKS',owner:'jarvis-ebook-command-authority-v1.js',contextDomain:ctx.domain||null};
  if(ref?.matched&&ctx?.active){const owner=ctx.domain==='BOOKS'?'jarvis-ebook-command-authority-v1.js':ctx.domain==='MAPS'?'jarvis-command-final-routing-v2.js':ctx.domain==='SEARCH'?'search-runtime':ctx.domain==='MEDIA'?'jarvis-youtube-command-authority-v1.js':'context-runtime';return {type:'CONTEXT_FOLLOWUP',owner,contextDomain:ctx.domain||null,reference:ref};}
  const entityTarget=s.replace(/^(?:open|read|show|select|choose|play|watch)\s+/,'').trim();
  const exactEntity=Boolean(entity?.name&&entityTarget===clean(entity.name).toLowerCase());
