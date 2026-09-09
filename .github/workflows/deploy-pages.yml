@@ -61,7 +61,7 @@ jobs:
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
           # Vite may normalize HTML attribute quoting/spacing. Match the semantic
           # meta tag rather than assuming one exact serialization.
-          pattern = r'<meta\\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
+          pattern = r'<meta\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
           match = re.search(pattern, text, flags=re.IGNORECASE)
           if not match:
               raise SystemExit('Intelligence endpoint meta tag not found in built artifact')
