@@ -3,7 +3,6 @@ name: Deploy Jarvis OS Dual Pages (TEST)
 on:
   push:
     branches:
-      - main
       - test/jarvis-intelligence-next
   workflow_dispatch:
 
@@ -18,12 +17,12 @@ env:
   TEST_BRANCH: test/jarvis-intelligence-next
 
 concurrency:
-  group: jarvis-pages-dual
+  group: jarvis-pages-dual-test
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build PROD + TEST Pages
+    name: Build TEST + frozen PROD baseline
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TEST
@@ -32,7 +31,7 @@ jobs:
           ref: ${{ env.TEST_BRANCH }}
           path: test-src
 
-      - name: Checkout PROD
+      - name: Checkout PROD baseline
         uses: actions/checkout@v4
         with:
           ref: ${{ env.PROD_BRANCH }}
@@ -46,7 +45,7 @@ jobs:
       - name: Install pnpm
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
 
-      - name: Install PROD dependencies
+      - name: Install PROD baseline dependencies
         working-directory: prod-src
         run: pnpm install --no-frozen-lockfile
 
@@ -54,7 +53,7 @@ jobs:
         working-directory: test-src
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build PROD
+      - name: Build frozen PROD baseline
         working-directory: prod-src
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -102,7 +101,7 @@ jobs:
           configure('test-src/dist')
           PY
 
-      - name: Assemble dual Pages artifact
+      - name: Assemble TEST + frozen PROD artifact
         run: |
           set -euo pipefail
           rm -rf _site
@@ -117,46 +116,46 @@ jobs:
           grep -q 'jarvis-intelligence-endpoint' _site/test/index.html
           grep -q 'J.A.R.V.I.S' _site/index.html
           grep -q 'J.A.R.V.I.S' _site/test/index.html
-          echo 'JARVIS dual Pages artifact assembled: / = PROD, /test/ = TEST'
+          echo 'JARVIS Pages artifact: / = frozen PROD baseline, /test/ = TEST experiment'
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
-      - name: Upload dual Pages artifact
+      - name: Upload TEST artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./_site
 
   deploy:
-    name: Deploy dual Pages TEST
+    name: Deploy TEST environment
     needs: build
     environment:
-      name: github-pages
+      name: github-pages-test
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy TEST environment
         uses: actions/deploy-pages@v4
         id: deployment
 
   smoke:
-    name: Verify PROD + TEST URLs
+    name: Verify frozen PROD + TEST URLs
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify production URL
+      - name: Verify frozen production URL
         run: |
           set -euo pipefail
           url='https://shivashisvicky.github.io/Jarvis-OS/?dual=${{ github.sha }}'
           body=$(curl --silent --show-error --fail --max-time 30 "$url")
           printf '%s' "$body" | grep -q 'J.A.R.V.I.S'
           printf '%s' "$body" | grep -q 'assets/index-'
-          echo 'PROD_URL_PASS'
+          echo 'FROZEN_PROD_URL_PASS'
 
-      - name: Verify test URL
+      - name: Verify TEST URL
         run: |
           set -euo pipefail
           url='https://shivashisvicky.github.io/Jarvis-OS/test/?dual=${{ github.sha }}'
@@ -165,4 +164,4 @@ jobs:
           printf '%s' "$body" | grep -q 'assets/index-'
           echo 'TEST_URL_PASS'
 
-# Canonical dual Pages deployment: / = PROD, /test/ = TEST.
+# TEST branch is the automatic experiment path. PROD is read from main as a frozen baseline only.
