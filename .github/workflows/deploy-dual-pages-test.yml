@@ -98,7 +98,7 @@ jobs:
           test -s _site/test/jarvis-youtube-config.js
           grep -q 'jarvis-intelligence-endpoint' _site/index.html
           grep -q 'jarvis-intelligence-endpoint' _site/test/index.html
-          echo 'JARVIS dual Pages artifact assembled: / = PROD, /test/ = TEST'
+          echo 'JARVIS dual Pages artifact assembled: / = PROD baseline, /test/ = TEST'
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -128,16 +128,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify production URL
+      - name: Verify production baseline URL
         run: |
           set -euo pipefail
           url='https://shivashisvicky.github.io/Jarvis-OS/?dual=${{ github.sha }}'
           body=$(curl --silent --show-error --fail --max-time 30 "$url")
           printf '%s' "$body" | grep -q 'J.A.R.V.I.S'
           printf '%s' "$body" | grep -q 'assets/index-'
-          echo 'PROD_URL_PASS'
+          echo 'PROD_BASELINE_URL_PASS'
 
-      - name: Verify test URL
+      - name: Verify TEST URL
         run: |
           set -euo pipefail
           url='https://shivashisvicky.github.io/Jarvis-OS/test/?dual=${{ github.sha }}'
@@ -146,4 +146,4 @@ jobs:
           printf '%s' "$body" | grep -q 'assets/index-'
           echo 'TEST_URL_PASS'
 
-# Intentionally retriggered to publish the current TEST branch state.
+# TEST branch is the experiment path. PROD is built from main as the frozen production baseline only.
