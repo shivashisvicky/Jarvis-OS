@@ -4,28 +4,28 @@ on:
   workflow_run:
     workflows: ["Deploy Jarvis OS Dual Pages (TEST)"]
     types: [completed]
-    branches: [main]
+    branches: [test/jarvis-intelligence-next]
   workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
 
-concurrency:
-  group: jarvis-post-deploy-regression-gate
-  cancel-in-progress: true
-
 env:
   PNPM_VERSION: 10.15.0
 
+concurrency:
+  group: jarvis-post-deploy-regression-gate-test
+  cancel-in-progress: true
+
 jobs:
   sequential-command-gate:
-    name: Sequential / Beowulf -> Newman -> Time -> Context
+    name: TEST Regression / Beowulf -> Newman -> Time -> Context
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Verify canonical Pages deployment succeeded
+      - name: Verify canonical TEST deployment succeeded
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,16 +42,16 @@ jobs:
           import json
           data=json.load(open('jobs.json'))
           jobs=data.get('jobs',[])
-          target=next((j for j in jobs if j.get('name')=='Deploy dual Pages TEST'),None)
+          target=next((j for j in jobs if j.get('name')=='Deploy TEST environment'),None)
           if not target:
-              raise SystemExit('DEPLOY_DUAL_PAGES_JOB_NOT_FOUND')
-          print('DEPLOY_DUAL_PAGES_JOB_STATUS=',target.get('status'))
-          print('DEPLOY_DUAL_PAGES_JOB_CONCLUSION=',target.get('conclusion'))
+              raise SystemExit('DEPLOY_TEST_JOB_NOT_FOUND')
+          print('DEPLOY_TEST_JOB_STATUS=',target.get('status'))
+          print('DEPLOY_TEST_JOB_CONCLUSION=',target.get('conclusion'))
           if target.get('conclusion') != 'success':
-              raise SystemExit('DEPLOY_DUAL_PAGES_JOB_NOT_SUCCESS')
+              raise SystemExit('DEPLOY_TEST_JOB_NOT_SUCCESS')
           PY
 
-      - name: Checkout deployed commit
+      - name: Checkout deployed TEST commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -70,19 +70,19 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Verify deployed shell in strict sequence
+      - name: Verify TEST shell in strict sequence
         env:
-          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.event.workflow_run.head_sha || github.sha }}
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/test/?deploy=${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
-          echo "DEPLOYED_COMMIT=${JARVIS_LIVE_URL##*=}"
+          echo "TEST_COMMIT=${JARVIS_LIVE_URL##*=}"
           pnpm exec playwright test tests/e2e/post-deploy-regression-gate.spec.ts --project=chromium --workers=1 --reporter=line
 
-      - name: Upload regression evidence
+      - name: Upload TEST regression evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: post-deploy-regression-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
+          name: post-deploy-test-regression-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
           path: |
             playwright-report/
             test-results/
