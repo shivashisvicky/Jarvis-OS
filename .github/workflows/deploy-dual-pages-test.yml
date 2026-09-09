@@ -23,6 +23,7 @@ concurrency:
 jobs:
   build:
     name: Build TEST + frozen PROD baseline
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TEST
@@ -130,6 +131,7 @@ jobs:
 
   deploy:
     name: Deploy TEST environment
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
     needs: build
     environment:
       name: github-pages-test
@@ -142,6 +144,7 @@ jobs:
 
   smoke:
     name: Verify frozen PROD + TEST URLs
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
