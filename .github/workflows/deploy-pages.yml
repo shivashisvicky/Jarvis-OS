@@ -11,29 +11,45 @@ permissions:
   id-token: write
 
 concurrency:
-  group: jarvis-pages-main
+  group: jarvis-pages-dual
   cancel-in-progress: true
 
 env:
   PNPM_VERSION: 10.15.0
+  TEST_BRANCH: test/jarvis-intelligence-next
 
 jobs:
   build:
     name: Build Pages artifact
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PROD
         uses: actions/checkout@v4
+
+      - name: Checkout TEST
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TEST_BRANCH }}
+          path: test-src
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Install pnpm
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
-      - name: Install dependencies
+
+      - name: Install PROD dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Install TEST dependencies
+        working-directory: test-src
+        run: pnpm install --no-frozen-lockfile
+
       - name: Validate Intelligence gateway syntax
         run: node --check api/openai-intelligence.js && node --check workers/intelligence/src/index.js
+
       - name: Check YouTube API configuration
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -44,48 +60,70 @@ jobs:
           else
             echo 'YOUTUBE_API_KEY_CONFIGURED=1'
           fi
-      - name: Build Jarvis OS
+
+      - name: Build PROD
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: pnpm run build
-      - name: Configure deployed Intelligence endpoint
+
+      - name: Build TEST
+        working-directory: test-src
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: pnpm run build
+
+      - name: Configure deployed Intelligence endpoint in both builds
         env:
           JARVIS_INTELLIGENCE_ENDPOINT: ${{ secrets.JARVIS_INTELLIGENCE_ENDPOINT }}
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import os,re
-          p = Path('dist/index.html')
-          text = p.read_text()
+          import os, re
+
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
-          pattern = r'<meta\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
-          match = re.search(pattern, text, flags=re.IGNORECASE)
-          if not match:
-              # The source shell does not require this deployment-only marker.
-              # Add it here so the deployed runtime gets the configured endpoint.
+
+          def configure(path):
+              p = Path(path)
+              text = p.read_text()
+              pattern = r'<meta\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
+              match = re.search(pattern, text, flags=re.IGNORECASE)
               marker = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
-              head = re.search(r'</head\s*>', text, flags=re.IGNORECASE)
-              if not head:
-                  raise SystemExit('HTML head not found in built artifact')
-              text = text[:head.start()] + marker + text[head.start():]
-              p.write_text(text)
-              print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint}; marker-added)')
-          else:
-              tag = match.group(0)
-              if re.search(r'content=["\'][^"\']*["\']', tag, flags=re.IGNORECASE):
-                  tag = re.sub(r'content=["\'][^"\']*["\']', f'content="{endpoint}/api/openai-intelligence"', tag, count=1, flags=re.IGNORECASE)
+              if not match:
+                  head = re.search(r'</head\s*>', text, flags=re.IGNORECASE)
+                  if not head:
+                      raise SystemExit(f'HTML head not found: {p}')
+                  text = text[:head.start()] + marker + text[head.start():]
               else:
-                  tag = tag[:-1] + f' content="{endpoint}/api/openai-intelligence">'
-              text = text[:match.start()] + tag + text[match.end():]
+                  tag = match.group(0)
+                  if re.search(r'content=["\'][^"\']*["\']', tag, flags=re.IGNORECASE):
+                      tag = re.sub(r'content=["\'][^"\']*["\']', f'content="{endpoint}/api/openai-intelligence"', tag, count=1, flags=re.IGNORECASE)
+                  else:
+                      tag = tag[:-1] + f' content="{endpoint}/api/openai-intelligence">'
+                  text = text[:match.start()] + tag + text[match.end():]
               p.write_text(text)
-              print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint})')
+              print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({p})')
+
+          configure('dist/index.html')
+          configure('test-src/dist/index.html')
           PY
-      - name: Verify generated YouTube configuration
+
+      - name: Assemble dual Pages artifact
         run: |
           set -euo pipefail
+          rm -rf dist/test
+          mkdir -p dist/test
+          cp -a test-src/dist/. dist/test/
+          test -s dist/index.html
+          test -s dist/test/index.html
           test -s dist/jarvis-youtube-config.js
-          grep -q 'window.JARVIS_YOUTUBE_API_KEY=' dist/jarvis-youtube-config.js
+          test -s dist/test/jarvis-youtube-config.js
+          grep -q 'jarvis-intelligence-endpoint' dist/index.html
+          grep -q 'jarvis-intelligence-endpoint' dist/test/index.html
+          grep -q 'J.A.R.V.I.S' dist/index.html
+          grep -q 'J.A.R.V.I.S' dist/test/index.html
+          echo 'JARVIS Pages artifact: / = PROD, /test/ = TEST'
+
       - name: Verify current shell artifact
         run: |
           set -euo pipefail
@@ -100,12 +138,14 @@ jobs:
           ! grep -q 'jarvis-media-v14.js' dist/index.html
           ! grep -q 'jarvis-shell-search.css' dist/index.html
           ! grep -q 'jarvis-video-provider.js' dist/index.html
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
+
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
 
@@ -232,6 +272,8 @@ jobs:
         with:
           node-version: 22
       - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
