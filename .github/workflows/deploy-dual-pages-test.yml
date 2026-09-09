@@ -2,7 +2,9 @@ name: Deploy Jarvis OS Dual Pages (TEST)
 
 on:
   push:
-    branches: ['test/jarvis-intelligence-next']
+    branches:
+      - main
+      - test/jarvis-intelligence-next
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ env:
   TEST_BRANCH: test/jarvis-intelligence-next
 
 concurrency:
-  group: jarvis-pages-dual-test
+  group: jarvis-pages-dual
   cancel-in-progress: true
 
 jobs:
@@ -72,17 +74,32 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import os, re
+
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
-          for root in (Path('prod-src/dist'), Path('test-src/dist')):
-              p = root / 'index.html'
+
+          def configure(root):
+              p = Path(root) / 'index.html'
               text = p.read_text()
-              pattern = r'<meta\s+name="jarvis-intelligence-endpoint"\s+content="[^"]*"\s*/?>'
-              replacement = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
-              text, count = re.subn(pattern, replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit(f'Intelligence endpoint meta tag not found: {p}')
+              pattern = r'<meta\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
+              match = re.search(pattern, text, flags=re.IGNORECASE)
+              marker = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
+              if not match:
+                  head = re.search(r'</head\s*>', text, flags=re.IGNORECASE)
+                  if not head:
+                      raise SystemExit(f'HTML head not found: {p}')
+                  text = text[:head.start()] + marker + text[head.start():]
+              else:
+                  tag = match.group(0)
+                  if re.search(r'content=["\'][^"\']*["\']', tag, flags=re.IGNORECASE):
+                      tag = re.sub(r'content=["\'][^"\']*["\']', f'content="{endpoint}/api/openai-intelligence"', tag, count=1, flags=re.IGNORECASE)
+                  else:
+                      tag = tag[:-1] + f' content="{endpoint}/api/openai-intelligence">'
+                  text = text[:match.start()] + tag + text[match.end():]
               p.write_text(text)
-          print('JARVIS dual Pages: intelligence endpoint configured')
+              print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({p})')
+
+          configure('prod-src/dist')
+          configure('test-src/dist')
           PY
 
       - name: Assemble dual Pages artifact
@@ -98,6 +115,8 @@ jobs:
           test -s _site/test/jarvis-youtube-config.js
           grep -q 'jarvis-intelligence-endpoint' _site/index.html
           grep -q 'jarvis-intelligence-endpoint' _site/test/index.html
+          grep -q 'J.A.R.V.I.S' _site/index.html
+          grep -q 'J.A.R.V.I.S' _site/test/index.html
           echo 'JARVIS dual Pages artifact assembled: / = PROD, /test/ = TEST'
 
       - name: Configure GitHub Pages
@@ -114,7 +133,7 @@ jobs:
     name: Deploy dual Pages TEST
     needs: build
     environment:
-      name: github-pages-test
+      name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
@@ -146,4 +165,4 @@ jobs:
           printf '%s' "$body" | grep -q 'assets/index-'
           echo 'TEST_URL_PASS'
 
-# Intentionally retriggered to publish the current TEST branch state.
+# Canonical dual Pages deployment: / = PROD, /test/ = TEST.
