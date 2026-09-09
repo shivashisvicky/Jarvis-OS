@@ -1,1 +1,0 @@
-TEST safety marker: context-engine ownership experiment reverted after ebook latency/regression report. Restore point: 8add528f633b306a2606c52176a2c3f624903ffc. Target baseline: f026f45822826df5efc08387902470cd0be99988. main untouched.
