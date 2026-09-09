@@ -59,11 +59,18 @@ jobs:
           p = Path('dist/index.html')
           text = p.read_text()
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
-          pattern = r'<meta\s+name="jarvis-intelligence-endpoint"\s+content="[^"]*"\s*/?>'
-          replacement = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
-          text, count = re.subn(pattern, replacement, text, count=1)
-          if count != 1:
+          # Vite may normalize HTML attribute quoting/spacing. Match the semantic
+          # meta tag rather than assuming one exact serialization.
+          pattern = r'<meta\\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
+          match = re.search(pattern, text, flags=re.IGNORECASE)
+          if not match:
               raise SystemExit('Intelligence endpoint meta tag not found in built artifact')
+          tag = match.group(0)
+          if re.search(r'content=["\'][^"\']*["\']', tag, flags=re.IGNORECASE):
+              tag = re.sub(r'content=["\'][^"\']*["\']', f'content="{endpoint}/api/openai-intelligence"', tag, count=1, flags=re.IGNORECASE)
+          else:
+              tag = tag[:-1] + f' content="{endpoint}/api/openai-intelligence">'
+          text = text[:match.start()] + tag + text[match.end():]
           p.write_text(text)
           print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint})')
           PY
