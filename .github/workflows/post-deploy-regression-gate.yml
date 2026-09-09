@@ -2,7 +2,7 @@ name: Post-Deploy Regression Gate
 
 on:
   workflow_run:
-    workflows: ["Deploy Jarvis OS"]
+    workflows: ["Deploy Jarvis OS Dual Pages (TEST)"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -21,16 +21,11 @@ env:
 jobs:
   sequential-command-gate:
     name: Sequential / Beowulf -> Newman -> Time -> Context
-    # A cancelled/failed deployment is not a product regression. Do not turn
-    # the post-deploy gate red or run browser tests against an unconfirmed
-    # production version. The next successful deployment will trigger a new
-    # gate automatically. Manual workflow_dispatch remains available for
-    # deliberate diagnostics.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Verify production Pages job succeeded
+      - name: Verify canonical Pages deployment succeeded
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,13 +42,13 @@ jobs:
           import json
           data=json.load(open('jobs.json'))
           jobs=data.get('jobs',[])
-          target=next((j for j in jobs if j.get('name')=='Deploy production Pages'),None)
+          target=next((j for j in jobs if j.get('name')=='Deploy dual Pages TEST'),None)
           if not target:
-              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_FOUND')
-          print('DEPLOY_PRODUCTION_JOB_STATUS=',target.get('status'))
-          print('DEPLOY_PRODUCTION_JOB_CONCLUSION=',target.get('conclusion'))
+              raise SystemExit('DEPLOY_DUAL_PAGES_JOB_NOT_FOUND')
+          print('DEPLOY_DUAL_PAGES_JOB_STATUS=',target.get('status'))
+          print('DEPLOY_DUAL_PAGES_JOB_CONCLUSION=',target.get('conclusion'))
           if target.get('conclusion') != 'success':
-              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_SUCCESS')
+              raise SystemExit('DEPLOY_DUAL_PAGES_JOB_NOT_SUCCESS')
           PY
 
       - name: Checkout deployed commit
