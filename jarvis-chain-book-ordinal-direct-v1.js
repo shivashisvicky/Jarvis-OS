@@ -1,0 +1,15 @@
+(()=>{
+'use strict';
+if(window.__JARVIS_CHAIN_BOOK_ORDINAL_DIRECT_V1__)return;
+window.__JARVIS_CHAIN_BOOK_ORDINAL_DIRECT_V1__=true;
+const clean=s=>String(s||'').replace(/[.!?]+\s*$/,'').replace(/\s+/g,' ').trim();
+const ordinalIndex=s=>{const m=clean(s).match(/\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth|\d+)(?:st|nd|rd|th)?\b/i);if(!m)return null;const n={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,thirtieth:30,fortieth:40,fiftieth:50,sixtieth:60,seventieth:70,eightieth:80,ninetieth:90};return n[m[1].toLowerCase()]||Number(m[1])||null};
+const dbg=(event,data={})=>{try{console.info('[JARVIS:BOOK_CHAIN]',event,data);window.dispatchEvent(new CustomEvent('jarvis:ebook-reader-trace',{detail:{event:'BOOK_CHAIN_'+event,...data,at:Date.now()}}))}catch{}};
+let pending=null,handled=null;
+const isBooksRoute=r=>String(r?.type||'').toUpperCase()==='BOOKS';
+const arm=e=>{const d=e.detail||{},p=d.parsed||{},parts=Array.isArray(p.parts)?p.parts:[],routes=Array.isArray(p.routes)?p.routes:[];if(parts.length<2||!isBooksRoute(routes[0])||String(routes[1]?.type||'').toUpperCase()!=='CONTEXT_FOLLOWUP')return;const idx=ordinalIndex(parts[1]);if(!idx)return;pending={index:idx,query:parts[0],at:Date.now()};handled=null;dbg('ARMED',{index:idx,query:parts[0]})};
+const select=()=>{if(!pending)return false;const c=window.jarvisContextEngine?.get?.()||{};if(String(c.domain||'').toUpperCase()!=='BOOKS'||!Array.isArray(c.results)||!c.results[pending.index-1])return false;const cards=document.querySelectorAll('#jbe6Results .jbe6-book');const card=cards[pending.index-1];if(!(card instanceof HTMLElement))return false;const read=card.querySelector('[data-rel-read],[data-final-read],[data-read],[data-native-read]');if(!(read instanceof HTMLElement))return false;const item=c.results[pending.index-1];dbg('DIRECT_OPEN',{index:pending.index,title:item?.title||null});read.click();handled={index:pending.index,at:Date.now()};pending=null;return true};
+window.addEventListener('jarvis:command-chain-trace',e=>{const d=e.detail||{};if(d.event==='START')arm(e);if(d.event==='CLAUSE'&&d.index===0&&!pending&&isBooksRoute(d.resolved)){const parts=window.__JARVIS_LAST_BOOK_CHAIN_PARTS__;if(Array.isArray(parts)&&parts[1]){const idx=ordinalIndex(parts[1]);if(idx)pending={index:idx,query:parts[0],at:Date.now()}}}if(d.event==='START'&&d.parsed?.parts)window.__JARVIS_LAST_BOOK_CHAIN_PARTS__=d.parsed.parts},true);
+window.addEventListener('jarvis:ebook-context',()=>{if(pending)select()},true);
+window.addEventListener('jarvis:context-followup',e=>{if(!handled)return;const d=e.detail||{},idx=Number(d.resolved?.index);if(String(d.context?.domain||'').toUpperCase()==='BOOKS'&&idx===handled.index){dbg('SUPPRESS_DUPLICATE',{index:idx});e.stopImmediatePropagation();handled=null}},true);
+})();
