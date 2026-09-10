@@ -1,0 +1,10 @@
+(()=>{'use strict';
+if(window.__JARVIS_CHAIN_MAP_FAST_SELECT_V1__)return;
+window.__JARVIS_CHAIN_MAP_FAST_SELECT_V1__=true;
+let active=false,index=null;
+const ordinal=s=>{const m=String(s||'').match(/\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+)(?:st|nd|rd|th)?\b/i);if(!m)return null;const n={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20};return n[m[1].toLowerCase()]||Number(m[1])||null};
+const stop=()=>{active=false;index=null};
+window.addEventListener('jarvis:command-chain',e=>{const d=e.detail||{},r=String(d.routes?.[0]?.type||'').toUpperCase();if(!['MAP_POI','MAP_NAV'].includes(r)){stop();return}const parts=Array.isArray(d.parts)?d.parts:[],n=ordinal(parts[1]||'');if(!n){stop();return}active=true;index=n-1;window.__JARVIS_CHAIN_MAP_FAST_SELECTED_INDEX__=null;},true);
+window.addEventListener('jarvis:map-context',()=>{if(!active||index==null)return;requestAnimationFrame(()=>{if(!active||index==null)return;const b=document.querySelector(`[data-jarvis-map-v27="${index}"]`);if(!(b instanceof HTMLElement))return;window.__JARVIS_CHAIN_MAP_FAST_SELECTED_INDEX__=index;console.info('[JARVIS:MAP_FAST_SELECT]',index+1);b.click();try{window.dispatchEvent(new CustomEvent('jarvis:command-chain-trace',{detail:{event:'MAP_FAST_SELECT',index:index+1,at:Date.now()}}))}catch{}stop()})},true);
+window.addEventListener('jarvis:command-chain-trace',e=>{const d=e.detail||{};if(d.event==='CLAUSE'&&Number(d.index)>0)stop();},false);
+})();
