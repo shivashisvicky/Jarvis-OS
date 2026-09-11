@@ -2,53 +2,29 @@
 'use strict';
 if(window.__JARVIS_CHAIN_BOOK_FAST_HANDOFF_V1__)return;
 window.__JARVIS_CHAIN_BOOK_FAST_HANDOFF_V1__=true;
-const wait=ms=>new Promise(r=>setTimeout(r,ms));
-const openBooksSurface=async()=>{
-  const nav=document.querySelector('.nav[data-app="files"]')||Array.from(document.querySelectorAll('[data-app="files"]')).find(Boolean);
-  if(nav instanceof HTMLElement&&!nav.classList.contains('selected'))nav.click();
-  for(let i=0;i<100;i++){
-    const tab=document.querySelector('#jarvisFilesV4 .jf4-opt[data-tab="ebooks"]');
-    if(tab instanceof HTMLElement){
-      if(!tab.classList.contains('active')&&!tab.classList.contains('selected'))tab.click();
-      for(let j=0;j<100;j++){
-        if(document.querySelector('#jbe6Panel'))return true;
-        await wait(30);
-      }
-      return false;
-    }
-    await wait(30);
-  }
-  return false;
-};
 const trace=(event,data={})=>{try{console.info('[JARVIS:BOOK_CHAIN_FAST]',event,data);window.dispatchEvent(new CustomEvent('jarvis:ebook-reader-trace',{detail:{event:'BOOK_CHAIN_FAST_'+event,...data,at:Date.now()}}))}catch{}};
 const install=()=>{
-  const api=window.jarvisEbookBookFastResolver;
-  if(!api||typeof api.run!=='function'||api.__jarvisChainWrapped)return false;
-  const original=api.run;
+  const fast=window.jarvisEbookBookFastResolver;
+  const entity=window.jarvisEntityAuthority;
+  if(!fast||typeof fast.run!=='function'||!entity||typeof entity.handle!=='function'||entity.__jarvisChainWrapped)return false;
+  const original=entity.handle;
   const wrapped=async raw=>{
     if(!window.__JARVIS_COMMAND_CHAIN_RUNNING__)return original(raw);
     const started=Date.now();
-    const surface=openBooksSurface();
-    const task=Promise.resolve().then(()=>original(raw)).then(ok=>{
-      trace('ORIGINAL_RESULT',{raw,ok,ms:Date.now()-started});
-      if(!ok){try{void window.jarvisEntityAuthority?.handle?.(raw)}catch{}}
-      return !!ok;
-    }).catch(error=>{
-      trace('ORIGINAL_ERROR',{raw,error:String(error?.message||error)});
-      try{void window.jarvisEntityAuthority?.handle?.(raw)}catch{}
-      return false;
-    });
-    const opened=await surface;
-    trace('SURFACE_READY',{raw,opened,ms:Date.now()-started});
-    if(!opened)return !!(await task);
-    if(await Promise.race([task.then(v=>!!v),wait(4500).then(()=>null)]))return true;
-    trace('ORIGINAL_STILL_RUNNING',{raw,ms:Date.now()-started});
-    return true;
+    trace('START',{raw});
+    try{
+      const ok=!!(await fast.run(raw));
+      trace('RESULT',{raw,ok,ms:Date.now()-started});
+      if(ok)return true;
+    }catch(error){
+      trace('ERROR',{raw,error:String(error?.message||error),ms:Date.now()-started});
+    }
+    trace('FALLBACK_ENTITY',{raw,ms:Date.now()-started});
+    try{return !!(await original(raw))}catch(error){trace('FALLBACK_ERROR',{raw,error:String(error?.message||error)});return false}
   };
   wrapped.__jarvisChainWrapped=true;
-  api.run=wrapped;
-  api.version=`${api.version||'unknown'}+chain-handoff-v2`;
-  trace('INSTALLED',{version:api.version});
+  entity.handle=wrapped;
+  trace('INSTALLED',{fastVersion:fast.version||'unknown',entityVersion:entity.version||'unknown'});
   return true;
 };
 if(!install()){
