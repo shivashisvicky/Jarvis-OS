@@ -8,14 +8,15 @@
     media: { scripts: ['jarvis-live-media.js'], css: ['jarvis-media-layout.css', 'jarvis-video-search-v3.css'] },
     voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js', 'jarvis-voice-reliability-v1.js'], css: [] },
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
-    engineering: { scripts: ['jarvis-engineering.js', 'jarvis-engineering-bay-v1.js'], css: [] },
+    engineering: { scripts: ['jarvis-engineering.js'], css: [] },
+    engineeringBay: { scripts: ['jarvis-engineering-bay-v1.js'], css: [] },
     notes: { scripts: ['jarvis-notes.js'], css: [] },
     games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'], css: [] },
   };
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=${name==='jarvis-live-media.js'?'20260906-media-context-v1':name==='jarvis-engineering-bay-v1.js'?'20260912-engineering-bay-v1':'20260828-reliability-'+name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=${name==='jarvis-live-media.js'?'20260906-media-context-v1':name==='jarvis-engineering-bay-v1.js'?'20260912-engineering-bay-v2':'20260828-reliability-'+name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
