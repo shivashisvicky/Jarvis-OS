@@ -38,3 +38,12 @@
 .jbe11-content-line{display:block}
 .jbe11-content-heading{display:block;font-weight:700!important;letter-spacing:.012em!important;margin:1.05em 0 .35em}
 @media(max-width:700px){.jbe11-page{font-size:17px!important;line-height:1.76!important}.jbe11-title{font-weight:800!important}.jbe11-content-heading{font-weight:700!important}}
+
+/* Reader themes: restrained paper default plus a true dark reading mode. */
+.jbe11-page,.jbe11-body{background:#f7f1e5!important;color:#29251f!important}
+.jbe11-page{border-radius:2px;box-shadow:0 8px 32px rgba(58,45,28,.08);}
+.jbe11-page::selection{background:rgba(96,124,140,.22)}
+.jbe11-dark .jbe11-body,.jbe11-dark .jbe11-page{background:#151617!important;color:#e8e3d8!important}
+.jbe11-dark .jbe11-page{box-shadow:none}
+.jbe11-dark .jbe11-page::selection{background:rgba(160,190,205,.22)}
+@media(max-width:700px){.jbe11-page{box-shadow:none}}
