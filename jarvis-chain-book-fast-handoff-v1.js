@@ -2,29 +2,32 @@
 'use strict';
 if(window.__JARVIS_CHAIN_BOOK_FAST_HANDOFF_V1__)return;
 window.__JARVIS_CHAIN_BOOK_FAST_HANDOFF_V1__=true;
+const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
 const trace=(event,data={})=>{try{console.info('[JARVIS:BOOK_CHAIN_FAST]',event,data);window.dispatchEvent(new CustomEvent('jarvis:ebook-reader-trace',{detail:{event:'BOOK_CHAIN_FAST_'+event,...data,at:Date.now()}}))}catch{}};
 const install=()=>{
-  const fast=window.jarvisEbookBookFastResolver;
   const entity=window.jarvisEntityAuthority;
-  if(!fast||typeof fast.run!=='function'||!entity||typeof entity.handle!=='function'||entity.handle.__jarvisChainWrapped)return false;
+  if(!entity||typeof entity.handle!=='function'||entity.handle.__jarvisChainBookAuthority)return false;
   const original=entity.handle;
   const wrapped=async raw=>{
     if(!window.__JARVIS_COMMAND_CHAIN_RUNNING__)return original(raw);
+    const input=document.querySelector('#commandInput');
+    const form=document.querySelector('#commandForm');
+    if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return original(raw);
     const started=Date.now();
-    trace('START',{raw});
+    input.value=clean(raw);
+    trace('COMMAND_AUTHORITY_START',{raw});
     try{
-      const ok=!!(await fast.run(raw));
-      trace('RESULT',{raw,ok,ms:Date.now()-started});
-      if(ok)return true;
+      form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      trace('COMMAND_AUTHORITY_DISPATCHED',{raw,ms:Date.now()-started});
+      return true;
     }catch(error){
-      trace('ERROR',{raw,error:String(error?.message||error),ms:Date.now()-started});
+      trace('COMMAND_AUTHORITY_ERROR',{raw,error:String(error?.message||error)});
+      return original(raw);
     }
-    trace('FALLBACK_ENTITY',{raw,ms:Date.now()-started});
-    try{return !!(await original(raw))}catch(error){trace('FALLBACK_ERROR',{raw,error:String(error?.message||error)});return false}
   };
-  wrapped.__jarvisChainWrapped=true;
+  wrapped.__jarvisChainBookAuthority=true;
   window.jarvisEntityAuthority=Object.freeze({...entity,handle:wrapped});
-  trace('INSTALLED',{fastVersion:fast.version||'unknown',entityVersion:entity.version||'unknown'});
+  trace('INSTALLED',{entityVersion:entity.version||'unknown',mode:'ebook-command-authority'});
   return true;
 };
 if(!install()){
