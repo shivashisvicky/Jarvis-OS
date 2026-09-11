@@ -6,7 +6,7 @@ const trace=(event,data={})=>{try{console.info('[JARVIS:BOOK_CHAIN_FAST]',event,
 const install=()=>{
   const fast=window.jarvisEbookBookFastResolver;
   const entity=window.jarvisEntityAuthority;
-  if(!fast||typeof fast.run!=='function'||!entity||typeof entity.handle!=='function'||entity.__jarvisChainWrapped)return false;
+  if(!fast||typeof fast.run!=='function'||!entity||typeof entity.handle!=='function'||entity.handle.__jarvisChainWrapped)return false;
   const original=entity.handle;
   const wrapped=async raw=>{
     if(!window.__JARVIS_COMMAND_CHAIN_RUNNING__)return original(raw);
