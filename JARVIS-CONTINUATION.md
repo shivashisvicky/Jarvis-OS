@@ -1,146 +1,132 @@
 # J.A.R.V.I.S. OS Continuation Checkpoint
 
-**Last updated:** 2026-09-06
-**Purpose:** Session-to-session engineering handoff. Read this before continuing work on Jarvis OS.
+**Last updated:** 2026-09-07
+**Purpose:** Mandatory session-to-session engineering handoff. A new agent must read this file plus `JARVIS-ARCHITECTURE.md`, `JARVIS-BASELINES.md`, and `JARVIS-REGRESSIONS.md` before changing code.
 
-## STOP POINT: current stable baseline
+## 1. Deployment architecture
 
-The current repository is `shivashisvicky/Jarvis-OS` on `main`.
+This repository deliberately separates production from experimentation.
 
-**Stable user-verified commit:** `6010a558da5cb14894a46880ed7c2c6c35e2699f`
+### PROD
 
-**Protected rollback branch:** `baseline/2026-09-06-stable-reader`
+- Production source branch: `prod/2026-09-06-stable`.
+- Production promotion is deliberate. Do not debug or experiment on PROD.
+- Last promoted production commit: `58e22a659c93951271119e37a0c30a930c37259e`.
+- Protected whole-tree recovery anchor: `6010a558da5cb14894a46880ed7c2c6c35e2699f`.
 
-This state was manually verified by the user after the latest deployment. It is the preferred rollback target. Do not restart diagnosis from older August baselines unless forensic comparison requires it.
+### TEST
 
-## What is working together at this checkpoint
+- Experimental branch: `test/jarvis-intelligence-next`.
+- TEST is where Ebook/context/entity/command experiments are deployed and manually verified.
+- TEST uses `.github/workflows/deploy-dual-pages-test.yml`.
+- The workflow builds PROD and TEST trees separately and publishes TEST under `/test/`.
+- Intended TEST URL: `https://shivashisvicky.github.io/Jarvis-OS/test/`.
+- A green build/deploy is not a user-verified behavioural baseline.
 
-### Ordinal context
+### Main
 
-All three surfaces are required to work simultaneously:
+- `main` remains the GitHub Pages production source in the repository architecture.
+- Do not use `main` as a scratch branch.
+- Do not merge TEST experiments into production merely because Actions is green.
 
-1. **Books:** `Beowulf` or another book query -> `open/read/show the third one` opens the third current Gutenberg result.
-2. **Maps:** a multi-result query such as restaurants in a city -> `open/show the third one` acts on the third current map result.
-3. **YouTube/Video:** a video search -> `open/show/play the third one` acts on the third current media result.
+## 2. Current recovery state
 
-The critical architectural rule is **domain-first ordinal ownership**. A stale selected UI surface must not steal an ordinal from the currently active domain.
+The latest user-visible broken deployment was Actions run `34113235306`, commit `a6885092d29f9bb077d87ef090ff03ea9a489548`, titled `fix: restore TEST static asset path`.
 
-### Reader
+That run was green at CI/deployment level but the user subsequently reported that both Beowulf and John Henry Newman ebook behaviour was broken. Therefore that build is not a behavioural baseline.
 
-Reader v11 is the canonical reader. It currently provides live Gutenberg text retrieval, page splitting/pagination, chapter/section detection, Previous/Next controls, page jump, retry and official Gutenberg handoff.
+The TEST branch has been moved back to the protected whole-tree anchor `6010a558da5cb14894a46880ed7c2c6c35e2699f`. This is a recovery of the mature pre-experiment tree, not permission to discard unrelated prior work.
 
-Reader presentation is separate from reader behaviour. The current reader polish gives the reader body a fitted sans-serif/iOS-friendly treatment and gives the reader subject/title a bold treatment. This is cosmetic only.
+Important: moving a Git ref does not itself guarantee that GitHub Pages has rebuilt. Always verify a new TEST Actions run and its head SHA before asking the user to test.
 
-## Current active stack
+## 3. What must remain protected
 
-`index.html` currently activates, among other protected modules:
+The following accumulated behaviour must survive Ebook work:
 
-- Context engine v3.
-- Context memory v2.
-- Context reference authority v31.
-- Command authority v12.
-- Entity authority v3.3.
-- Command intelligence v2.
-- Conversation choice authority v10.
-- Context intelligence v5.
-- Deterministic command authority v6.
-- YouTube command authority v2.
-- YouTube gesture fix v5.
-- Ebook network race fix v1.
-- Ebook authority v2.5.
-- Ebook command authority v11.
-- Ebook search authority v20.1.
-- Resolved Ebook handoff fix v1.
-- Ebook text transport v2.
-- Ebook reader v11 live fix.
-- Ebook stability v3.2.
-- Map authority v27.
-- Voice response authority v4.
+- Books result search and ordinal selection.
+- Maps result search, third-result selection and `take me there`.
+- YouTube/video multi-result search and third-result selection.
+- Reader opening, live Gutenberg text, page navigation/counter, chapter/section selector, previous/next and close/Gutenberg handoff.
+- Voice lifecycle and unrelated command routes.
 
-The live media module also persists actual rendered YouTube results into context so ordinal references can resolve against the live media result set.
+Do not fix Books by changing Maps or YouTube authority. Do not fix Reader by creating another competing search/router path.
 
-## Important implementation facts
+## 4. Ebook/user regression target
 
-### Ebook context
+The two named regression cases are:
 
-`jarvis-ebook-search-authority-v2.js` remembers rendered Gutenberg results as `BOOKS` context. The current result set is therefore the source of truth for `read/open the first/second/third one`.
+1. `Beowulf`
+2. `John Henry Newman`
 
-### Media context
+The user expects each to work reliably, with at most one retry during this recovery phase. A first-load timing/network issue may be investigated, but repeated retries must not conceal a deterministic routing bug.
 
-`jarvis-live-media.js` publishes the rendered YouTube result list as `MEDIA` context. This is required for cross-surface ordinal ownership and must not be allowed to permanently overwrite a newer Books context.
+Desired chain:
 
-### Ordinal authority
+`search book -> current Ebook result set -> ordinal/reference resolution -> exact BookRecord -> canonical Reader -> readable content/page count`
 
-`jarvis-context-reference-authority-v1.js` v2.12.0 uses domain-first ordering:
+The reader must never rediscover a different book from a title query after the result has already been selected.
 
-- active `MAPS` domain gets map ordinal ownership first;
-- active `MEDIA/VIDEOS/VIDEO/YOUTUBE` domain gets media ordinal ownership first;
-- otherwise the Books context is resolved;
-- selected surface is only a fallback, not a stronger authority than the live domain.
+## 5. Investigation method
 
-This ordering was introduced specifically because a stale selected surface previously caused YouTube ordinals to fall into Books, and subsequent media fixes could then make Books ordinals stop working. The current implementation is intended to solve both directions without breaking either surface.
+When a regression appears:
 
-## Recent commits leading to the stable state
+1. Identify the last user-verified working build.
+2. Compare the next experimental commit against that build.
+3. Find the first owner that changed the contract.
+4. Revert/remove only that experimental layer where possible.
+5. Preserve unrelated fixes and their cache-busters.
+6. Add a trace at the ownership boundary before adding another interceptor.
+7. Run CI.
+8. Only after CI is green, deploy TEST and run the smallest relevant manual smoke test.
+9. Do not promote to PROD until the user-visible regression suite is verified.
 
-- `195817852e3aeb12455bbffcc4620ffff16b2225` - preserve BOOKS context across entity resolution.
-- `67909830479f111038a6878aab7cf296dd8b3880` - prevent duplicate Gutenberg results while preserving reader authority.
-- `d07f7a0fdeafb963c39f79edce949ec36972e63c` - restore full Gutenberg result surface and author ranking.
-- `84139b2daf761bd7c9c9acc451cae8a49fa4795f` - cache-bust entity ebook handoff fix.
-- `9fe6d1456d50441bba28ff2c4533ef4275b09580` - expand single-result ebook handoff without disrupting resolved context.
-- `265ff6f6ffd494018a4812ae6bc76002a441cd82` - persist live YouTube result context.
-- `8551b37fadee9b659cb23d34bb331e12039d2726` - cache-bust live media context fix.
-- `f6b2cd265436984a6170c7654acdc1dcd3e98a05` - restore cross-surface map/media ordinal ownership.
-- `004e913a03f0831c718051c098ad9b5f8b69553c` - make ordinal ownership domain-first across Books, Maps and Video.
-- `868be71f04f45ff884f6f0ef888fcea206d2c5aa` - activate/cache-bust context-reference authority v31.
-- `1297e50a2ad9a8146a8d1c68ac4c0b9f3be41360` - isolated reader typography and bold reader title/subject presentation.
-- `6010a558da5cb14894a46880ed7c2c6c35e2699f` - cache-bust reader typography CSS.
+Do not perform a wholesale historical rollback simply because an Ebook experiment failed.
 
-## Known historical failures and lessons
+## 6. Current pending tasks
 
-### Do not repeat the V20 Ebook race
+### P0: Deployment recovery
 
-Earlier Ebook search authority V20 performed a second remote Gutenberg search before using entity-resolved results, introducing an asynchronous race in entity -> Books -> reader handoff. Resolved results should be rendered deterministically when already available.
+- Ensure TEST has a fresh Actions run whose head tree is the recovered stable tree.
+- Verify the deployed TEST artifact corresponds to that run, not run `34113235306`.
+- Do not ask for behavioural testing until this is confirmed.
 
-### Do not fix one ordinal surface by blocking another
+### P0: Ebook reliability
 
-The Books/Maps/Video ordinal stack is a synchronized dependency graph. Do not add a broad `blockingDomains` rule, stale selected-surface preference, or global media interception that can steal an ordinal from another active domain.
+- Verify Beowulf and John Henry Newman from clean TEST state.
+- If either fails, capture which ownership boundary failed: search, context, ordinal resolver, entity authority, handoff, network transport, or Reader.
+- Determine whether the intermittent failure is caused by duplicate listeners/routing or asynchronous source acquisition.
 
-### Do not resurrect older reader versions
+### P1: Mature fix design
 
-The current canonical reader is v11. Older reader implementations are historical references only. Do not replace v11 with an older reader merely because an old test once passed.
+- Prefer one canonical path and idempotent state transitions.
+- Use request IDs / stale-response rejection for asynchronous search.
+- Persist the exact selected BookRecord, not merely a title string.
+- Let the canonical Reader own opening/rendering.
+- Keep Ebook stability guard-only.
+- Use bounded retry/fallback for network acquisition, with tracing and no duplicate UI actions.
 
-### Do not casually reintroduce map followup code
+### P1: Regression protection
 
-The current `index.html` does not load the historical `jarvis-map-followup-authority-v1.js`. Maps currently rely on the active map authority/context-reference path. Do not add the historical followup module without evidence that the current map ordinal path is failing.
+- Keep Beowulf, John Henry Newman, Books ordinal, Maps ordinal and YouTube ordinal as separate smoke cases.
+- Run the broader three-surface suite when shared context/authority infrastructure changes.
+- Do not make unrelated subsystems pay the cost of every Ebook experiment.
 
-## Safe engineering workflow
+## 7. Version/rollback rule
 
-1. Start from the current stable baseline, not an old parent commit.
-2. Identify the exact owner of the failing behaviour.
-3. Change the smallest possible surface.
-4. Do not mix cosmetic work with routing/context work.
-5. Push one logical change.
-6. Wait for its Actions result before deciding the next code change.
-7. If a regression appears, compare against `6010a558da5cb14894a46880ed7c2c6c35e2699f` and revert rather than stacking speculative patches.
-8. Preserve the three-way ordinal contract after every functional change: Books + Maps + YouTube.
+Every future engineering checkpoint must record:
 
-## Manual smoke test before declaring a future baseline
+- commit SHA
+- branch
+- Actions run ID/status
+- user-visible symptom targeted
+- files changed
+- active component versions/cache-busters
+- rollback anchor
 
-At minimum verify:
+Create preservation branches before destructive recovery operations. Never delete experimental history merely to make the branch look clean.
 
-- Book search and `open the third one`.
-- Map multi-result search and `open the third one`.
-- YouTube/video search and `open/play the third one`.
-- Reader opens, text loads, page counter is populated, pagination works.
-- Chapter/section selector works.
-- Reader title/subject remains bold and body typography remains consistent.
-- Close returns to the expected surface.
-- Existing voice, Time Now, Command Center and unrelated routes remain intact.
+## 8. Current rollback anchor
 
-## Baseline qualification
+`6010a558da5cb14894a46880ed7c2c6c35e2699f`
 
-The 2026-09-06 state is **user-verified functional**. At the time it was recorded, GitHub Actions had not yet exposed a workflow run for the typography cache-bust commit. Do not misrepresent this as CI-certified. If CI later reports a regression, investigate the exact job and use the protected baseline branch for rollback.
-
-## Golden rule for future agents
-
-**Do not make the next chat rediscover the last four days.** Read this file, read `JARVIS-BASELINES.md`, then inspect the current code at the protected baseline before proposing changes. Preserve working behaviour first, then improve one isolated thing at a time.
+This anchor is the mature whole-tree recovery point. It must not be silently replaced by a later unverified build.

@@ -33,14 +33,11 @@ async function submit(page: any, command: string) {
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill(command);
   await page.locator('#commandForm button[type="submit"]').click();
-  await expect.poll(() => page.evaluate(() => {
-    const route = (window as any).jarvisCommandAuthority?.get?.()?.type || '';
-    const reply = document.querySelector('#jarvisReply')?.textContent?.trim() || '';
-    const query = document.querySelector('#jbe6Query')?.value?.trim() || '';
-    const ebookResults = document.querySelectorAll('#jbe6Results .jbe6-book').length;
-    const ebookStatus = document.querySelector('#jbe6StatusLine')?.textContent?.trim() || '';
-    return { ready: Boolean(route || reply || query || ebookResults || ebookStatus), route, reply, query, ebookResults, ebookStatus };
-  }), { timeout: 15_000 }).toEqual(expect.objectContaining({ ready: true }));
+  await expect.poll(() => page.evaluate(() => ({
+    route: (window as any).jarvisCommandAuthority?.get?.()?.type || '',
+    text: document.querySelector('#jarvisReply')?.textContent?.trim() || '',
+    query: document.querySelector('#jbe6Query')?.value?.trim() || ''
+  })), { timeout: 15_000 }).not.toEqual(expect.objectContaining({ text: '' }));
 }
 
 async function readFirst(page: any, label: string) {

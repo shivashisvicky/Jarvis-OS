@@ -2,30 +2,35 @@ name: Post-Deploy Regression Gate
 
 on:
   workflow_run:
-    workflows: ["Deploy Jarvis OS Dual Pages (TEST)"]
+    workflows: ["Deploy Jarvis OS"]
     types: [completed]
-    branches: [test/jarvis-intelligence-next]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
 
+concurrency:
+  group: jarvis-post-deploy-regression-gate
+  cancel-in-progress: true
+
 env:
   PNPM_VERSION: 10.15.0
 
-concurrency:
-  group: jarvis-post-deploy-regression-gate-test
-  cancel-in-progress: true
-
 jobs:
   sequential-command-gate:
-    name: TEST Regression / Beowulf -> Newman -> Time -> Context
+    name: Sequential / Beowulf -> Newman -> Time -> Context
+    # A cancelled/failed deployment is not a product regression. Do not turn
+    # the post-deploy gate red or run browser tests against an unconfirmed
+    # production version. The next successful deployment will trigger a new
+    # gate automatically. Manual workflow_dispatch remains available for
+    # deliberate diagnostics.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Verify canonical TEST deployment succeeded
+      - name: Verify production Pages job succeeded
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,16 +47,16 @@ jobs:
           import json
           data=json.load(open('jobs.json'))
           jobs=data.get('jobs',[])
-          target=next((j for j in jobs if j.get('name')=='Deploy TEST environment'),None)
+          target=next((j for j in jobs if j.get('name')=='Deploy production Pages'),None)
           if not target:
-              raise SystemExit('DEPLOY_TEST_JOB_NOT_FOUND')
-          print('DEPLOY_TEST_JOB_STATUS=',target.get('status'))
-          print('DEPLOY_TEST_JOB_CONCLUSION=',target.get('conclusion'))
+              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_FOUND')
+          print('DEPLOY_PRODUCTION_JOB_STATUS=',target.get('status'))
+          print('DEPLOY_PRODUCTION_JOB_CONCLUSION=',target.get('conclusion'))
           if target.get('conclusion') != 'success':
-              raise SystemExit('DEPLOY_TEST_JOB_NOT_SUCCESS')
+              raise SystemExit('DEPLOY_PRODUCTION_JOB_NOT_SUCCESS')
           PY
 
-      - name: Checkout deployed TEST commit
+      - name: Checkout deployed commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -70,19 +75,19 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Verify TEST shell in strict sequence
+      - name: Verify deployed shell in strict sequence
         env:
-          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/test/?deploy=${{ github.event.workflow_run.head_sha || github.sha }}
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
-          echo "TEST_COMMIT=${JARVIS_LIVE_URL##*=}"
+          echo "DEPLOYED_COMMIT=${JARVIS_LIVE_URL##*=}"
           pnpm exec playwright test tests/e2e/post-deploy-regression-gate.spec.ts --project=chromium --workers=1 --reporter=line
 
-      - name: Upload TEST regression evidence
+      - name: Upload regression evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: post-deploy-test-regression-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
+          name: post-deploy-regression-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
           path: |
             playwright-report/
             test-results/

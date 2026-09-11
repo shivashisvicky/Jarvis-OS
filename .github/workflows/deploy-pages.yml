@@ -1,0 +1,305 @@
+name: Deploy Jarvis OS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: jarvis-pages-main
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.15.0
+
+jobs:
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Validate Intelligence gateway syntax
+        run: node --check api/openai-intelligence.js && node --check workers/intelligence/src/index.js
+      - name: Check YouTube API configuration
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          if [ -z "${YOUTUBE_API_KEY:-}" ]; then
+            echo 'YOUTUBE_API_KEY_CONFIGURED=0'
+            echo 'YouTube Data API key is optional. Media search will use the local/fallback provider path.'
+          else
+            echo 'YOUTUBE_API_KEY_CONFIGURED=1'
+          fi
+      - name: Build Jarvis OS
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: pnpm run build
+      - name: Configure deployed Intelligence endpoint
+        env:
+          JARVIS_INTELLIGENCE_ENDPOINT: ${{ secrets.JARVIS_INTELLIGENCE_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os,re
+          p = Path('dist/index.html')
+          text = p.read_text()
+          endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
+          pattern = r'<meta\s+name="jarvis-intelligence-endpoint"\s+content="[^"]*"\s*/?>'
+          replacement = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
+          text, count = re.subn(pattern, replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Intelligence endpoint meta tag not found in built artifact')
+          p.write_text(text)
+          print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({endpoint})')
+          PY
+      - name: Verify generated YouTube configuration
+        run: |
+          set -euo pipefail
+          test -s dist/jarvis-youtube-config.js
+          grep -q 'window.JARVIS_YOUTUBE_API_KEY=' dist/jarvis-youtube-config.js
+      - name: Verify current shell artifact
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -s dist/jarvis-media-layout.css
+          test -s dist/jarvis-video-search-v3.css
+          test -s dist/jarvis-intelligence-runtime.js
+          grep -q 'jarvis-intelligence-runtime.js' dist/index.html
+          grep -q 'jarvis-intelligence-endpoint' dist/index.html
+          grep -q 'src/main.ts' dist/index.html || grep -q 'assets/index-' dist/index.html
+          ! grep -q 'jarvis-web-shell.js' dist/index.html
+          ! grep -q 'jarvis-media-v14.js' dist/index.html
+          ! grep -q 'jarvis-shell-search.css' dist/index.html
+          ! grep -q 'jarvis-video-provider.js' dist/index.html
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    name: Deploy production Pages
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        id: deployment
+
+  live-intelligence-smoke:
+    name: Live / Gemini Intelligence
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live intelligence POST
+        env:
+          JARVIS_INTELLIGENCE_ENDPOINT: https://jarvis-intelligence.shivashisvicky112.workers.dev
+        run: |
+          set -euo pipefail
+          endpoint="$JARVIS_INTELLIGENCE_ENDPOINT/api/intelligence"
+          echo "POST $endpoint"
+          headers=$(mktemp)
+          body=$(mktemp)
+          status=$(curl --silent --show-error --max-time 30 -D "$headers" -o "$body" -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -X POST "$endpoint" --data '{"query":"Reply with exactly: JARVIS ONLINE"}')
+          cat "$headers"
+          echo
+          cat "$body"
+          echo
+          echo "HTTP_STATUS=$status"
+          RESPONSE_FILE="$body" STATUS="$status" python - <<'PY'
+          import json, os
+          status = os.environ['STATUS']
+          data = json.load(open(os.environ['RESPONSE_FILE']))
+          if status != '200': raise SystemExit(f"INTELLIGENCE_POST_FAILED status={status} code={data.get('code')} error={data.get('error')}")
+          text = str(data.get('text') or '').strip()
+          assert text, 'intelligence response has no text'
+          assert data.get('provider') in {'gemini', 'groq'}, f"unexpected provider: {data.get('provider')}"
+          print(f"INTELLIGENCE_POST_PASS provider={data.get('provider')} model={data.get('model')}")
+          PY
+
+  live-media-smoke:
+    name: Live / Media Search
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed media surface
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/live-media.spec.ts --project=chromium
+      - name: Upload deployed media evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-media-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  live-web-smoke:
+    name: Live / In-Shell Web Search
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed web search stays in shell
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/in-shell-search.spec.ts --project=chromium
+      - name: Upload deployed web evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-web-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  live-ebooks:
+    name: Live / Gutenberg Ebooks
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed Gutenberg ebook reader
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/live-ebooks.spec.ts --project=chromium
+      - name: Upload ebook evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-ebook-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  live-entity-intelligence:
+    name: Live / Entity Intelligence
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed entity intelligence
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/live-entity-intelligence.spec.ts --project=chromium
+      - name: Upload entity intelligence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-entity-intelligence-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  live-home-news:
+    name: Live / Home + News + Voice
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed Home + News + Voice
+        env:
+          JARVIS_LIVE_URL: https://shivashisvicky.github.io/Jarvis-OS/?deploy=${{ github.sha }}
+        run: pnpm exec playwright test tests/e2e/live-home-news.spec.ts tests/e2e/home-intelligence.spec.ts --project=chromium
+      - name: Upload Home + News + Voice evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-home-news-voice-evidence-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

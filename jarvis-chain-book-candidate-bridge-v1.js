@@ -1,0 +1,11 @@
+(()=>{'use strict';
+if(window.__JARVIS_CHAIN_BOOK_CANDIDATE_BRIDGE_V1__)return;
+window.__JARVIS_CHAIN_BOOK_CANDIDATE_BRIDGE_V1__=true;
+const clean=s=>String(s||'').replace(/[.!?]+\s*$/,'').replace(/\s+/g,' ').trim();
+const ord='(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+(?:st|nd|rd|th)?)';
+const split=s=>{const q=clean(s),m=q.match(new RegExp('^(.+?)\\s+(?:and|then|,)\\s+(open|read|show|select|choose)\\s+(?:the\\s+)?'+ord+'(?:\\s+(?:one|result))?$','i'));return m?[clean(m[1]),clean(m[2]+' '+q.slice(m[0].indexOf(m[2])+m[2].length).trim())]:null};
+const run=raw=>{const p=split(raw);if(!p||!window.jarvisEntityAuthority?.candidate?.(p[0])||!window.jarvisCommandChain?.run)return false;const parsed={parts:p,routes:[{type:'BOOKS',inferred:true,owner:'jarvis-entity-authority'},{type:'CONTEXT_FOLLOWUP',inferred:true}]};try{window.dispatchEvent(new CustomEvent('jarvis:command-chain',{detail:{parts:p,routes:parsed.routes,version:'2.4.5-book-candidate'}}));void window.jarvisCommandChain.run(parsed);return true}catch{return false}};
+const submit=e=>{const f=e.target;if(!(f instanceof HTMLFormElement)||f.id!=='commandForm'||window.__JARVIS_COMMAND_CHAIN_RUNNING__)return;const i=f.querySelector('#commandInput');if(!(i instanceof HTMLInputElement))return;if(!run(i.value))return;e.preventDefault();e.stopImmediatePropagation()};
+const voice=e=>{if(window.__JARVIS_COMMAND_CHAIN_RUNNING__)return;if(!run(String(e.detail?.text||'')))return;e.preventDefault?.();e.stopImmediatePropagation?.()};
+document.addEventListener('submit',submit,true);window.addEventListener('jarvis:voice-command',voice,true);
+})();

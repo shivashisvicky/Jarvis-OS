@@ -2,8 +2,7 @@ name: Deploy Jarvis OS Dual Pages (TEST)
 
 on:
   push:
-    branches:
-      - test/jarvis-intelligence-next
+    branches: ['test/jarvis-intelligence-next']
   workflow_dispatch:
 
 permissions:
@@ -22,8 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build TEST + frozen PROD baseline
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
+    name: Build PROD + TEST Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TEST
@@ -32,7 +30,7 @@ jobs:
           ref: ${{ env.TEST_BRANCH }}
           path: test-src
 
-      - name: Checkout PROD baseline
+      - name: Checkout PROD
         uses: actions/checkout@v4
         with:
           ref: ${{ env.PROD_BRANCH }}
@@ -46,7 +44,7 @@ jobs:
       - name: Install pnpm
         run: npm install --global pnpm@${PNPM_VERSION} && pnpm --version
 
-      - name: Install PROD baseline dependencies
+      - name: Install PROD dependencies
         working-directory: prod-src
         run: pnpm install --no-frozen-lockfile
 
@@ -54,7 +52,7 @@ jobs:
         working-directory: test-src
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build frozen PROD baseline
+      - name: Build PROD
         working-directory: prod-src
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -74,35 +72,20 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import os, re
-
           endpoint = (os.environ.get('JARVIS_INTELLIGENCE_ENDPOINT') or 'https://jarvis-intelligence.shivashisvicky112.workers.dev').strip().rstrip('/')
-
-          def configure(root):
-              p = Path(root) / 'index.html'
+          for root in (Path('prod-src/dist'), Path('test-src/dist')):
+              p = root / 'index.html'
               text = p.read_text()
-              pattern = r'<meta\s+[^>]*name=["\']jarvis-intelligence-endpoint["\'][^>]*>'
-              match = re.search(pattern, text, flags=re.IGNORECASE)
-              marker = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
-              if not match:
-                  head = re.search(r'</head\s*>', text, flags=re.IGNORECASE)
-                  if not head:
-                      raise SystemExit(f'HTML head not found: {p}')
-                  text = text[:head.start()] + marker + text[head.start():]
-              else:
-                  tag = match.group(0)
-                  if re.search(r'content=["\'][^"\']*["\']', tag, flags=re.IGNORECASE):
-                      tag = re.sub(r'content=["\'][^"\']*["\']', f'content="{endpoint}/api/openai-intelligence"', tag, count=1, flags=re.IGNORECASE)
-                  else:
-                      tag = tag[:-1] + f' content="{endpoint}/api/openai-intelligence">'
-                  text = text[:match.start()] + tag + text[match.end():]
+              pattern = r'<meta\s+name="jarvis-intelligence-endpoint"\s+content="[^"]*"\s*/?>'
+              replacement = f'<meta name="jarvis-intelligence-endpoint" content="{endpoint}/api/openai-intelligence">'
+              text, count = re.subn(pattern, replacement, text, count=1)
+              if count != 1:
+                  raise SystemExit(f'Intelligence endpoint meta tag not found: {p}')
               p.write_text(text)
-              print(f'JARVIS_INTELLIGENCE_ENDPOINT_CONFIGURED=1 ({p})')
-
-          configure('prod-src/dist')
-          configure('test-src/dist')
+          print('JARVIS dual Pages: intelligence endpoint configured')
           PY
 
-      - name: Assemble TEST + frozen PROD artifact
+      - name: Assemble dual Pages artifact
         run: |
           set -euo pipefail
           rm -rf _site
@@ -115,48 +98,44 @@ jobs:
           test -s _site/test/jarvis-youtube-config.js
           grep -q 'jarvis-intelligence-endpoint' _site/index.html
           grep -q 'jarvis-intelligence-endpoint' _site/test/index.html
-          grep -q 'J.A.R.V.I.S' _site/index.html
-          grep -q 'J.A.R.V.I.S' _site/test/index.html
-          echo 'JARVIS Pages artifact: / = frozen PROD baseline, /test/ = TEST experiment'
+          echo 'JARVIS dual Pages artifact assembled: / = PROD baseline, /test/ = TEST'
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
-      - name: Upload TEST artifact
+      - name: Upload dual Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./_site
 
   deploy:
-    name: Deploy TEST environment
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
+    name: Deploy dual Pages TEST
     needs: build
     environment:
       name: github-pages-test
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy TEST environment
+      - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
         id: deployment
 
   smoke:
-    name: Verify frozen PROD + TEST URLs
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/test/jarvis-intelligence-next'
+    name: Verify PROD + TEST URLs
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify frozen production URL
+      - name: Verify production baseline URL
         run: |
           set -euo pipefail
           url='https://shivashisvicky.github.io/Jarvis-OS/?dual=${{ github.sha }}'
           body=$(curl --silent --show-error --fail --max-time 30 "$url")
           printf '%s' "$body" | grep -q 'J.A.R.V.I.S'
           printf '%s' "$body" | grep -q 'assets/index-'
-          echo 'FROZEN_PROD_URL_PASS'
+          echo 'PROD_BASELINE_URL_PASS'
 
       - name: Verify TEST URL
         run: |
@@ -167,4 +146,4 @@ jobs:
           printf '%s' "$body" | grep -q 'assets/index-'
           echo 'TEST_URL_PASS'
 
-# TEST branch is the automatic experiment path. PROD is read from main as a frozen baseline only.
+# TEST branch is the experiment path. PROD is built from main as the frozen production baseline only.
