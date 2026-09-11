@@ -28,6 +28,7 @@ const LAZY_ASSETS = [
   'jarvis-voice-authority.js',
   'jarvis-mobile-unified.js',
   'jarvis-engineering.js',
+  'jarvis-engineering-bay-v1.js',
   'jarvis-notes.js',
   'jarvis-games-v2.js',
   'jarvis-home-upgrade.js',
