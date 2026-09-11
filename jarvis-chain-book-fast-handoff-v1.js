@@ -8,7 +8,8 @@ const bookContextReady=()=>{try{const c=window.jarvisContextEngine?.get?.()||{};
 const waitForBookContext=async(timeout=10000)=>{if(bookContextReady())return true;return await new Promise(resolve=>{let done=false;let timer=0;let poll=0;const finish=ok=>{if(done)return;done=true;clearTimeout(timer);clearInterval(poll);window.removeEventListener('jarvis:ebook-context',on);resolve(ok)};const on=()=>{if(bookContextReady())finish(true)};window.addEventListener('jarvis:ebook-context',on);poll=setInterval(on,50);timer=setTimeout(()=>finish(bookContextReady()),timeout)});};
 const install=()=>{
   const entity=window.jarvisEntityAuthority;
-  if(!entity||typeof entity.handle!=='function'||entity.handle.__jarvisChainBookAuthority)return false;
+  if(!entity||typeof entity.handle!=='function')return false;
+  if(entity.handle.__jarvisChainBookAuthority)return true;
   const original=entity.handle;
   const wrapped=async raw=>{
     if(!window.__JARVIS_COMMAND_CHAIN_RUNNING__)return original(raw);
