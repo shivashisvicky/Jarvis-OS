@@ -23,7 +23,7 @@ const install=()=>{
     try{return !!(await original(raw))}catch(error){trace('FALLBACK_ERROR',{raw,error:String(error?.message||error)});return false}
   };
   wrapped.__jarvisChainWrapped=true;
-  entity.handle=wrapped;
+  window.jarvisEntityAuthority=Object.freeze({...entity,handle:wrapped});
   trace('INSTALLED',{fastVersion:fast.version||'unknown',entityVersion:entity.version||'unknown'});
   return true;
 };
