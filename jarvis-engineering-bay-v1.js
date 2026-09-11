@@ -1,103 +1,80 @@
 (() => {
   'use strict';
-  if (window.__JARVIS_ENGINEERING_BAY_V1__) return;
-  window.__JARVIS_ENGINEERING_BAY_V1__ = true;
+  if (window.__JARVIS_ENGINEERING_BAY_V2__) return;
+  window.__JARVIS_ENGINEERING_BAY_V2__ = true;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const style = () => {
-    if (document.querySelector('#jarvis-engineering-bay-style')) return;
-    const s = document.createElement('style');
-    s.id = 'jarvis-engineering-bay-style';
-    s.textContent = `
-      .jbay-backdrop{position:fixed;inset:0;z-index:500;background:rgba(0,4,8,.78);backdrop-filter:blur(12px);display:none;padding:18px;box-sizing:border-box;overflow:auto}
-      .jbay-backdrop.open{display:block}.jbay-shell{max-width:900px;margin:0 auto;border:1px solid #17303a;border-radius:16px;background:#020a10;box-shadow:0 24px 80px rgba(0,0,0,.7);overflow:hidden}.jbay-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #17303a}.jbay-title{font-size:12px;font-weight:800;letter-spacing:.12em;color:#dffaff}.jbay-close{border:1px solid #17303a;background:#071017;color:#8ca6ae;border-radius:8px;padding:7px 10px;cursor:pointer}.jbay{display:grid;gap:12px;padding:16px}.jbay-tools{display:flex;gap:7px;flex-wrap:wrap}.jbay-tool{border:1px solid #17303a;background:#071017;color:#8ca6ae;border-radius:8px;padding:8px 12px;cursor:pointer}.jbay-tool.active{color:#dffaff;border-color:#3a8294}.jbay-pane{display:none;gap:10px}.jbay-pane.active{display:grid}.jbay-pane textarea{width:100%;min-height:170px;box-sizing:border-box;background:#050b10;border:1px solid #17303a;border-radius:8px;color:#dffaff;padding:11px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}.jbay-output{white-space:pre-wrap;overflow:auto;max-height:360px;background:#050b10;border:1px solid #142b34;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#bfe5ed}.jbay-status{font-size:11px;color:#78939c}
-      @media(max-width:760px){.jbay-backdrop{padding:8px}.jbay-shell{border-radius:12px}.jbay{padding:12px}.jbay-pane textarea{min-height:145px}}
-    `;
-    document.head.appendChild(s);
+    if (document.querySelector('#jarvis-engineering-bay-style-v2')) return;
+    const s = document.createElement('style'); s.id='jarvis-engineering-bay-style-v2';
+    s.textContent=`
+      .jbay2-backdrop{position:fixed;inset:0;z-index:500;background:rgba(0,4,8,.82);backdrop-filter:blur(14px);display:none;padding:12px;box-sizing:border-box;overflow:auto}
+      .jbay2-backdrop.open{display:block}.jbay2-shell{max-width:1120px;min-height:calc(100vh - 24px);margin:0 auto;border:1px solid #17303a;border-radius:16px;background:#020a10;box-shadow:0 24px 90px rgba(0,0,0,.72);overflow:hidden}.jbay2-top{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #17303a;background:rgba(2,10,16,.96)}.jbay2-title{font-size:12px;font-weight:800;letter-spacing:.12em;color:#dffaff}.jbay2-sub{font-size:10px;color:#78939c;margin-top:3px}.jbay2-close{border:1px solid #17303a;background:#071017;color:#8ca6ae;border-radius:8px;padding:8px 11px;cursor:pointer}.jbay2-body{display:grid;grid-template-columns:190px 1fr;min-height:calc(100vh - 86px)}.jbay2-nav{padding:12px;border-right:1px solid #17303a;background:#030c12}.jbay2-nav button{width:100%;text-align:left;border:1px solid transparent;background:transparent;color:#78939c;border-radius:9px;padding:10px 11px;margin-bottom:6px;cursor:pointer;font:inherit}.jbay2-nav button.active{color:#dffaff;background:#071820;border-color:#23505d}.jbay2-main{padding:16px}.jbay2-pane{display:none;gap:12px}.jbay2-pane.active{display:grid}.jbay2-head{display:flex;justify-content:space-between;gap:10px;align-items:end}.jbay2-head h2{margin:0;color:#dffaff;font-size:18px}.jbay2-head p{margin:4px 0 0;color:#78939c;font-size:11px}.jbay2-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.jbay2-card{border:1px solid #17303a;border-radius:11px;background:#050f15;padding:12px;display:grid;gap:9px}.jbay2-card h3{margin:0;color:#cfeef4;font-size:12px}.jbay2-label{display:grid;gap:5px;font-size:9px;color:#718b94;text-transform:uppercase;letter-spacing:.08em}.jbay2-input,.jbay2-select,.jbay2-textarea{width:100%;box-sizing:border-box;background:#071017;border:1px solid #17303a;border-radius:8px;color:#dffaff;padding:9px;font:inherit}.jbay2-textarea{min-height:150px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}.jbay2-actions{display:flex;gap:7px;flex-wrap:wrap}.jbay2-output{white-space:pre-wrap;overflow:auto;max-height:360px;background:#03090d;border:1px solid #142b34;border-radius:8px;padding:11px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#bfe5ed}.jbay2-status{font-size:10px;color:#78939c}.jbay2-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.jbay2-kpi{border:1px solid #17303a;border-radius:9px;padding:10px;background:#050f15}.jbay2-kpi b{display:block;color:#dffaff;font-size:15px}.jbay2-kpi span{font-size:8px;color:#78939c}.jbay2-canvas-wrap{border:1px solid #17303a;border-radius:10px;background:#01070b;min-height:280px;display:grid;place-items:center;overflow:hidden}.jbay2-canvas{max-width:100%;height:auto}.jbay2-drop{border:1px dashed #28515d;border-radius:10px;padding:22px;text-align:center;color:#78939c}.jbay2-note{font-size:10px;line-height:1.5;color:#607c85}.jbay2-pill{font-size:8px;border:1px solid #23505d;border-radius:999px;padding:4px 7px;color:#9ac8d2}.jbay2-model{height:280px;display:grid;place-items:center;perspective:900px;background:radial-gradient(circle at 50% 35%,#102832 0,#03090d 55%)}.jbay2-cube{width:120px;height:120px;position:relative;transform-style:preserve-3d;transform:rotateX(-20deg) rotateY(30deg);transition:transform .35s ease}.jbay2-face{position:absolute;inset:0;border:1px solid #67aebd;background:rgba(47,116,133,.16);display:grid;place-items:center;color:#cdeff5;font-size:10px}.jbay2-front{transform:translateZ(60px)}.jbay2-back{transform:rotateY(180deg) translateZ(60px)}.jbay2-right{transform:rotateY(90deg) translateZ(60px)}.jbay2-left{transform:rotateY(-90deg) translateZ(60px)}.jbay2-topface{transform:rotateX(90deg) translateZ(60px)}.jbay2-bottom{transform:rotateX(-90deg) translateZ(60px)}
+      @media(max-width:760px){.jbay2-backdrop{padding:6px}.jbay2-shell{min-height:calc(100vh - 12px);border-radius:12px}.jbay2-body{grid-template-columns:1fr}.jbay2-nav{display:flex;gap:6px;overflow:auto;border-right:0;border-bottom:1px solid #17303a;padding:8px}.jbay2-nav button{white-space:nowrap;width:auto;margin:0;padding:8px 10px}.jbay2-main{padding:10px}.jbay2-grid{grid-template-columns:1fr}.jbay2-kpis{grid-template-columns:1fr 1fr 1fr}.jbay2-top{padding:11px}}
+    `; document.head.appendChild(s);
   };
 
-  const bay = () => `
-    <div class="jbay-backdrop" id="jarvisEngineeringBayOverlay" role="dialog" aria-modal="true" aria-label="Engineering Bay">
-      <section class="jbay-shell">
-        <div class="jbay-top"><span class="jbay-title">ENGINEERING BAY / INTELLIGENCE TOOLS</span><button type="button" class="jbay-close" id="jbayClose">CLOSE</button></div>
-        <section class="jbay">
-          <div class="jbay-tools">
-            <button class="jbay-tool active" data-jbay-tool="json">JSON</button>
-            <button class="jbay-tool" data-jbay-tool="jwt">JWT</button>
-            <button class="jbay-tool" data-jbay-tool="diff">DIFF</button>
-          </div>
-          <div class="jbay-pane active" data-jbay-pane="json">
-            <textarea id="jbayJson" spellcheck="false" placeholder='Paste JSON here…'></textarea>
-            <div class="jbay-tools"><button class="primary" id="jbayFormat">FORMAT JSON</button><button class="secondary" id="jbayMinify">MINIFY</button></div>
-            <div class="jbay-status" id="jbayJsonStatus">READY</div>
-          </div>
-          <div class="jbay-pane" data-jbay-pane="jwt">
-            <textarea id="jbayJwt" spellcheck="false" placeholder="Paste a JWT here. This decodes locally in your browser."></textarea>
-            <button class="primary" id="jbayDecode">DECODE JWT</button>
-            <pre class="jbay-output" id="jbayJwtOutput">Decoded header and payload will appear here.</pre>
-          </div>
-          <div class="jbay-pane" data-jbay-pane="diff">
-            <textarea id="jbayLeft" spellcheck="false" placeholder="Original text / payload"></textarea>
-            <textarea id="jbayRight" spellcheck="false" placeholder="New text / payload"></textarea>
-            <button class="primary" id="jbayCompare">COMPARE</button>
-            <pre class="jbay-output" id="jbayDiffOutput">Comparison will appear here.</pre>
-          </div>
-        </section>
-      </section>
-    </div>`;
+  const shell=()=>`<div class="jbay2-backdrop" id="jarvisEngineeringBay" role="dialog" aria-modal="true" aria-label="Engineering Bay">
+    <section class="jbay2-shell"><header class="jbay2-top"><div><div class="jbay2-title">ENGINEERING BAY</div><div class="jbay2-sub">JARVIS intelligence, developer, image and spatial workbench</div></div><button class="jbay2-close" id="jbay2Close" type="button">CLOSE</button></header>
+    <div class="jbay2-body"><nav class="jbay2-nav" id="jbay2Nav">
+      <button class="active" data-jbay2="payload">PAYLOAD LAB</button><button data-jbay2="api">API ENGINEERING</button><button data-jbay2="dev">DEV UTILITIES</button><button data-jbay2="image">IMAGE INTELLIGENCE</button><button data-jbay2="spatial">3D / SPATIAL</button>
+    </nav><main class="jbay2-main">
+      <section class="jbay2-pane active" data-pane="payload"><div class="jbay2-head"><div><h2>Payload Lab</h2><p>Fast local-first payload inspection and transformation.</p></div><span class="jbay2-pill">BROWSER LOCAL</span></div><div class="jbay2-grid">
+        <div class="jbay2-card"><h3>JSON FORMATTER / VALIDATOR</h3><textarea class="jbay2-textarea" id="jbJson" spellcheck="false" placeholder='{"hello":"world"}'></textarea><div class="jbay2-actions"><button class="primary" id="jbJsonFormat">FORMAT</button><button class="secondary" id="jbJsonMin">MINIFY</button><button class="secondary" id="jbJsonValidate">VALIDATE</button></div><div class="jbay2-status" id="jbJsonStatus">READY</div></div>
+        <div class="jbay2-card"><h3>JSON ↔ XML / BASE64</h3><textarea class="jbay2-textarea" id="jbTransform" spellcheck="false" placeholder='Paste JSON or text…'></textarea><div class="jbay2-actions"><button class="primary" id="jbJsonXml">JSON → XML</button><button class="secondary" id="jbBase64e">BASE64 ENCODE</button><button class="secondary" id="jbBase64d">BASE64 DECODE</button></div><div class="jbay2-output" id="jbTransformOut">Output will appear here.</div></div>
+        <div class="jbay2-card"><h3>JWT DECODER</h3><textarea class="jbay2-textarea" id="jbJwt" spellcheck="false" placeholder="header.payload.signature"></textarea><button class="primary" id="jbJwtDecode">DECODE LOCALLY</button><pre class="jbay2-output" id="jbJwtOut">Header and payload will appear here.</pre></div>
+        <div class="jbay2-card"><h3>REGEX TESTER</h3><input class="jbay2-input" id="jbRegex" placeholder="Pattern, e.g. ^[A-Z]{3}-\\d+$"><textarea class="jbay2-textarea" id="jbRegexText" placeholder="Text to test…"></textarea><button class="primary" id="jbRegexRun">TEST REGEX</button><div class="jbay2-output" id="jbRegexOut">Matches will appear here.</div></div>
+      </div></section>
 
-  const decodePart = part => {
-    try { const normalized = part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'='); return JSON.parse(decodeURIComponent(Array.from(atob(normalized), c => '%' + c.charCodeAt(0).toString(16).padStart(2,'0')).join(''))); }
-    catch { return null; }
+      <section class="jbay2-pane" data-pane="api"><div class="jbay2-head"><div><h2>API Engineering</h2><p>Request, inspect and diagnose HTTP integrations.</p></div><span class="jbay2-pill">CORS-AWARE</span></div><div class="jbay2-card"><div class="jbay2-grid"><label class="jbay2-label">METHOD<select class="jbay2-select" id="jbApiMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option></select></label><label class="jbay2-label">URL<input class="jbay2-input" id="jbApiUrl" placeholder="https://api.example.com/endpoint"></label></div><label class="jbay2-label">HEADERS JSON<textarea class="jbay2-textarea" id="jbApiHeaders" placeholder='{"Content-Type":"application/json"}'></textarea></label><label class="jbay2-label">REQUEST BODY<textarea class="jbay2-textarea" id="jbApiBody" placeholder='{"hello":"world"}'></textarea></label><div class="jbay2-actions"><button class="primary" id="jbApiSend">SEND REQUEST</button><button class="secondary" id="jbApiClear">CLEAR</button></div><div class="jbay2-status" id="jbApiStatus">READY</div><pre class="jbay2-output" id="jbApiOut">Response diagnostics will appear here.</pre></div></section>
+
+      <section class="jbay2-pane" data-pane="dev"><div class="jbay2-head"><div><h2>Developer Utilities</h2><p>Small tools for the daily engineering trench.</p></div><span class="jbay2-pill">LOCAL-FIRST</span></div><div class="jbay2-grid">
+        <div class="jbay2-card"><h3>DIFF VIEWER</h3><textarea class="jbay2-textarea" id="jbDiffA" placeholder="Original"></textarea><textarea class="jbay2-textarea" id="jbDiffB" placeholder="Changed"></textarea><button class="primary" id="jbDiffRun">COMPARE</button><pre class="jbay2-output" id="jbDiffOut">Comparison will appear here.</pre></div>
+        <div class="jbay2-card"><h3>LOG ANALYZER</h3><textarea class="jbay2-textarea" id="jbLog" placeholder="Paste logs here…"></textarea><button class="primary" id="jbLogRun">ANALYZE</button><pre class="jbay2-output" id="jbLogOut">Counts and common signals will appear here.</pre></div>
+        <div class="jbay2-card"><h3>JSONPATH QUICK TEST</h3><textarea class="jbay2-textarea" id="jbPathJson" placeholder='{"users":[{"name":"Ada"},{"name":"Linus"}]}'></textarea><input class="jbay2-input" id="jbPath" value="$.users[*].name" placeholder="$.users[*].name"><button class="primary" id="jbPathRun">QUERY</button><pre class="jbay2-output" id="jbPathOut">Results will appear here.</pre></div>
+        <div class="jbay2-card"><h3>SQL PLAYGROUND</h3><textarea class="jbay2-textarea" id="jbSql" placeholder="select id,name from users where active = true order by name;"></textarea><button class="primary" id="jbSqlRun">FORMAT SQL</button><pre class="jbay2-output" id="jbSqlOut">Formatted SQL will appear here.</pre></div>
+      </div></section>
+
+      <section class="jbay2-pane" data-pane="image"><div class="jbay2-head"><div><h2>Image Intelligence</h2><p>Local image inspection, transformation and pixel analysis. OCR/background removal can plug into a model gateway later.</p></div><span class="jbay2-pill">PRIVATE BY DEFAULT</span></div><div class="jbay2-card"><input id="jbImageFile" type="file" accept="image/*" class="jbay2-input"><div class="jbay2-kpis"><div class="jbay2-kpi"><b id="jbImgW">—</b><span>WIDTH</span></div><div class="jbay2-kpi"><b id="jbImgH">—</b><span>HEIGHT</span></div><div class="jbay2-kpi"><b id="jbImgType">—</b><span>TYPE</span></div></div><div class="jbay2-actions"><button class="primary" id="jbGray">GRAYSCALE</button><button class="secondary" id="jbInvert">INVERT</button><button class="secondary" id="jbDownload">EXPORT PNG</button></div><div class="jbay2-canvas-wrap"><canvas id="jbImageCanvas" class="jbay2-canvas" width="640" height="360"></canvas></div><div class="jbay2-status" id="jbImageStatus">Choose an image. Processing stays in the browser.</div></div></section>
+
+      <section class="jbay2-pane" data-pane="spatial"><div class="jbay2-head"><div><h2>3D / Spatial Workbench</h2><p>Dimension-driven primitives, inspection and export foundation. Built to grow into glTF/GLB and richer WebGL scenes.</p></div><span class="jbay2-pill">WEBGL-READY ARCHITECTURE</span></div><div class="jbay2-grid"><div class="jbay2-card"><h3>DIMENSIONED OBJECT</h3><div class="jbay2-grid"><label class="jbay2-label">WIDTH<input class="jbay2-input" id="jb3w" type="number" value="2" step="0.1"></label><label class="jbay2-label">HEIGHT<input class="jbay2-input" id="jb3h" type="number" value="2" step="0.1"></label><label class="jbay2-label">DEPTH<input class="jbay2-input" id="jb3d" type="number" value="2" step="0.1"></label><label class="jbay2-label">UNIT<select class="jbay2-select" id="jb3u"><option>m</option><option>cm</option><option>mm</option></select></label></div><div class="jbay2-actions"><button class="primary" id="jb3Build">BUILD PREVIEW</button><button class="secondary" id="jb3Obj">EXPORT OBJ</button></div><div class="jbay2-model" id="jb3Model"><div class="jbay2-cube"><div class="jbay2-face jbay2-front">FRONT</div><div class="jbay2-face jbay2-back">BACK</div><div class="jbay2-face jbay2-right">RIGHT</div><div class="jbay2-face jbay2-left">LEFT</div><div class="jbay2-face jbay2-topface">TOP</div><div class="jbay2-face jbay2-bottom">BOTTOM</div></div></div><div class="jbay2-status" id="jb3Status">2 × 2 × 2 m · 8 m³</div></div>
+        <div class="jbay2-card"><h3>SPATIAL ROADMAP</h3><div class="jbay2-output">✓ Primitive modeling\n✓ Dimension-aware preview\n✓ OBJ export\n\nNEXT LAYERS\n• glTF / GLB import + export\n• Orbit / pan / zoom controls\n• Room and furniture scene graph\n• Mechanical components + exploded assemblies\n• Measurement overlays\n• Spatial layout analysis\n• Model inspection and metadata\n\nThe workbench deliberately starts with a dependency-light foundation. Rich WebGL should be loaded only when the 3D surface is opened, keeping the core shell fast on mobile.</div><p class="jbay2-note">The 3D direction follows the same progressive-loading principle used by mature browser 3D stacks: core shell first, renderer/addons only when needed. Canvas/WebGL are native browser primitives, while a future Three.js layer can provide OrbitControls and glTF loading without making every JARVIS screen pay the dependency cost.</p></div>
+      </div></section>
+    </main></div></section></div>`;
+
+  const decodePart=part=>{try{const n=part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=');return JSON.parse(decodeURIComponent(Array.from(atob(n),c=>'%'+c.charCodeAt(0).toString(16).padStart(2,'0')).join('')))}catch{return null}};
+  const json=()=>document.querySelector('#jbJson');
+  const bind=()=>{
+    const root=document.querySelector('#jarvisEngineeringBay'); if(!root||root.dataset.bound)return; root.dataset.bound='1';
+    root.addEventListener('click',e=>{if(e.target===root)root.classList.remove('open')});
+    document.querySelector('#jbay2Close')?.addEventListener('click',()=>root.classList.remove('open'));
+    document.querySelectorAll('[data-jbay2]').forEach(b=>b.addEventListener('click',()=>{const n=b.getAttribute('data-jbay2');document.querySelectorAll('[data-jbay2]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('[data-pane]').forEach(x=>x.classList.toggle('active',x.getAttribute('data-pane')===n));}));
+    document.querySelector('#jbJsonFormat')?.addEventListener('click',()=>{const e=json(),s=document.querySelector('#jbJsonStatus');try{e.value=JSON.stringify(JSON.parse(e.value),null,2);s.textContent='VALID JSON · FORMATTED'}catch(x){s.textContent='INVALID JSON · '+(x.message||x)}});
+    document.querySelector('#jbJsonMin')?.addEventListener('click',()=>{const e=json(),s=document.querySelector('#jbJsonStatus');try{e.value=JSON.stringify(JSON.parse(e.value));s.textContent='VALID JSON · MINIFIED'}catch(x){s.textContent='INVALID JSON · '+(x.message||x)}});
+    document.querySelector('#jbJsonValidate')?.addEventListener('click',()=>{const s=document.querySelector('#jbJsonStatus');try{JSON.parse(json().value);s.textContent='VALID JSON'}catch(x){s.textContent='INVALID JSON · '+(x.message||x)}});
+    document.querySelector('#jbJsonXml')?.addEventListener('click',()=>{try{const o=JSON.parse(document.querySelector('#jbTransform').value);const toXml=(v,k='root')=>Array.isArray(v)?`<${k}>${v.map(x=>toXml(x,'item')).join('')}</${k}>`:v&&typeof v==='object'?`<${k}>${Object.entries(v).map(([a,b])=>toXml(b,a)).join('')}</${k}>`:`<${k}>${esc(v)}</${k}>`;document.querySelector('#jbTransformOut').textContent=toXml(o)}catch(x){document.querySelector('#jbTransformOut').textContent='INVALID JSON · '+(x.message||x)}});
+    document.querySelector('#jbBase64e')?.addEventListener('click',()=>{try{document.querySelector('#jbTransformOut').textContent=btoa(unescape(encodeURIComponent(document.querySelector('#jbTransform').value)))}catch(x){document.querySelector('#jbTransformOut').textContent=String(x)}});
+    document.querySelector('#jbBase64d')?.addEventListener('click',()=>{try{document.querySelector('#jbTransformOut').textContent=decodeURIComponent(escape(atob(document.querySelector('#jbTransform').value.trim())))}catch(x){document.querySelector('#jbTransformOut').textContent='INVALID BASE64'}});
+    document.querySelector('#jbJwtDecode')?.addEventListener('click',()=>{const p=document.querySelector('#jbJwt').value.trim().split('.');document.querySelector('#jbJwtOut').textContent=p.length===3?JSON.stringify({header:decodePart(p[0]),payload:decodePart(p[1]),signaturePresent:Boolean(p[2])},null,2):'Invalid JWT: expected header.payload.signature'});
+    document.querySelector('#jbRegexRun')?.addEventListener('click',()=>{try{const r=new RegExp(document.querySelector('#jbRegex').value,'g');const t=document.querySelector('#jbRegexText').value;document.querySelector('#jbRegexOut').textContent=JSON.stringify([...t.matchAll(r)].map(m=>({match:m[0],index:m.index,groups:m.slice(1)})),null,2)}catch(x){document.querySelector('#jbRegexOut').textContent='REGEX ERROR · '+(x.message||x)}});
+    document.querySelector('#jbDiffRun')?.addEventListener('click',()=>{const a=document.querySelector('#jbDiffA').value.split('\n'),b=document.querySelector('#jbDiffB').value.split('\n'),out=[];for(let i=0;i<Math.max(a.length,b.length);i++){if(a[i]===b[i])out.push('  '+String(i+1).padStart(4,' ')+' '+(a[i]??''));else{if(a[i]!==undefined)out.push('- '+String(i+1).padStart(4,' ')+' '+a[i]);if(b[i]!==undefined)out.push('+ '+String(i+1).padStart(4,' ')+' '+b[i])}}document.querySelector('#jbDiffOut').textContent=out.join('\n')||'(empty)'});
+    document.querySelector('#jbLogRun')?.addEventListener('click',()=>{const t=document.querySelector('#jbLog').value,lines=t.split(/\r?\n/).filter(Boolean),counts={error:0,warn:0,info:0,http:0};lines.forEach(l=>{if(/error|exception|fatal/i.test(l))counts.error++;if(/warn/i.test(l))counts.warn++;if(/info/i.test(l))counts.info++;if(/\bHTTP\s+\d{3}\b/i.test(l))counts.http++});document.querySelector('#jbLogOut').textContent=JSON.stringify({lines:lines.length,...counts,firstErrors:lines.filter(l=>/error|exception|fatal/i.test(l)).slice(0,10)},null,2)});
+    document.querySelector('#jbPathRun')?.addEventListener('click',()=>{try{const o=JSON.parse(document.querySelector('#jbPathJson').value),p=document.querySelector('#jbPath').value.trim();let v=o;if(p.startsWith('$.')){for(const part of p.slice(2).split('.')){if(part==='*'){v=Array.isArray(v)?v.flatMap(x=>x):Object.values(v).flatMap(x=>x)}else if(part.endsWith('[*]')){const k=part.slice(0,-3);v=(Array.isArray(v?.[k])?v[k]:[])}else v=Array.isArray(v)?v.map(x=>x?.[part]):v?.[part]}}document.querySelector('#jbPathOut').textContent=JSON.stringify(v,null,2)}catch(x){document.querySelector('#jbPathOut').textContent='QUERY ERROR · '+(x.message||x)}});
+    document.querySelector('#jbSqlRun')?.addEventListener('click',()=>{let s=document.querySelector('#jbSql').value.trim().replace(/\s+/g,' ');s=s.replace(/\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|VALUES|SET)\b/gi,'\n$1').trim();document.querySelector('#jbSqlOut').textContent=s});
+    let image=null;const canvas=document.querySelector('#jbImageCanvas');const draw=()=>{if(!image)return;const max=640,scale=Math.min(1,max/image.width,max/image.height);canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height)};
+    document.querySelector('#jbImageFile')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const u=URL.createObjectURL(f);image=new Image();image.onload=()=>{draw();document.querySelector('#jbImgW').textContent=image.width;document.querySelector('#jbImgH').textContent=image.height;document.querySelector('#jbImgType').textContent=f.type||'image';document.querySelector('#jbImageStatus').textContent='LOADED · PROCESSING LOCAL';URL.revokeObjectURL(u)};image.src=u});
+    const pixels=fn=>{if(!canvas.width||!canvas.height)return;const c=canvas.getContext('2d'),d=c.getImageData(0,0,canvas.width,canvas.height);fn(d.data);c.putImageData(d,0,0)};
+    document.querySelector('#jbGray')?.addEventListener('click',()=>pixels(d=>{for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=y}}));
+    document.querySelector('#jbInvert')?.addEventListener('click',()=>pixels(d=>{for(let i=0;i<d.length;i+=4){d[i]=255-d[i];d[i+1]=255-d[i+1];d[i+2]=255-d[i+2]}}));
+    document.querySelector('#jbDownload')?.addEventListener('click',()=>{canvas.toBlob(b=>{if(!b)return;const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='jarvis-engineering-image.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},'image/png')});
+    const update3=()=>{const w=Math.max(.01,Number(document.querySelector('#jb3w').value)||2),h=Math.max(.01,Number(document.querySelector('#jb3h').value)||2),d=Math.max(.01,Number(document.querySelector('#jb3d').value)||2),u=document.querySelector('#jb3u').value;document.querySelector('#jb3Status').textContent=`${w} × ${h} × ${d} ${u} · ${Number((w*h*d).toFixed(3))} ${u}³`;const c=document.querySelector('.jbay2-cube');c.style.width=Math.min(180,Math.max(70,w*50))+'px';c.style.height=Math.min(180,Math.max(70,h*50))+'px';c.querySelectorAll('.jbay2-face').forEach(x=>x.style.transform='')};
+    document.querySelector('#jb3Build')?.addEventListener('click',update3);['jb3w','jb3h','jb3d','jb3u'].forEach(id=>document.querySelector('#'+id)?.addEventListener('input',update3));
+    document.querySelector('#jb3Obj')?.addEventListener('click',()=>{const w=Number(document.querySelector('#jb3w').value)||2,h=Number(document.querySelector('#jb3h').value)||2,d=Number(document.querySelector('#jb3d').value)||2,hw=w/2,hh=h/2,hd=d/2;const v=[[-hw,-hh,-hd],[hw,-hh,-hd],[hw,hh,-hd],[-hw,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[hw,hh,hd],[-hw,hh,hd]];const f=[[1,2,3,4],[5,8,7,6],[1,5,6,2],[2,6,7,3],[3,7,8,4],[5,1,4,8]];let out=v.map(x=>'v '+x.join(' ')).join('\n')+'\n'+f.map(x=>'f '+x.join(' ')).join('\n')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/plain'}));a.download='jarvis-object.obj';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+    document.querySelector('#jbApiSend')?.addEventListener('click',async()=>{const url=document.querySelector('#jbApiUrl').value.trim(),status=document.querySelector('#jbApiStatus'),out=document.querySelector('#jbApiOut');if(!url){status.textContent='ENTER A URL';return}let headers={};try{if(document.querySelector('#jbApiHeaders').value.trim())headers=JSON.parse(document.querySelector('#jbApiHeaders').value)}catch{x=>{}}const method=document.querySelector('#jbApiMethod').value,body=document.querySelector('#jbApiBody').value;status.textContent='SENDING…';const t=performance.now();try{const r=await fetch(url,{method,headers,body:['GET','HEAD'].includes(method)?undefined:body,cache:'no-store'}),text=await r.text();status.textContent=`HTTP ${r.status} · ${Math.round(performance.now()-t)} ms · ${r.headers.get('content-type')||'response'}`;try{out.textContent=JSON.stringify(JSON.parse(text),null,2)}catch{out.textContent=text||'(empty response)'}}catch(x){status.textContent='REQUEST FAILED';out.textContent=String(x?.message||x)+'\n\nBrowser CORS rules may require an approved server-side gateway.'}});
+    document.querySelector('#jbApiClear')?.addEventListener('click',()=>{['jbApiUrl','jbApiHeaders','jbApiBody'].forEach(id=>document.querySelector('#'+id).value='');document.querySelector('#jbApiStatus').textContent='READY';document.querySelector('#jbApiOut').textContent='Response diagnostics will appear here.'});
   };
 
-  const lineDiff = (a,b) => {
-    const left = String(a ?? '').split('\n'); const right = String(b ?? '').split('\n');
-    const max = Math.max(left.length,right.length); const out=[];
-    for(let i=0;i<max;i++){
-      const l=left[i],r=right[i];
-      if(l===r) out.push(`  ${String(i+1).padStart(4,' ')}  ${l ?? ''}`);
-      else { if(l!==undefined) out.push(`- ${String(i+1).padStart(4,' ')}  ${l}`); if(r!==undefined) out.push(`+ ${String(i+1).padStart(4,' ')}  ${r}`); }
-    }
-    return out.join('\n') || '(empty)';
-  };
-
-  function bindOverlay(){
-    const overlay=document.querySelector('#jarvisEngineeringBayOverlay');
-    if(!overlay || overlay.dataset.bound) return;
-    overlay.dataset.bound='1';
-    overlay.addEventListener('click',event=>{if(event.target===overlay) overlay.classList.remove('open');});
-    document.querySelector('#jbayClose')?.addEventListener('click',()=>overlay.classList.remove('open'));
-    document.querySelectorAll('[data-jbay-tool]').forEach(btn=>btn.addEventListener('click',()=>{
-      const name=btn.getAttribute('data-jbay-tool');
-      document.querySelectorAll('[data-jbay-tool]').forEach(x=>x.classList.toggle('active',x===btn));
-      document.querySelectorAll('[data-jbay-pane]').forEach(x=>x.classList.toggle('active',x.getAttribute('data-jbay-pane')===name));
-    }));
-    document.querySelector('#jbayFormat')?.addEventListener('click',()=>{
-      const e=document.querySelector('#jbayJson'); const st=document.querySelector('#jbayJsonStatus');
-      try{e.value=JSON.stringify(JSON.parse(e.value),null,2);st.textContent='VALID JSON · FORMATTED'}catch(err){st.textContent=`INVALID JSON · ${err.message||err}`}
-    });
-    document.querySelector('#jbayMinify')?.addEventListener('click',()=>{
-      const e=document.querySelector('#jbayJson'); const st=document.querySelector('#jbayJsonStatus');
-      try{e.value=JSON.stringify(JSON.parse(e.value));st.textContent='VALID JSON · MINIFIED'}catch(err){st.textContent=`INVALID JSON · ${err.message||err}`}
-    });
-    document.querySelector('#jbayDecode')?.addEventListener('click',()=>{
-      const raw=document.querySelector('#jbayJwt').value.trim(); const out=document.querySelector('#jbayJwtOutput');
-      const parts=raw.split('.'); if(parts.length!==3){out.textContent='Invalid JWT: expected header.payload.signature';return;}
-      const header=decodePart(parts[0]),payload=decodePart(parts[1]);
-      out.textContent=header&&payload?JSON.stringify({header,payload,signaturePresent:Boolean(parts[2])},null,2):'Unable to decode JWT header/payload as JSON.';
-    });
-    document.querySelector('#jbayCompare')?.addEventListener('click',()=>{
-      const l=document.querySelector('#jbayLeft').value,r=document.querySelector('#jbayRight').value; document.querySelector('#jbayDiffOutput').textContent=lineDiff(l,r);
-    });
-  }
-
-  function open(){
-    let overlay=document.querySelector('#jarvisEngineeringBayOverlay');
-    if(!overlay){document.body.insertAdjacentHTML('beforeend',bay());bindOverlay();overlay=document.querySelector('#jarvisEngineeringBayOverlay');}
-    overlay?.classList.add('open');
-  }
-
-  style();
-  window.addEventListener('jarvis:open-engineering-bay',open);
+  function open(){let root=document.querySelector('#jarvisEngineeringBay');if(!root){document.body.insertAdjacentHTML('beforeend',shell());bind();root=document.querySelector('#jarvisEngineeringBay')}root?.classList.add('open')}
+  style(); window.addEventListener('jarvis:open-engineering-bay',open);
+  window.jarvisOpenEngineeringBay=open;
 })();
