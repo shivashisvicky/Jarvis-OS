@@ -31,7 +31,8 @@
 @media(min-width:701px){.jbe8-page{font-size:20px!important;padding-left:44px!important;padding-right:44px!important}.jbe8-body{background:#08090b!important}.jbe8-page{box-shadow:0 0 60px rgba(0,0,0,.18)}}
 @media(prefers-reduced-motion:reduce){.jbe8-btn{transition:none}.jbe8-body{scroll-behavior:auto}}
 
-/* V11 reader typography: isolated presentation-only override. */
-.jbe11-page{font-family:"Avenir Next","Avenir","Helvetica Neue",Arial,sans-serif!important;font-weight:400!important;line-height:1.78!important;letter-spacing:.008em!important}
-.jbe11-title{font-family:"Avenir Next","Avenir","Helvetica Neue",Arial,sans-serif!important;font-weight:800!important;letter-spacing:.025em!important}
+/* V12 reader typography: Source Serif 4 for consistent cross-platform book text. */
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700;800&display=swap");
+.jbe11-page{font-family:"Source Serif 4",serif!important;font-weight:400!important;line-height:1.78!important;letter-spacing:.008em!important}
+.jbe11-title{font-family:"Source Serif 4",serif!important;font-weight:800!important;letter-spacing:.025em!important}
 @media(max-width:700px){.jbe11-page{font-size:17px!important;line-height:1.76!important}.jbe11-title{font-weight:800!important}}
