@@ -9,14 +9,13 @@
     voice: { scripts: ['jarvis-voice-settings.js', 'jarvis-speech-authority.js', 'jarvis-voice-authority.js', 'jarvis-voice-reliability-v1.js'], css: [] },
     mobile: { scripts: ['jarvis-mobile-unified.js'] },
     engineering: { scripts: ['jarvis-engineering.js', 'jarvis-engineering-bay-v1.js'], css: [] },
-    engineeringEntry: { scripts: ['jarvis-engineering-bay-entry-v1.js'], css: [] },
     notes: { scripts: ['jarvis-notes.js'], css: [] },
     games: { scripts: ['jarvis-games-v2.js', 'jarvis-games-mobile-fix.js'], css: [] },
   };
 
   const loaded = new Map();
   const pending = new Map();
-  const assetUrl = name => `./${name}?v=${name==='jarvis-live-media.js'?'20260906-media-context-v1':name==='jarvis-engineering-bay-v1.js'?'20260912-engineering-bay-v1':name==='jarvis-engineering-bay-entry-v1.js'?'20260912-engineering-entry-v1':'20260828-reliability-'+name.replace(/[^a-z0-9]/gi, '')}`;
+  const assetUrl = name => `./${name}?v=${name==='jarvis-live-media.js'?'20260906-media-context-v1':name==='jarvis-engineering-bay-v1.js'?'20260912-engineering-bay-v1':'20260828-reliability-'+name.replace(/[^a-z0-9]/gi, '')}`;
 
   const loadScript = src => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-jarvis-feature-src="${src}"]`);
@@ -49,10 +48,6 @@
   window.jarvisLoadFeature = loadFeature;
   window.__JARVIS_VOICE_PRELOAD__ = loadFeature('voice').catch(error => {
     console.warn('[JARVIS voice preload]', error);
-    throw error;
-  });
-  window.__JARVIS_ENGINEERING_ENTRY_PRELOAD__ = loadFeature('engineeringEntry').catch(error => {
-    console.warn('[JARVIS engineering entry preload]', error);
     throw error;
   });
 })();
