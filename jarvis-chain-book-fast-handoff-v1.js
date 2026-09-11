@@ -20,8 +20,9 @@ const install=()=>{
     trace('COMMAND_AUTHORITY_START',{raw});
     try{
       trace('COMMAND_AUTHORITY_WAIT_START',{raw});
-      window.dispatchEvent(new CustomEvent('jarvis:voice-command',{detail:{text:clean(raw),source:'chain-book-handoff'}}));
-      trace('COMMAND_AUTHORITY_DISPATCHED',{raw,ms:Date.now()-started,mode:'VOICE_AUTHORITY'});
+      const authorityText=`book ${clean(raw)}`;
+      window.dispatchEvent(new CustomEvent('jarvis:voice-command',{detail:{text:authorityText,source:'chain-book-handoff'}}));
+      trace('COMMAND_AUTHORITY_DISPATCHED',{raw,authorityText,ms:Date.now()-started,mode:'VOICE_AUTHORITY'});
       const ready=await waitForBookContext(10000);
       trace(ready?'COMMAND_AUTHORITY_CONTEXT_READY':'COMMAND_AUTHORITY_CONTEXT_TIMEOUT',{raw,ms:Date.now()-started});
       return ready;
