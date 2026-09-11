@@ -40,12 +40,14 @@ const install=()=>{
     });
     const opened=await surface;
     trace('SURFACE_READY',{raw,opened,ms:Date.now()-started});
-    if(opened)return true;
-    return task;
+    if(!opened)return !!(await task);
+    if(await Promise.race([task.then(v=>!!v),wait(4500).then(()=>null)]))return true;
+    trace('ORIGINAL_STILL_RUNNING',{raw,ms:Date.now()-started});
+    return true;
   };
   wrapped.__jarvisChainWrapped=true;
   api.run=wrapped;
-  api.version=`${api.version||'unknown'}+chain-handoff-v1`;
+  api.version=`${api.version||'unknown'}+chain-handoff-v2`;
   trace('INSTALLED',{version:api.version});
   return true;
 };
