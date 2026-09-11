@@ -1,8 +1,0 @@
-(()=>{'use strict';
-if(window.__JARVIS_EBOOK_AUTHOR_CHAIN_BRIDGE_V1__)return;
-window.__JARVIS_EBOOK_AUTHOR_CHAIN_BRIDGE_V1__=true;
-const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
-const trace=(event,data={})=>{try{console.info('[JARVIS:AUTHOR_CHAIN]',event,data);window.dispatchEvent(new CustomEvent('jarvis:ebook-reader-trace',{detail:{event:'AUTHOR_CHAIN_'+event,...data,at:Date.now()}}))}catch{}};
-const install=()=>{const s=window.jarvisEbookSearchAuthority;if(!s||typeof s.searchResolved!=='function'||typeof s.searchAuthor!=='function')return false;if(s.searchResolved.__jarvisAuthorChainBridge)return true;const original=s.searchResolved;const wrapped=async(raw,resolved,meta={})=>{const q=clean(raw);const kind=String(meta?.type||'').toUpperCase();if(kind!=='BOOK_AUTHOR')return original(raw,resolved,meta);trace('AUTHOR_SEARCH_START',{query:q,resolvedCount:Array.isArray(resolved)?resolved.length:0});try{const count=await s.searchAuthor(q,'');const c=window.jarvisContextEngine?.get?.();const ok=Number(count)>0&&String(c?.domain||'').toUpperCase()==='BOOKS'&&clean(c?.query)===q&&Array.isArray(c?.results)&&c.results.length>0;trace('AUTHOR_SEARCH_RESULT',{query:q,count:Number(count)||0,contextQuery:c?.query||'',domain:c?.domain||'',results:Array.isArray(c?.results)?c.results.length:0,ok});return ok}catch(error){trace('AUTHOR_SEARCH_ERROR',{query:q,error:String(error?.message||error)});return false}};wrapped.__jarvisAuthorChainBridge=true;window.jarvisEbookSearchAuthority={...s,searchResolved:wrapped};trace('INSTALLED',{version:s.version||'unknown',mode:'author-aware-searchResolved'});return true};
-if(!install()){let n=0;const timer=setInterval(()=>{if(install()||++n>120)clearInterval(timer)},50)}
-})();
