@@ -11,14 +11,13 @@ const install=()=>{
   const wrapped=async raw=>{
     if(!window.__JARVIS_COMMAND_CHAIN_RUNNING__)return original(raw);
     const input=document.querySelector('#commandInput');
-    const form=document.querySelector('#commandForm');
-    if(!(input instanceof HTMLInputElement)||!(form instanceof HTMLFormElement))return original(raw);
+    if(!(input instanceof HTMLInputElement))return original(raw);
     const started=Date.now();
     input.value=clean(raw);
     trace('COMMAND_AUTHORITY_START',{raw});
     try{
-      form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-      trace('COMMAND_AUTHORITY_DISPATCHED',{raw,ms:Date.now()-started});
+      window.dispatchEvent(new CustomEvent('jarvis:voice-command',{detail:{text:clean(raw),source:'chain-book-handoff'}}));
+      trace('COMMAND_AUTHORITY_DISPATCHED',{raw,ms:Date.now()-started,mode:'VOICE_AUTHORITY'});
       return true;
     }catch(error){
       trace('COMMAND_AUTHORITY_ERROR',{raw,error:String(error?.message||error)});
