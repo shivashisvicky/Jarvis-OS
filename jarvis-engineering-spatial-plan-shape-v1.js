@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__JARVIS_SPATIAL_PLAN_SHAPE_V2__)return;
-window.__JARVIS_SPATIAL_PLAN_SHAPE_V2__=true;
+if(window.__JARVIS_SPATIAL_PLAN_SHAPE_V3__)return;
+window.__JARVIS_SPATIAL_PLAN_SHAPE_V3__=true;
 let installed=false;
 const trace=(step,data={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:command-chain-trace',{detail:{stage:'SPATIAL_PLAN_SHAPE',step,...data}}))}catch{}};
 const isSpatial=args=>{try{const body=args[1]?.body;if(typeof body!=='string')return false;const d=JSON.parse(body);return /JARVIS Spatial Planner/i.test(String(d?.query||''))}catch{return false}};
@@ -34,6 +34,11 @@ const install=()=>{
  installed=true;
  trace('SHAPE_GUARD_READY');
 };
-window.addEventListener('jarvis:command-chain-trace',e=>{if(e?.detail?.stage==='SPATIAL_LIFECYCLE'&&e?.detail?.step==='SPATIAL_AI_RESPONSE_GUARD_READY')install()});
-setTimeout(install,0);
+const arm=()=>{if(installed)return;install()};
+window.addEventListener('jarvis:command-chain-trace',e=>{
+ const d=e?.detail;
+ if(d?.stage==='SPATIAL_LIFECYCLE'&&['SPATIAL_AI_RESPONSE_GUARD_READY','SPATIAL_ENGINE_READY'].includes(d?.step))arm();
+});
+new MutationObserver(()=>{if(document.getElementById('jarvisEngineeringBay')?.querySelector('[data-pane="spatial"]'))arm()}).observe(document.documentElement,{childList:true,subtree:true});
+arm();
 })();
