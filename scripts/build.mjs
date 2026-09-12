@@ -30,6 +30,7 @@ const LAZY_ASSETS = [
   'jarvis-engineering.js',
   'jarvis-engineering-bay-v1.js',
   'jarvis-engineering-spatial-ai-v1.js',
+  'jarvis-engineering-spatial-ai-v2.js',
   'jarvis-notes.js',
   'jarvis-games-v2.js',
   'jarvis-home-upgrade.js',
