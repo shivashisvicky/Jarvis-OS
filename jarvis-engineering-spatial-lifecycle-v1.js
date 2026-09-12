@@ -10,7 +10,7 @@ const init=()=>{
  if(!bay||!pane||loaded||loading)return;
  loading=true;trace('BAY_SPATIAL_READY');
  const s=document.createElement('script');
- s.src='./jarvis-engineering-spatial-ai-v1.js?v=20260912-engineering-spatial-ai-v5';
+ s.src='./jarvis-engineering-spatial-ai-v1.js?v=20260912-engineering-spatial-ai-v6';
  s.async=false;
  const runtimeError=e=>{
   const file=String(e?.filename||'');
