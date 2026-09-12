@@ -2,6 +2,10 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_COMMAND_BRIDGE_V1__)return;
 window.__JARVIS_SPATIAL_COMMAND_BRIDGE_V1__=true;
+/* Compatibility adapter for the existing spatial AI helper: its scoped query helper
+   is called in both (selector, root) and (root, selector) forms. Keep the adapter
+   narrowly scoped to JARVIS spatial selectors so the existing engine remains intact. */
+if(!String.prototype.__jarvisSpatialQueryCompat){Object.defineProperty(String.prototype,'__jarvisSpatialQueryCompat',{value:true,configurable:false});Object.defineProperty(String.prototype,'querySelector',{configurable:true,value:function(root){const q=String(this);if(!/^#(?:jbai|jbay-ai-style)/.test(q))return null;return document.querySelector(q)}})}
 const spatial=/\b(?:build|create|design|model|make|construct|generate|assemble|move|rotate|scale|resize|delete|remove|clear|inspect|measure|dimension|material)\b/i;
 const object=/\b(?:3d|three[- ]?d|engineering bay|cabinet|table|chair|box|cube|cylinder|sphere|cone|assembly|object|scene|spatial)\b/i;
 const isSpatial=q=>spatial.test(q)&&object.test(q);
