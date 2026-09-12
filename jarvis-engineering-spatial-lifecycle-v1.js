@@ -4,6 +4,8 @@ if(window.__JARVIS_SPATIAL_LIFECYCLE_V1__)return;
 window.__JARVIS_SPATIAL_LIFECYCLE_V1__=true;
 const trace=(step,data={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:command-chain-trace',{detail:{stage:'SPATIAL_LIFECYCLE',step,...data}}))}catch{}};
 let loading=false,loaded=false,retried=false;
+// Compatibility guard for the current Spatial planner's finally-scope timer reference.
+if(typeof window.timer==='undefined')window.timer=0;
 const init=()=>{
  const bay=document.getElementById('jarvisEngineeringBay');
  const pane=bay?.querySelector('[data-pane="spatial"]');
