@@ -3,7 +3,7 @@
 if(window.__JARVIS_SPATIAL_COMMAND_BRIDGE_V1__)return;
 window.__JARVIS_SPATIAL_COMMAND_BRIDGE_V1__=true;
 const spatial=/\b(?:build|create|design|model|make|construct|generate|assemble|move|rotate|scale|resize|delete|remove|clear|inspect|measure|dimension|material)\b/i;
-const object=/\b(?:3d|three[- ]?d|engineering bay|cabinet|table|chair|box|cube|cylinder|sphere|cone|assembly|object|scene|spatial)\b/i;
+const object=/\b(?:3d|three[- ]?d|engineering bay|desk|table|tabletop|cabinet|shelf|chair|leg|monitor|keyboard|box|cube|cylinder|sphere|cone|assembly|object|scene|spatial)\b/i;
 const isSpatial=q=>spatial.test(q)&&object.test(q);
 const trace=(step,data={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:command-chain-trace',{detail:{stage:'SPATIAL_BRIDGE',step,...data}}))}catch{}};
 const waitFor=async(test,tries=240)=>{for(let i=0;i<tries;i++){if(test())return true;await new Promise(r=>setTimeout(r,50))}return false};
