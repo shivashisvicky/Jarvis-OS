@@ -1,172 +1,162 @@
-# J.A.R.V.I.S. OS TEST Handoff
-
-**Purpose:** Give the next agent enough exact state, history, architecture, known failures, testing rules, recent fixes, and future roadmap to continue the project safely even if the current chat reaches its limit.
+# J.A.R.V.I.S. OS — TEST HANDOFF / OPERATING MANUAL
 
 **Last updated:** 2026-09-12
 **Repository:** `shivashisvicky/Jarvis-OS`
-**Active branch:** `test/jarvis-intelligence-next`
-**Stable branch:** `main` MUST NOT be modified for TEST work.
+**TEST branch:** `test/jarvis-intelligence-next`
 **TEST URL:** `https://shivashisvicky.github.io/Jarvis-OS/test/`
+**Production:** `main`
+
+> This document is the source of truth for the next agent. Read it before changing code. The goal is continuity: the user must never have to re-explain architecture, constraints, previous failures, or intended behavior.
 
 ---
 
-## 1. Non-negotiable engineering rules
+## 0. USER EXPECTATION / ENGINEERING STANDARD
 
-1. Never modify `main` unless the user explicitly requests production promotion.
-2. All experiments/fixes happen on `test/jarvis-intelligence-next` first.
-3. Do not change GitHub Actions deployment logic to solve application behavior.
+JARVIS is a serious long-running personal OS project, not a toy/demo. The user expects production-quality engineering discipline even while working on TEST.
+
+The user has explicitly been frustrated by agents making many speculative commits, breaking working functionality, then attempting more fixes. **Do not repeat this pattern.**
+
+The correct workflow is:
+
+1. Inspect the current TEST tree and relevant mature modules first.
+2. Identify the actual responsible layer from code/traces.
+3. Compare against an existing working JARVIS pattern before inventing architecture.
+4. Make one small, surgical change whenever possible.
+5. Cache-bust every browser-loaded changed asset in `index.html`.
+6. Push only to TEST.
+7. Verify the complete GitHub Actions run.
+8. Only then ask the user to test.
+9. If the test fails, inspect the trace and code before changing anything else.
+
+**Do not manufacture confidence.** If something has not been tested or Actions has not succeeded, say so.
+
+---
+
+# 1. ABSOLUTE RULES
+
+1. **Never modify `main` for TEST work.** Production promotion happens only when the user explicitly requests it.
+2. All experimental work belongs on `test/jarvis-intelligence-next`.
+3. Never change GitHub Actions/deployment logic to solve application behavior.
 4. No broad rollback unless explicitly requested.
-5. Preserve working Maps, Books, YouTube, Context Engine, entity authority, and reader behavior.
-6. Never make generic Context Engine routing depend on the shared `window.__JARVIS_LAST_CONTEXT_SURFACE__`. A previous experiment broke Maps.
-7. Prefer small additive/surgical files over rewriting mature authority modules.
-8. Every changed browser-loaded JS/CSS file must receive a cache-bust update in `index.html`.
-9. After every push, verify the corresponding GitHub Actions run before asking the user to test.
-10. Never call a deployment green until Actions actually reports success.
-11. User tests primarily on iOS Safari. Mobile timing/layout matters.
-12. Keep this handoff updated after significant architecture, debugging, or UX changes.
-13. Do not ask the user to “proceed” or “continue” when the next engineering action is clear. Inspect, implement, deploy, verify, then report.
-14. If a regression appears, identify the responsible layer first. Do not guess and do not roll back unrelated working features.
+5. Preserve Maps, Books/Reader, YouTube/Media, Context Engine, entity authority, and existing working command-chain behavior.
+6. Never make generic Context Engine routing depend on `window.__JARVIS_LAST_CONTEXT_SURFACE__`. A previous experiment broke Maps.
+7. Surface-owned state may be published by a surface authority, but generic routing must not blindly consume it as global authority.
+8. Prefer existing JARVIS architectural patterns over new mini-frameworks.
+9. Do not blindly copy Postman, Blender, Three.js Editor, Babylon, etc. Use them as benchmark references only.
+10. Spatial/Engineering Bay intelligence must remain isolated from generic command/context routing except through explicit, narrow integration points.
+11. Do not let Spatial code modify Maps/Books/Reader/YouTube routing.
+12. Avoid duplicate voice-response mechanisms. Existing JARVIS voice authority owns the normal voice path; Spatial should not compete with it.
+13. Every changed browser-loaded JS/CSS file requires an `index.html` cache-bust change.
+14. After every TEST push, verify Actions. Never call deployment green until Actions reports success.
+15. The user primarily tests on iOS Safari. Touch behavior, event timing, viewport sizing, and mobile performance matter.
+16. Keep commits minimal. The user explicitly dislikes chains of tiny speculative commits.
+17. Do not ask “should I proceed?” when the next engineering action is clear. Inspect → implement → deploy → verify → report.
+18. If a regression appears, determine the responsible layer first. Do not guess.
+19. Never replace a working subsystem simply because a newer implementation looks cleaner.
+20. Preserve known-good checkpoints. They are evidence, not invitations to reset the project.
 
 ---
 
-## 2. Current project philosophy
+# 2. CORE JARVIS ARCHITECTURE
 
-JARVIS is evolving toward one intelligence layer with multiple authoritative surfaces rather than a collection of disconnected mini-apps.
+JARVIS is one intelligence system with multiple authoritative surfaces, not a collection of unrelated mini-apps.
 
-Current important surfaces:
+Important surfaces include:
 
-- 🗺️ Maps
-- 📚 Books / Ebooks / Reader
-- ▶️ YouTube / Media
-- 🔎 Search / web-facing capabilities
-- 📰 News
-- 🌤️ Weather
-- 🧮 Calculator
-- 📝 Notes
-- 🎮 Games
-- 📁 Files
-- 🔌 API / integration-oriented capabilities
-- Remote-related functionality
+- Maps
+- Books / Ebooks / Reader
+- YouTube / Media
+- Search / Web
+- News
+- Weather
+- Calculator
+- Notes
+- Games
+- Files
+- API / integration tooling
+- Remote functionality
+- Engineering Bay
 
-The critical architectural lesson is **surface-specific authority**. A surface that owns the current result set should be the authority for ordinal follow-ups on that result set. Generic context is useful for continuity, but must not override a fresh surface-owned result set.
+The key architectural principle is **surface-specific authority**.
 
-Desired command-chain architecture:
+If Maps owns the current result set, Maps owns an ordinal such as “open the sixth one.” If Books owns the current book list, Books owns “open the third one.” Generic context provides continuity but must not steal ownership from a fresh, explicit result set.
+
+Desired command chain:
 
 ```text
 VOICE / SUBMIT
-      ↓
+    ↓
 CHAIN PARSE
-      ↓
+    ↓
 FIRST SURFACE SEARCH / RESOLUTION
-      ↓
-RESULT SET AVAILABLE
-      ↓
-ATOMIC ORDINAL HANDOFF
-      ↓
+    ↓
+RESULT SET CONFIRMED
+    ↓
+SURFACE-SPECIFIC ORDINAL HANDOFF
+    ↓
 OPEN / PIN / PLAY / READ REQUESTED ITEM
 ```
 
-The desired UX is:
+Avoid:
 
 ```text
-“Show me restaurants in Delhi and open the sixth one”
-→ search Delhi
-→ result set appears
-→ #6 is selected
-```
-
-not:
-
-```text
-search Delhi
-→ #1 flashes
+search
 → generic context waits
-→ #6 appears 20 seconds later
+→ stale context wins
+→ wrong item / long delay
 ```
 
 ---
 
-## 3. Important checkpoints / history
+# 3. KNOWN-GOOD CHECKPOINTS
 
-### Earlier stable checkpoints
+These are historical evidence. Do not casually roll back to them because later Reader/entity/context work may be lost.
 
-- `f026f45822826df5efc08387902470cd0be99988` = stable baseline referenced by the older handoff.
-- `b0a41c1c610296016ddbb17d0862b792d755458d` = earlier known-good Maps surface-owner work.
-- `6204acac920429d407dbbb44aae432874555b26e` = recovery checkpoint after bad global context experiments.
+- `f026f45822826df5efc08387902470cd0be99988` — older stable baseline.
+- `b0a41c1c610296016ddbb17d0862b792d755458d` — earlier known-good Maps surface-owner work.
+- `6204acac920429d407dbbb44aae432874555b26e` — recovery checkpoint after bad global-context experiments.
+- `43be749346d6fc66a67638c180c8844a42c0a960` — **golden Reader/context baseline** explicitly validated by the user as working perfectly with no delay.
 
-Do not casually roll back to old checkpoints. Later reader/entity/context work would be lost.
+Reader progression:
 
-### Chain progression
+- `6d54d4f5a65c4a8843c2d22be1313aed73313545` — Source Serif 4 + heading renderer/cache bust.
+- `89455f659567d75f769a1c49da43ac6084e6ae72` — pagination/chapter target/title cleanup.
+- `e18f4956e0b658f4459cd0509593b9550301bb64` — pagination/title cache-bust.
+- `c71d7446a5d9c3db212a7133fa8873f27cd0086e` — Reader handoff loading animation v2.
+- `4558f84834d72a9cb1c0dfd116b694affcb2a7a7` — animation cache-bust/load-order correction.
+- `d179a43d051d07c451f4f40a9c6ab3530632d7e4` — paper/dark Reader theme CSS.
 
-- `f3f108a70edc814f0dd0b901a85237d7f6e8b219` = chain v2.3.0; `and`, `then`, `, then`, broader ordinal parsing, deferred media query and tracing.
-- `19fa94c741f50dbdcffb7de8520fd543ef9b8f7a` = Maps freshness improvement using `updatedAt` and result/query validation.
-- `ee2e0189d6e6c435f3e520f2233c48ff87a1c3d8` = punctuation bridge created.
-- `e0663196cf0c9c051c7c0e695343ea254c23f516` = punctuation bridge loaded.
-- `75703b63c55d8d2fcb329a3ca478e0070b641cd3` = debug panel manual parser probe.
-- `b0eca0283fef12eaafcff742eb27ae4c6ddd055e2` = debugger cache-bust.
-- `97c99cb22dfff6f037f1597fae3a5025225f0481` = Settings diagnostics toggle.
-- `d0977f9a5823ab13701d7d04254e4e48b947bd45` = chain v2.4.5 performance patch.
-- `6d9aa53d54d71f1eef5e355e8290479ea271ba60` = fast chain handoff for Books and Maps.
-- `64fee0a85a7fe00b96fa1cf98ee8d8ebc6165f93` = Maps atomic selection / latest old handoff head.
+Chain progression:
 
-### Reader/UX commits from the current continuation
+- `f3f108a70edc814f0dd0b901a85237d7f6e8b219` — chain v2.3.0.
+- `19fa94c741f50dbdcffb7de8520fd543ef9b8f7a` — Maps freshness.
+- `ee2e0189d6e6c435f3e520f2233c48ff87a1c3d8` — punctuation bridge created.
+- `e0663196cf0c9c051c7c0e695343ea254c23f516` — punctuation bridge loaded.
+- `75703b63c55d8d2fcb329a3ca478e0070b641cd3` — debug manual parser probe.
+- `b0eca0283fef12eaafcff742eb27ae4c6ddd055e2` — debugger cache-bust.
+- `97c99cb22dfff6f037f1597fae3a5025225f0481` — Settings diagnostics toggle.
+- `d0977f9a5823ab13701d7d04254e4e48b947bd45` — chain v2.4.5 performance patch.
+- `6d9aa53d54d71f1eef5e355e8290479ea271ba60` — fast Books/Maps handoff.
+- `64fee0a85a7fe00b96fa1cf98ee8d8ebc6165f93` — Maps atomic-selection lineage.
 
-- `43be749346d6fc66a67638c180c8844a42c0a960` = **golden TEST reader/context baseline** explicitly validated by user. User said it worked perfectly with no delay and all functionality. Do not alter unless explicitly requested.
-- `6d54d4f5a65c4a8843c2d22be1313aed73313545` = reader Source Serif 4 + heading renderer and cache-bust.
-- `89455f659567d75f769a1c49da43ac6084e6ae72` = reader pagination/chapter-target/title-cleanup implementation.
-- `e18f4956e0b658f4459cd0509593b9550301bb64` = reader pagination/title cache-bust.
-- `c71d7446a5d9c3db212a7133fa8873f27cd0086e` = reader handoff loading animation v2, synchronized to visible spoken response.
-- `4558f84834d72a9cb1c0dfd116b694affcb2a7a7` = animation cache-bust and corrected index load order; no duplicate home script in final index.
-- `d179a43d051d07c451f4f40a9c6ab3530632d7e4` = reader paper/dark theme CSS.
-- `3c131a5ac425423426c5bc26a8bb6770156c21ab` = current latest TEST head as of this handoff, cache-busting the reader theme styling.
-
-Current Actions run for `3c131a5...` was run **#511**, workflow `Deploy Jarvis OS Dual Pages (TEST)`, and was `in_progress` when last checked. Do not call it green until the run completes successfully.
+Recent Spatial/Engineering Bay work is documented in Sections 11–17 below.
 
 ---
 
-## 4. The biggest historical failure: shared surface ownership
+# 4. MAPS: DO NOT BREAK THIS
 
-A previous design made generic Context Engine routing read:
+Primary authority file:
 
-```js
-window.__JARVIS_LAST_CONTEXT_SURFACE__
-```
-
-This caused stale/shared state to contaminate routing and made Maps stop responding.
-
-Maps authority may still publish surface ownership signals such as:
-
-```js
-window.__JARVIS_LAST_CONTEXT_SURFACE__
-window.__JARVIS_CONTEXT_SURFACE_OWNER__
-```
-
-inside its own authority logic.
-
-**Do not make generic Context Engine decisions depend on those globals.**
-
-The safe rule is:
-
-> Fresh result set + surface-specific authority beats generic stale context.
-
----
-
-## 5. Maps architecture
-
-Primary Maps authority:
-
-`jarvis-map-absolute-authority-v25.js`
-
-Despite filename, current implementation is V27.
+`jarvis-map-absolute-authority-v25.js` (implementation currently V27 despite filename).
 
 Capabilities:
 
-- Known Bhubaneswar places via local `P` data.
-- Arbitrary cities through Photon geocoding.
-- Category searches use the JARVIS Places Worker first, then Photon category fallback.
-- Arbitrary-city category searches are centered on the geocoded city.
+- Known Bhubaneswar places through local data.
+- Arbitrary-city geocoding via Photon.
+- Category search through JARVIS Places Worker first, Photon fallback second.
+- Arbitrary-city category searches centered on the geocoded city.
 
-A Delhi regression was fixed. Example correct Delhi results included:
+A previously broken Delhi search was fixed. Correct example results included:
 
 1. Embassy Restaurant (Samosa)
 2. Fa Yian The Chinese Restaurant
@@ -175,175 +165,107 @@ A Delhi regression was fixed. Example correct Delhi results included:
 5. Parikrama - The Revolving Restaurant
 6. Neelam Restaurant
 
-This proved the earlier hardcoded/stale-city issue was fixed.
+### Maps DOM contract
 
-### Maps result DOM contract
-
-Rendered result buttons:
+Result cards use:
 
 ```html
 <button type="button" class="place-result" data-jarvis-map-v27="0">...</button>
 ```
 
-The attribute is zero-based; visible ordinals are one-based.
+The DOM index is zero-based; visible ordinals are one-based.
 
-```js
-[data-jarvis-map-v27="4"]
+```text
+DOM 0 = visible #1
+DOM 4 = visible #5
 ```
-
-means visible result #5.
-
-### Maps context publication
-
-Maps publishes context similar to:
-
-```js
-window.jarvisContextEngine?.set?.({
-  domain:'MAPS',
-  active:true,
-  location:...,
-  query:...,
-  results:...,
-  selected:null
-}, 'merge')
-```
-
-and dispatches `jarvis:map-context` with results.
-
-### Maps default-first-result issue
-
-Normal `render()` historically called `show(page[0])`, which could expose the first result before a chain ordinal was applied.
-
-Desired chain behavior is atomic selection of the requested result before the user sees an intermediate first pin.
 
 ### Maps ordinal authority
 
-`jarvis-map-ordinal-authority-v1.js` is surface-specific and must be preserved.
+`jarvis-map-ordinal-authority-v1.js` owns Maps ordinal follow-ups. Preserve it.
 
-It:
-
-- keeps private Maps context from `jarvis:map-context`;
-- checks freshness;
-- refuses to act when another surface clearly owns the interaction;
-- avoids cross-surface words such as YouTube/video/book/ebook;
-- can click the actual result card;
-- can directly pinpoint a stored result from lat/lon when the DOM card is unavailable.
+It keeps private Maps context, checks freshness, refuses obvious cross-surface ownership, can click the result card, and can directly pinpoint a stored result by coordinates.
 
 ### Maps fast selection
 
-`jarvis-chain-map-fast-select-v1.js` is V2 in the later TEST chain.
-
-It detects a Maps first route on `jarvis:command-chain`, extracts the follow-up ordinal, then on `jarvis:map-context` selects the exact result from `event.detail.results[index]` instead of waiting for a DOM card.
-
-It updates `#mapFrame`, updates Context Engine selected state, and emits a trace.
+`jarvis-chain-map-fast-select-v1.js` selects directly from `event.detail.results[index]` rather than waiting unnecessarily for DOM cards. It updates the map frame, selected context, and trace.
 
 ### Maps atomic handoff
 
-`jarvis-chain-map-atomic-handoff-v1.js` hides `#mapFrame` during a Maps chain:
+`jarvis-chain-map-atomic-handoff-v1.js` temporarily hides `#mapFrame` while a chain is resolving so the user does not see an incorrect first result.
 
-```css
-html[data-jarvis-chain-map-atomic="1"] #mapFrame {
-  visibility:hidden!important
-}
+Do not blindly increase its timeout. Measure the actual slow stage first.
+
+### Maps punctuation lesson
+
+`open the 5th one.` initially failed because the ordinal parser expected end-of-string after `one`. Terminal punctuation was normalized by a narrow punctuation bridge. Do not replace this with broad text rewriting.
+
+### Critical Maps warning
+
+A previous experiment made generic Context Engine routing depend on:
+
+```js
+window.__JARVIS_LAST_CONTEXT_SURFACE__
 ```
 
-It reveals the frame after the final chain trace or a 15-second safety timeout.
-
-If latency remains, do **not** increase this timeout blindly. Measure the async stage first.
+That broke Maps. **Never repeat it.**
 
 ---
 
-## 6. Maps regression: Delhi + punctuation
+# 5. COMMAND CHAIN
 
-Command:
-
-```text
-Showing restaurants in delhi and open the 5th one.
-```
-
-Initially produced Bhubaneswar restaurants because loose freshness matching accepted overlapping tokens such as `restaurants`.
-
-That was corrected by requiring relevant location tokens to match.
-
-Then a second exact cause was found: terminal punctuation.
-
-The chain regex expected `one` at end-of-string, but:
-
-```text
-open the 5th one.
-```
-
-contains a period. Generic routing then received the whole chain and stale Maps context could win.
-
-The punctuation bridge was introduced to normalize terminal punctuation only when a chain connector/action pattern is present.
-
-Do not replace it with a broad command rewrite.
-
----
-
-## 7. Command-chain runtime
-
-File:
+Primary file:
 
 `jarvis-command-chain-runtime-fix-v1.js`
 
-Current runtime family is v2.4.x / v2.5.0-era behavior. The runtime exposes:
+Runtime family is v2.4.x-era behavior and exposes:
 
 ```js
-window.jarvisCommandChain = {
-  version:'2.4.5',
-  split,
-  parse,
-  run
-}
+window.jarvisCommandChain = { version, split, parse, run }
 ```
 
-Important parser behavior:
+Supported syntax includes:
 
-- strips terminal `.`, `!`, `?`;
-- supports `and`, `then`, comma, comma + then;
-- supports first through twentieth;
-- supports larger numeric/word ordinals;
-- supports cardinal words such as `one`, `two`, etc.
+- `and`
+- `then`
+- comma
+- comma + `then`
+- terminal `.`, `!`, `?`
+- numeric ordinals
+- first through twentieth and broader ordinal forms
+- cardinal words such as one/two/etc.
 
-Chain flow:
+Current conceptual flow:
 
-1. set `__JARVIS_COMMAND_CHAIN_RUNNING__`;
-2. resolve clauses;
-3. route first clause through surface-aware `first()`;
-4. route follow-up through `follow()`;
-5. try direct `domTarget(nextClause,nextType,5000)` before generic context waiting;
-6. if DOM target succeeds, continue immediately;
-7. otherwise use freshness wait with a bounded timeout.
+1. Set chain-running state.
+2. Resolve clauses.
+3. Route first clause through surface-aware authority.
+4. Route follow-up through surface-aware follow-up authority.
+5. Try direct DOM target before generic context waiting.
+6. Fall back to bounded freshness/context waiting only when necessary.
 
-`domTarget()` knows current result DOM patterns for Maps, Books, and YouTube.
+`domTarget()` knows current Books/Maps/YouTube result DOM patterns.
 
-### Historical syntax failure
-
-An earlier chain script had a JavaScript string/escaping error in its split regex and failed to parse entirely. The replacement runtime fixed this. Do not resurrect the broken implementation without fixing syntax and validating parser traces.
+An older chain implementation had a JavaScript escaping/syntax failure in its split regex and failed to parse. Never resurrect that broken version.
 
 ---
 
-## 8. Debugger / diagnostics
+# 6. DEBUGGER / DIAGNOSTICS
 
 Files:
 
 - `jarvis-chain-debug-panel-v1.js`
 - `jarvis-chain-debug-settings-v1.js`
 
-Settings key:
+Setting:
 
 ```text
 jarvis.chainDebug.enabled
 ```
 
-Debugger must be genuinely zero-cost when OFF:
+When OFF, diagnostics should be genuinely low/zero cost: no unnecessary listeners and no visible panel.
 
-- OFF = no diagnostic listeners attached and panel removed.
-- ON = listeners attached and diagnostics shown.
-- Settings toggle dispatches `jarvis:chain-debug-toggle`.
-
-Useful events include:
+When ON, useful traces include:
 
 - `RAW_VOICE`
 - `RAW_SUBMIT`
@@ -354,770 +276,790 @@ Useful events include:
 - `SPLIT_RESULT`
 - `PARSE_RESULT`
 - entity traces
-- ebook context traces
+- ebook traces
+- Spatial traces
 
-A critical successful trace showed:
+Reader tracing is independently gated. The debug panel has shown `READER OFF` while other traces remain active.
+
+The debug trace UI was specifically fixed for iOS scrolling. Keep the scrollable `<pre>` behavior with touch scrolling; newest entries appear at the top.
+
+A successful chain trace previously proved:
 
 ```text
 chainVersion: 2.4.5
 chainRunning: true
 ```
 
-for:
-
-```text
-Show me restaurants in delhi
-open the sixth one
-```
-
-with clause 0 = `MAP_POI`, clause 0 dispatched true, clause 1 = `CONTEXT_FOLLOWUP`, clause 1 dispatched true.
-
-This proved parser/routing was functional and shifted investigation toward asynchronous result acquisition/selection timing.
+and showed both first and follow-up clauses dispatched. That established that parser/routing itself was working and that later failures belonged to result acquisition/selection timing.
 
 ---
 
-## 9. Books / ebook architecture
+# 7. BOOKS / ENTITY / READER
 
-Important loaded modules include:
+Important modules:
 
-- `jarvis-ebook-book-fast-resolver-v1.js`
 - `jarvis-entity-authority-v2.js`
+- `jarvis-ebook-search-authority-v2.js`
+- `jarvis-ebook-book-fast-resolver-v1.js`
 - `jarvis-ebook-network-race-fix-v1.js`
 - `jarvis-ebook-network-fast-v1.js`
-- `jarvis-ebook-search-authority-v2.js`
 - `jarvis-ebook-reader-v7.js`
-- ebook context/retention/stability/performance modules
+- ebook context/retention/performance/race modules
 
 ### Entity authority
 
-`jarvis-entity-authority-v2.js` is the entity resolution authority. It uses Gutenberg/Gutendex first and Wikidata fallback.
+Gutenberg/Gutendex is primary; Wikidata is fallback. Explicit search commands and generic surface words must not be misclassified as entities.
 
-It rejects explicit search commands and generic surface words when deciding whether text is an entity/book candidate.
+Entity authority can publish entity state and hand book resolution to ebook authority.
 
-It can publish entity state and hand book resolution to ebook search authority.
+### Ebook race rule
 
-### Ebook search race fix
+The important fixed order is:
 
-`jarvis-ebook-search-authority-v2.js` reached v20.6.1 in the chain-race work.
-
-Critical behavior:
-
-```js
-if(fallback.length){
-  trace('RESOLVED_PRIMARY', ...);
-  render(fallback,q);
-  if(fallback.length<8&&!window.__JARVIS_COMMAND_CHAIN_RUNNING__)
-    void search(q).then(...);
-  return true;
-}
+```text
+fetch Gutenberg
+→ confirm/filter results
+→ open ebook surface
+→ hydrate/search UI
 ```
+
+Do not open an empty ebook surface first and then wait for the network.
 
 Background hydration must not race an active command chain.
 
-### Fast resolver race fix
+### Reader chapter targeting
 
-Originally the ebook surface was opened before Gutenberg results were confirmed:
-
-```js
-const surfacePromise=openSurface();
-const rows=await fetchFast(q);
-```
-
-That caused blank/empty ebook surfaces.
-
-The architecture was changed to:
-
-1. fetch Gutenberg first;
-2. confirm/filter relevant rows;
-3. open ebook surface;
-4. hydrate/search UI.
-
-User explicitly tested this and said it worked perfectly.
-
-Preserve this order.
-
----
-
-## 10. Reader pagination/chapter bugs and exact fixes
-
-The user found multiple reader problems:
-
-### Problem A: false section selector entries
-
-For *The Dream of Gerontius*, the selector showed:
+The Reader uses line-based pagination around 3600 characters. Chapter entries store:
 
 ```text
-part of Newman himself.
+{label, page, line}
 ```
 
-as a section.
+Selector values are chapter-array indexes, not page numbers. Exact line targets are used for scrolling.
 
-Cause: loose detection treated any prose beginning with `part` as a chapter/section.
+False headings such as prose beginning with `part` were rejected by stricter structural heading detection. Valid forms include genuine structures such as CHAPTER, BOOK, PART, PROLOGUE, EPILOGUE, APPENDIX.
 
-Fix: narrowed section detection to genuine forms such as:
+### Reader title cleanup
 
-```text
-CHAPTER I
-BOOK II
-PART III
-PROLOGUE
-EPILOGUE
-APPENDIX
-```
+Gutenberg `$b` metadata artifacts are removed conservatively. Do not alter actual body content unnecessarily.
 
-with structural constraints.
+### Reader theme
 
-### Problem B: selector changed but visible page did not
+Source Serif 4 is used. Paper/dark theme CSS exists. If modifying theme behavior, verify the actual toggle state before declaring it complete.
 
-The reader previously stored only `{label,page}`. Multiple headings in the same giant page chunk therefore pointed to the same page.
+### Reader loading animation
 
-Fix:
-
-- reader pagination changed to line-based chunks around 3600 characters;
-- chapter entries now store `{label,page,line}`;
-- selector values are chapter-array indexes, not page numbers;
-- changing selector sets `page=c.page`, `targetLine=c.line`;
-- rendered lines receive `data-jbe-line` and exact target scrolling.
-
-### Problem C: `3 / 3` giant pages
-
-Old `splitPages` used paragraph blocks with ~5200-character chunks. This could collapse huge Gutenberg books into only a few pages.
-
-New reader v12 splits normalized lines into ~3600-character chunks, preserving line boundaries where possible and safely splitting exceptionally long lines.
-
-This was a surgical reader-only change.
-
-### Problem D: `$b` in Apologia title
-
-The user saw:
-
-```text
-Apologia pro vita sua : $b being a history of his religious opinions...
-```
-
-`$b` is a Gutenberg catalog/metadata formatting artifact, not part of the actual book title/body.
-
-Reader v12 added:
-
-```js
-const cleanTitle=s=>String(s??'JARVIS READER')
-  .replace(/\s*:\s*\$b\s*/gi,': ')
-  .replace(/\$b\b/gi,'')
-  .replace(/\s{2,}/g,' ')
-  .trim();
-```
-
-This sanitizes the displayed JARVIS title only. It does not mutate book text.
-
-### Problem E: *The Dream of Gerontius* structural TOC
-
-Official Gutenberg TOC has top-level sections such as:
-
-1. `INTRODUCTION | 1`
-2. `JOHN HENRY NEWMAN | 21`
-3. `THE DREAM OF GERONTIUS | 25`
-4. `THE ETERNAL YEARS | 70`
-
-Current v12 chapter detection is intentionally conservative and may not expose all non-chapter top-level TOC sections. If this becomes a user-visible regression, add structural TOC-aware detection rather than loosening the generic `part` regex again.
-
-Do not broaden section detection without a concrete failing book.
+The handoff loading animation is tied to visible `#jarvisReply` text such as “let me identify” + book/ebook/read. It must not introduce an artificial delay.
 
 ---
 
-## 11. Reader typography
+# 8. YOUTUBE / MEDIA
 
-User wanted book text to look uniform across Windows/iOS, with normal body text and bold headings.
+Files include:
 
-Reader CSS:
-
-`jarvis-ebook-reader-polish-v1.css`
-
-Source Serif 4 was added correctly at the **top** of the CSS before rules, because an earlier attempt placed `@import` after rules and the font could be ignored.
-
-Current body:
-
-```css
-.jbe11-page{
-  font-family:"Source Serif 4",serif!important;
-  font-weight:400!important;
-  line-height:1.78!important;
-}
-```
-
-Headings:
-
-```css
-.jbe11-content-heading{
-  display:block;
-  font-weight:700!important;
-  letter-spacing:.012em!important;
-  margin:1.05em 0 .35em
-}
-```
-
-Reader JS now renders each line into a span and applies heading class only to likely headings.
-
-User tested this typography and said:
-
-> It worked wonderfully.
-
-Preserve this typography unless the user explicitly requests a different style.
-
----
-
-## 12. New reader themes, current work
-
-User asked whether JARVIS Reader should have a dark theme/background. Decision:
-
-- default reading surface = restrained warm paper/ivory;
-- text = softer charcoal, not pure black;
-- dark reading mode = deep charcoal background + warm off-white text;
-- no decorative image behind book text;
-- JARVIS chrome remains recognizably separate from the reading surface.
-
-Added in `jarvis-ebook-reader-polish-v1.css`:
-
-```css
-.jbe11-page,.jbe11-body{
-  background:#f7f1e5!important;
-  color:#29251f!important
-}
-
-.jbe11-dark .jbe11-body,
-.jbe11-dark .jbe11-page{
-  background:#151617!important;
-  color:#e8e3d8!important
-}
-```
-
-A subtle page shadow is used on larger screens and removed on mobile.
-
-**Important:** The CSS currently contains the dark-theme class rules, but the reader UI must actually toggle `jbe11-dark` before dark mode is considered functionally complete. The current theme work was styling-first. Verify the live TEST UI. If there is no visible theme control, add it narrowly to reader v12 only, preserving all reader navigation/network logic.
-
-The latest theme CSS commit is `d179a43d051d07c451f4f40a9c6ab3530632d7e4`, followed by index cache-bust commit `3c131a5ac425423426c5bc26a8bb6770156c21ab`.
-
-Current `index.html` cache-bust values include:
-
-```html
-jarvis-ebook-reader-polish-v1.css?v=20260912-reader-paper-dark-v14
-jarvis-ebook-reader-v7.js?v=20260912-reader-pagination-title-v15
-jarvis-ebook-reader-loading-v1.js?v=20260912-reader-handoff-loading-v2
-```
-
-Use the actual current `index.html` when continuing. Do not rely on old cache-bust examples if they differ from live TEST.
-
----
-
-## 13. Reader handoff loading animation
-
-User wanted a tiny animation immediately after the spoken phrase:
-
-> “Let me identify Beowulf…”
-
-and before the reader opens.
-
-### First attempt failed
-
-Initial loader listened for an internal `HANDOFF_WAIT` chain trace as if it were a DOM event. It did not work because that trace was internal/debug behavior, not a dispatched DOM event.
-
-### Corrected v2
-
-File:
-
-`jarvis-ebook-reader-loading-v1.js`
-
-Current guard:
-
-```js
-window.__JARVIS_EBOOK_READER_LOADING_V2__
-```
-
-It observes visible `#jarvisReply` text. When the response matches both:
-
-- `let me identify`
-- a book/ebook/read/reading term
-
-it shows an isolated overlay:
-
-```text
-Opening your book
-[small animated book pages]
-[three dots]
-```
-
-A MutationObserver removes the overlay once `.jbe11` exists.
-
-It includes reduced-motion support.
-
-This is additive and does not touch reader source acquisition, pagination, Books authority, Maps, or YouTube.
-
-User's latest observation before v2 was that the animation was not visible and the reader may simply be opening very quickly. That is acceptable from a UX standpoint. Do not slow the reader merely to make the animation visible. The animation should be a best-effort micro-transition, not an artificial delay.
-
----
-
-## 14. Reader network/source acquisition
-
-Reader v12 still intentionally preserves mature source acquisition architecture.
-
-It honors:
-
-```js
-window.jarvisEbookSourceAcquire
-```
-
-when available, otherwise tries Gutenberg direct/Jina candidates.
-
-Candidates include direct Gutenberg text and HTML endpoints plus Jina proxy candidates.
-
-Timeout in the reader-local fallback remains around 9 seconds per attempt, with one retry.
-
-If the reader still takes 20-30 seconds, do not rewrite the reader. Measure:
-
-```text
-CHAIN_START
-BOOK_RESOLUTION_START / END
-BOOK_RESULTS_RENDER
-BOOK_CONTEXT_PUBLISH
-BOOK_READ_CLICK
-READER_OPEN
-SOURCE_ACQUIRE_START
-SOURCE_RESOLVED
-TEXT_EXTRACTION_END
-FIRST_PAGE_RENDER
-```
-
-A future optimization may prefetch the **selected** book text after its card is known, but do not prefetch every search result without evidence.
-
----
-
-## 15. YouTube / Media architecture
-
-Primary media module:
-
-`jarvis-live-media.js`
+- `jarvis-live-media.js`
+- `jarvis-youtube-command-authority-v1.js`
+- related media/gesture fixes
 
 Backend:
 
-```text
-https://jarvis-media.shivashisvicky112.workers.dev/api/search
-```
+`https://jarvis-media.shivashisvicky112.workers.dev/api/search`
 
-Search has an approximately 20-second AbortController timeout/cache path.
-
-Media result cards:
+Cards use:
 
 ```text
 #videoResults [data-jvc-id]
 ```
 
-Player path includes `autoPlayFirst(query)` and direct result-card player invocation.
-
-User observed:
-
-> Video also same story, first list showed up and 20 sec later video played.
-
-If this remains, measure:
+When diagnosing media-chain latency, measure:
 
 ```text
 CHAIN_START
-MEDIA_SEARCH_START / END
+MEDIA_SEARCH_START
+MEDIA_SEARCH_END
 MEDIA_RESULTS_RENDER
 MEDIA_CHAIN_CLICK
 PLAYER_START
 PLAYER_READY
 ```
 
-Do not assume the chain parser is responsible.
+Do not make generic context own Media ordinals when Media has a fresh result set.
 
 ---
 
-## 16. Known command examples / regression tests
+# 9. ENGINEERING BAY: PRODUCT GOAL
 
-### Maps
+Engineering Bay is intended to become a serious JARVIS engineering workspace, not a page full of disconnected buttons.
 
-```text
-Show me restaurants in Delhi and open the sixth one
-```
+The full roadmap is broader than the first MVP.
 
-Expected:
+### Payload / data tools
 
-- Delhi results
-- sixth visible result selected
-- no Bhubaneswar stale context
-- no intermediate wrong selection if atomic handoff is active
-
-Also test punctuation:
-
-```text
-Show me restaurants in Delhi and open the sixth one.
-```
-
-### Books
-
-```text
-Beowulf and open the fifth one
-```
-
-Expected:
-
-- Beowulf search/resolution
-- requested ebook card selected
-- reader opens
-- no stale Maps/YouTube context
-- title should not contain Gutenberg `$b` metadata artifact
-
-### YouTube
-
-Use a multi-result query followed by an ordinal, for example:
-
-```text
-Search Oggy and play the sixth one
-```
-
-Expected media result set and selected player, with no Books ordinal takeover.
-
-### Reader
-
-Test:
-
-- open a book directly;
-- PAGE jump;
-- NEXT/PREVIOUS;
-- A− / A+;
-- chapter/section selector;
-- exact selector movement to a heading;
-- long books with more than 3 pages;
-- titles containing Gutenberg `$b` metadata;
-- *The Dream of Gerontius* section structure;
-- iOS Safari scrolling and safe-area behavior.
-
----
-
-## 17. Current performance problem
-
-Core functionality is working, but the user has observed roughly 20-30 second waits in some chain scenarios.
-
-Important distinction:
-
-- parser/routing is already proven functional;
-- the slow segment may be surface search, context publication, reader source acquisition, media player startup, or map iframe/network behavior.
-
-### Recommended timing markers
-
-#### Maps
-
-```text
-CHAIN_START
-MAP_SEARCH_START
-MAP_GEOCODE_START / END
-MAP_RESULTS_RECEIVED
-MAP_RENDER
-MAP_CONTEXT_PUBLISH
-MAP_FAST_SELECT
-MAP_FRAME_WRITE
-```
-
-#### Books
-
-```text
-CHAIN_START
-BOOK_RESOLUTION_START / END
-BOOK_RESULTS_RENDER
-BOOK_CONTEXT_PUBLISH
-BOOK_READ_CLICK
-READER_OPEN
-SOURCE_ACQUIRE_START
-SOURCE_RESOLVED
-FIRST_PAGE_RENDER
-```
-
-#### YouTube
-
-```text
-CHAIN_START
-MEDIA_SEARCH_START / END
-MEDIA_RESULTS_RENDER
-MEDIA_CHAIN_CLICK
-PLAYER_START
-PLAYER_READY
-```
-
-All diagnostics must remain optional and detached when debugger is OFF.
-
-Only optimize the measured slow segment.
-
----
-
-## 18. Production promotion gate
-
-Do **not** move the current TEST reader/theme work to production merely because Actions is green.
-
-Before production promotion, require:
-
-1. latest TEST Actions green;
-2. user validates Books search + ordinal;
-3. user validates Maps Delhi + ordinal + punctuation;
-4. user validates YouTube ordinal;
-5. user validates reader opening;
-6. user validates reader pagination and chapter selector;
-7. user validates reader typography on iOS Safari;
-8. user validates paper/dark theme behavior if theme toggle is exposed;
-9. user validates no `$b` title artifact;
-10. user validates loading animation does not introduce delay;
-11. broad regression across voice, Maps, YouTube, Search, News, Weather, Calculator, Notes, Games, Files, API, Remote;
-12. smoke test on iOS, Android, and desktop where available;
-13. only then consider promotion to production.
-
-The current user-validated golden checkpoint is still `43be749346d6fc66a67638c180c8844a42c0a960`. It is a reference safety point, not a reason to discard later validated additive work.
-
----
-
-## 19. Future JARVIS capability roadmap
-
-The user asked what major capability should come after production. The recommended direction is **engineering first**, then image intelligence/editing, then 3D/spatial capabilities.
-
-The guiding principle is:
-
-> JARVIS should operate on information and systems, not merely display tools.
-
-### Priority 1: JARVIS Engineering Bay ⚙️
-
-Build as an integrated intelligence surface, not a generic toolbox.
-
-Potential capabilities:
-
-- JSON/XML formatter and viewer
-- API request builder/tester
-- OpenAPI/Swagger explorer
-- HTTP header inspector
-- JWT decoder/inspector
-- Base64 encoder/decoder
+- JSON formatter / validator / minifier
+- XML formatter / viewer
+- JSON ↔ XML
+- Base64
+- JWT decoder
 - Regex tester
-- XPath/JSONPath tester
-- XML ↔ JSON conversion
+- XPath / JSONPath tester
+- payload generator
+
+### API engineering
+
+- API request builder/tester
+- HTTP header inspector
+- OpenAPI/Swagger explorer
+- API contract comparison
+- response diagnostics
+- webhook tester
+
+### Developer utilities
+
 - Diff viewer
 - log analyzer
 - SQL playground
-- webhook tester
-- API response diagnostics
-- architecture diagram generator
-- sequence diagram generator
-- integration-flow visualization
-- payload generation from schemas
-- API contract comparison
+- architecture diagram generation
+- sequence diagram generation
 
-Example voice interactions:
-
-```text
-“JARVIS, inspect this API response and tell me why the integration failed.”
-“Compare these two API versions and tell me what will break.”
-“Generate a test payload for this SuccessFactors endpoint.”
-“Show me the integration flow for this OpenAPI specification.”
-```
-
-This is especially aligned with the existing integration/engineering direction of the project.
-
-### Priority 2: Image intelligence + editing 🖼️
-
-Do not build a full Photoshop clone initially.
-
-Focus on multimodal understanding + useful transformations:
+### Image Intelligence
 
 - background removal
 - crop/resize
 - enhancement
-- text extraction/OCR
-- screenshot understanding
+- OCR / screenshot understanding
 - annotation/highlighting
 - image comparison
 - diagram interpretation
-- document/photo cleanup
-- profile-photo preparation
+- document cleanup
 
-Potential commands:
+### 3D / Spatial
 
-```text
-“JARVIS, remove the background.”
-“Read this screenshot and tell me what failed.”
-“Compare these two screenshots and tell me what changed.”
-“Highlight the broken component.”
-“Read this architecture diagram.”
-```
-
-The strongest JARVIS behavior is not editing alone. It is:
-
-```text
-SEE → UNDERSTAND → REASON → MODIFY → EXPLAIN
-```
-
-### Priority 3: 3D / spatial engineering 🧊
-
-Eventually add a spatial workspace rather than a decorative 3D viewer.
-
-Potential capabilities:
-
-- basic 3D object generation
+- primitive object generation
 - room/furniture visualization
-- dimension-based modelling
-- simple mechanical component modelling
+- dimension-based modeling
+- mechanical component modeling
 - exploded assemblies
 - spatial layout analysis
-- object placement
 - model inspection
-- image-to-3D experiments where technically practical
+- object selection and transformation
+- export formats
 
-Example:
+Engineering Bay should be structured/grouped and loaded incrementally rather than becoming a giant monolithic page.
+
+---
+
+# 10. ENGINEERING BAY ARCHITECTURE
+
+The canonical first-class module architecture was inspected in:
+
+- `src/db.ts`
+- `src/main.ts`
+
+`AppId` is a central union. A true first-class app requires coherent changes to the AppId/apps map/render/navigation/prepareFeature paths. Adding only one union member caused a compile failure:
 
 ```text
-“Create a simple enclosure from these dimensions.”
-“Show me where this furniture could fit.”
-“Explode this assembly and label the components.”
+Property 'engineeringBay' is missing ... required in type 'Record<AppId, AppMeta>'
 ```
 
-### Long-term multimodal JARVIS architecture
+That mistake was corrected.
 
-The eventual target is:
+The home-card owner is `jarvis-core-recovery-v1.js`, which already creates API Lab + SFTP. Engineering Bay must be a **distinct** home card with its own attribute, not another API Lab.
+
+The earlier experimental `jarvis-engineering-bay-entry-v1.js` approach was wrong and was removed. `jarvis-module-loader.js` was restored to its previous architecture.
+
+Current Bay has a genuine 3D/Spatial tab and dimensioned-object UI rather than a placeholder.
+
+---
+
+# 11. ENGINEERING BAY BENCHMARKS
+
+The user explicitly requested comparison with strong existing tools and live GitHub examples where useful, but **not blind copying**.
+
+Benchmarks reviewed:
+
+### Postman
+
+Useful benchmark floor:
+
+- request construction
+- params/headers/body
+- response inspection
+- status/time/size
+- formatting/search
+- collections/environments
+- tests/scripts
+
+### Insomnia
+
+Useful benchmark floor:
+
+- OpenAPI design/preview
+- collections
+- environments
+- tests/mocks
+- scripting
+- multi-protocol/API debugging
+
+### JSONLint / JSON tooling
+
+Useful benchmark floor:
+
+- validate
+- format
+- minify
+- tree/view
+- JSONPath
+- diff
+
+### Three.js ecosystem
+
+Useful benchmark floor:
+
+- WebGL renderer
+- geometry/material separation
+- OrbitControls
+- TransformControls
+- OBJ/GLTF export
+- mobile touch support
+
+### Three.js Editor / related GitHub editors
+
+Useful architectural lesson:
 
 ```text
-          ┌── Vision / Images
-          │
-          ├── Engineering / APIs
-          │
-JARVIS ───┼── Books / Knowledge
-          │
-          ├── Maps / Places
-          │
-          ├── Media / YouTube
-          │
-          └── Spatial / 3D
-                 ↓
-        Shared Intelligence Layer
-                 ↓
-       Context-aware action execution
+Editor state
+→ selection
+→ command/undo layer
+→ viewport
+→ inspector
 ```
 
-Surfaces should exchange context through explicit contracts, not accidental global variables.
+This separation is a useful benchmark for future JARVIS Spatial architecture.
 
-The most powerful future interaction is cross-surface:
+### Babylon.js / xeokit / threepp
+
+Useful benchmark lessons include mature scene/camera/engine separation, selection/highlighting, BIM/model inspection, command stacks, snapping, and editor-core separation.
+
+The rule is: **borrow proven architectural ideas, not their UI or entire architecture.**
+
+---
+
+# 12. ENGINEERING BAY BENCHMARK IMPLEMENTATION
+
+File:
+
+`jarvis-engineering-bay-benchmark-v1.js`
+
+It is additive and currently provides/extends:
+
+### Payload
+
+- XML → JSON via DOMParser
+- JWT decode note explicitly warns: local decoding only, signature/claims are not verified
+- regex flags + improved matching
+- UTF-8-safe Base64 using TextEncoder/TextDecoder
+
+### API
+
+- response status
+- response time
+- response bytes
+- content type
+- response headers
+- copy response
+- stricter JSON object header validation
+- OpenAPI/Swagger inspector parsing JSON specs and listing operations
+
+### Developer
+
+Improved JSONPath support for:
+
+- dot paths
+- bracket keys
+- numeric array indexes
+- wildcard
+
+### Spatial
+
+Three.js is lazy-loaded only when Spatial is opened:
 
 ```text
-“JARVIS, look at this CPI error screenshot, identify the problem,
-create the corrected JSON payload, and show me the integration flow.”
+three@0.186.0
 ```
 
-That is the direction that makes the system feel like JARVIS rather than a collection of widgets.
+The Spatial viewport uses:
+
+- WebGL renderer
+- dimension-driven BoxGeometry
+- OrbitControls
+- damping/touch
+- grid
+- lighting
+- MeshStandardMaterial
+- OBJ export
+- GLB export
+- reset view
+- ResizeObserver
+- capped DPR / low-power mobile settings
+- CSS fallback if WebGL/dependencies fail
+
+Potential future hardening: bundle Three.js locally with the project build instead of relying on esm.sh. Do not make that larger change casually.
+
+### Known benchmark enhancer risks
+
+The benchmark enhancer was written additively and may attach handlers alongside original handlers for API/regex/Base64. If duplicate actions appear, inspect event binding before changing architecture.
+
+Separate esm.sh imports can potentially create multiple Three.js instances. If Three.js controls/exporters fail unexpectedly, consider a single-version import strategy or local bundling.
 
 ---
 
-## 20. Future engineering architecture rules
+# 13. SPATIAL AI PRODUCT GOAL
 
-When Engineering/Image/3D surfaces are eventually implemented:
+The intended user experience is natural-language engineering:
 
-1. Give each surface its own authority module.
-2. Give each result set an explicit context contract.
-3. Make ordinal selection surface-local whenever possible.
-4. Keep generic context as a fallback, not primary authority for fresh result sets.
-5. Do not let image or 3D state leak into Maps/Books/YouTube routing.
-6. Keep heavy diagnostics opt-in.
-7. Prefer async progressive rendering over artificial loading delays.
-8. Use Web APIs/workers/backend services where required, but keep UI state deterministic.
-9. Cache expensive results only when cache keys are explicit and invalidation is understood.
-10. Treat external APIs as unreliable dependencies and show graceful fallback states.
-11. Every new browser-loaded module needs a cache-bust.
-12. Every significant new surface needs regression tests before production promotion.
+```text
+Create a 1200mm wide, 600mm deep and 750mm high office desk with a 30mm thick wooden tabletop, four metal legs, a lower shelf and a 27 inch monitor centered on top.
+```
 
----
+followed by iterative commands:
 
-## 21. Current status at this handoff
+```text
+Make the desk 200mm wider.
+Make the legs 50mm shorter.
+Move the monitor 100mm to the left.
+Make the tabletop glass.
+Add a keyboard tray underneath the tabletop.
+Make the keyboard tray 500mm wide.
+```
 
-**Core chain functionality:** 🟢 Working.
+The Spatial system must understand the **scene**, semantic objects, dimensions, and relationships. It must not simply regex the entire sentence into one primitive.
 
-**Maps Delhi routing:** 🟢 Correct result set confirmed.
+The v1/v2 system deliberately uses a constrained plan schema and deterministic execution.
 
-**Maps ordinal:** 🟢 Functionally works; atomic/latency behavior still deserves measurement.
+Current allowed conceptual operations include:
 
-**Books search/entity resolution:** 🟢 Functional after fast resolver and chain-race fixes.
+```text
+create
+select
+resizeSelected
+moveSelected
+rotateSelected
+scaleSelected
+materialSelected
+deleteSelected
+clear
+inspect
+```
 
-**Books ordinal:** 🟢 Functional at the validated checkpoints.
+Create supports primitives such as:
 
-**Reader typography:** 🟢 User validated as “worked wonderfully.”
+```text
+box
+cylinder
+sphere
+cone
+```
 
-**Reader pagination/chapter targeting:** 🟡 Latest surgical fix needs continued real-book regression testing, especially structural TOCs.
+Use SI metres internally.
 
-**Reader `$b` title cleanup:** 🟢 Implemented in v12 title display.
-
-**Reader loading animation:** 🟡 Implemented as v2 visible-response trigger; should never introduce artificial reader delay.
-
-**Reader paper theme:** 🟡 Implemented and deployed through current TEST run, pending user visual validation.
-
-**Reader dark theme:** 🟡 CSS support implemented; verify/add actual UI toggle if not yet exposed.
-
-**YouTube/media:** 🟡 Functional, with reported playback latency requiring timing diagnosis.
-
-**Debugger:** 🟢 Optional and designed to be zero-cost OFF.
-
-**Automatic deployment:** 🟢 Working; do not modify pipeline.
-
-**`main`:** 🟢 Untouched and must remain untouched during TEST work.
-
-**Current TEST head:** `3c131a5ac425423426c5bc26a8bb6770156c21ab`
-
-**Current Actions run:** #511, head `3c131a5...`, status was `in_progress` at handoff creation. Verify before testing.
+The AI must return a structured plan, never executable code.
 
 ---
 
-## 22. Exact continuation procedure for the next agent
+# 14. SPATIAL AI SAFETY / ARCHITECTURE
 
-When a new chat/agent starts:
+The Spatial AI planner has:
 
-### Step 1
-Read this handoff completely.
+- constrained plan validation
+- operation whitelist
+- operation count cap
+- semantic scene state in sessionStorage
+- object tree/inspector
+- deterministic local fast paths for simple geometry/transforms
+- AI fallback for complex requests
+- client-side AI rate guard
+- one AI call at a time
+- plan cache
+- explicit intelligence endpoint
+- natural-language interception only for spatial-specific commands
 
-### Step 2
-Inspect the actual TEST branch HEAD. Never assume this document's HEAD is still current.
+The planner should not become generic JARVIS routing.
 
-### Step 3
-Inspect the current `index.html` load order and cache-bust values.
+Natural-language interception must remain narrow and domain-specific.
 
-### Step 4
-Check the latest Actions run for the actual HEAD. Do not ask the user to test an unverified deployment.
+Do not use a shared global context surface flag to make Spatial work.
 
-### Step 5
-If debugging a failure, reproduce the smallest failing path and classify it as:
-
-1. parser/routing;
-2. result acquisition;
-3. context publication;
-4. ordinal selection;
-5. rendering/UI;
-6. reader source acquisition;
-7. media player startup;
-8. external network latency.
-
-### Step 6
-Patch only the responsible layer.
-
-### Step 7
-Cache-bust changed browser files.
-
-### Step 8
-Push to TEST only.
-
-### Step 9
-Verify Actions.
-
-### Step 10
-Only then provide the user with the exact test flow.
-
-### Step 11
-After the user validates a meaningful change, update this handoff with the commit, behavior, and any new regression information.
+Do not allow Spatial event handlers to swallow Maps/Books/YouTube commands.
 
 ---
 
-## 23. Final instruction
+# 15. CRITICAL SPATIAL FAILURE HISTORY
 
-The project has reached a much better functional state after repeated earlier regressions. The correct strategy is **enhance it, don't rebuild it**.
+This section is extremely important. It records what went wrong so the next agent does not repeat it.
 
-Protect working surface authorities. Measure latency before optimizing. Keep reader work isolated. Keep generic context generic. Keep production frozen until TEST has passed focused and broad regression.
+### Failure A: Engineering Bay was implemented with the wrong architecture
 
-Future agents should treat this document as the continuity bridge when the conversation ends, but should always verify the live repository state before making code changes.
+An experimental entry injector was used instead of following the canonical module/home-card architecture. It was removed.
+
+Lesson: inspect `src/main.ts`, `src/db.ts`, and `jarvis-core-recovery-v1.js` before adding a first-class module.
+
+### Failure B: compile failure from incomplete AppId integration
+
+Only `engineeringBay` was added to the AppId union, but not to the required `Record<AppId, AppMeta>` map. Actions failed.
+
+Lesson: a first-class module must be integrated coherently across all required app registries/render/navigation paths.
+
+### Failure C: Spatial bridge became too complicated
+
+The bridge accumulated lifecycle/rearm logic and dependencies on UI readiness. This was unnecessary.
+
+The proven pattern is simple event interception + explicit Bay open + wait for actual Spatial engine + run.
+
+### Failure D: Spatial planner returned a root single operation
+
+The intelligence gateway sometimes returned:
+
+```json
+{"op":"create","type":"box",...}
+```
+
+instead of:
+
+```json
+{"operations":[{"op":"create",...}],"explanation":"..."}
+```
+
+`valid()` correctly rejected the former, causing:
+
+```text
+ENGINE_ERROR
+plan@...:...
+```
+
+The response-shape guard was introduced to canonicalize a single operation into an `operations` array.
+
+### Failure E: response-shape helper lost the fetch-wrapper race
+
+The first helper installed its fetch wrapper too early. The Spatial lifecycle later replaced `window.fetch`, bypassing the helper.
+
+A later helper re-armed itself when `window.fetch` changed.
+
+Lesson: when wrapping globals in a multi-script lifecycle, identify who replaces the global and in what order. Do not assume startup order is permanent.
+
+### Failure F: Spatial did not even open Engineering Bay
+
+The latest user test revealed the bridge itself was not intercepting the command. This is a **command interception/Bay opening failure**, not an AI planning failure.
+
+The bridge had been changed from a proven document-level capture/delegation pattern to form-local binding. That was a needless architectural deviation.
+
+**The next agent must first restore/verify the proven event-delegation path. Do not touch AI planning until the command reliably opens Engineering Bay.**
+
+This is the immediate outstanding issue.
+
+---
+
+# 16. CURRENT SPATIAL FILES / RESPONSIBILITIES
+
+Important files seen during current work:
+
+- `jarvis-engineering-bay-v1.js` — Bay shell/open/close/navigation/tool UI.
+- `jarvis-engineering-bay-benchmark-v1.js` — benchmark enhancements.
+- `jarvis-engineering-spatial-ai-v1.js` — earlier Spatial planner implementation.
+- `jarvis-engineering-spatial-ai-v2.js` — newer planner/validation path.
+- `jarvis-engineering-spatial-ai-v3.js` — current assembly-oriented Spatial planner in the latest inspected TEST tree.
+- `jarvis-engineering-spatial-lifecycle-v1.js` — creates/lazily loads Spatial runtime when the Spatial pane exists.
+- `jarvis-engineering-spatial-plan-shape-v1.js` — response-shape guard.
+- `jarvis-engineering-spatial-command-bridge-v1.js` — natural-language command interception and Bay/Spatial handoff.
+- `jarvis-engineering-spatial-ui-restore-v1.js` — restores/maintains Spatial workbench UI in the newer assembly flow.
+
+Current index seen in recent TEST state loaded Spatial-related assets with cache-busts similar to:
+
+```html
+<script src="./jarvis-engineering-bay-benchmark-v1.js?..."></script>
+<script src="./jarvis-engineering-spatial-ai-v3.js?..."></script>
+<script src="./jarvis-engineering-spatial-ui-restore-v1.js?..."></script>
+<script src="./jarvis-engineering-spatial-lifecycle-v1.js?..."></script>
+<script src="./jarvis-engineering-spatial-plan-shape-v1.js?..."></script>
+<script src="./jarvis-engineering-spatial-command-bridge-v1.js?..."></script>
+```
+
+Exact cache-bust values must always be read from the current TEST `index.html`, not guessed from this document.
+
+---
+
+# 17. IMMEDIATE NEXT TASK: RESTORE THE PROVEN SPATIAL COMMAND PATH
+
+**Do not continue feature expansion yet.**
+
+The immediate objective is only:
+
+```text
+User says spatial command
+→ JARVIS recognizes it
+→ Engineering Bay opens
+→ Spatial tab activates
+→ Spatial engine becomes ready
+→ command reaches window.jarvisSpatial.run()
+```
+
+Only after this works should AI plan-shape validation and complex assembly behavior be tested.
+
+### Required diagnostic sequence
+
+Turn chain debugging ON and run a simple command such as:
+
+```text
+Create a 1 metre box.
+```
+
+Expected high-level trace:
+
+```text
+COMMAND_ACCEPTED
+BAY_READY
+SPATIAL_TAB_CLICKED
+SPATIAL_READY
+SPATIAL_ENGINE_READY
+ENGINE_CALL
+PLAN_READY / local equivalent
+PLAN_APPLIED
+ENGINE_RETURN
+```
+
+If the first trace is absent, the command never reached the Spatial bridge.
+
+If `COMMAND_ACCEPTED` exists but `BAY_READY` is absent, Bay opening is broken.
+
+If `BAY_READY` exists but `SPATIAL_TAB_CLICKED` is absent, the Bay DOM contract changed.
+
+If Spatial tab opens but `SPATIAL_ENGINE_READY` is absent, investigate lifecycle/runtime loading.
+
+If engine is ready but `ENGINE_ERROR` occurs, then inspect planner/plan shape.
+
+**Never jump to the later layer before the earlier layer is proven.**
+
+### Proven bridge principle
+
+The bridge should use narrow spatial-domain recognition and capture/delegation at the document level so it remains robust to dynamically-created command form DOM.
+
+The bridge must not require a fragile one-time binding to a form created later by the app.
+
+It must not own generic commands.
+
+---
+
+# 18. SPATIAL SEMANTIC GAPS TO SOLVE AFTER BASIC PATH IS STABLE
+
+Once basic opening/execution is stable, the planner must become semantically capable of the torture-test sequence.
+
+The current schema needs explicit support for at least:
+
+### Semantic selection
+
+Something equivalent to:
+
+```json
+{"op":"select","target":{"name":"legs","type":"box"}}
+```
+
+Without this, “make the legs 50mm shorter” cannot reliably target the correct object.
+
+### Resize
+
+Something equivalent to:
+
+```json
+{"op":"resizeSelected","dimensions":{"x":...,"y":...,"z":...}}
+```
+
+This is preferable to blindly scaling when the user asks for an absolute dimensional change such as “make the desk 200mm wider.”
+
+### Relative transforms
+
+Support precise semantic commands such as:
+
+```text
+move monitor 100mm left
+rotate tabletop 10 degrees
+```
+
+### Materials
+
+Material changes must target the intended semantic object, not merely the currently selected arbitrary object.
+
+### Assemblies
+
+Multiple create operations are acceptable for desks/furniture/assemblies. The planner should preserve semantic names such as:
+
+```text
+Tabletop
+Leg 1
+Leg 2
+Leg 3
+Leg 4
+Lower Shelf
+Monitor
+Keyboard Tray
+```
+
+The scene should remain inspectable and editable.
+
+---
+
+# 19. SPATIAL PERFORMANCE / MOBILE RULES
+
+The user tests on iOS.
+
+Keep:
+
+- lazy 3D loading
+- capped device pixel ratio
+- low-power rendering where possible
+- ResizeObserver
+- touch-enabled OrbitControls
+- no unnecessary animation loops when the viewport is idle
+- bounded AI calls
+- client-side cache/rate guard
+
+Do not add heavy dependencies to initial page load unless justified.
+
+Three.js currently loads lazily. If it remains CDN-based, keep all Three.js-related imports on one compatible version. If later bundling locally, make that a deliberate architectural change and verify build output.
+
+---
+
+# 20. ENGINEERING BAY TEST MATRIX
+
+Before declaring Engineering Bay production-ready, test each layer separately.
+
+### Bay UI
+
+- Home card opens Bay.
+- Bay closes.
+- Tabs switch.
+- 3D/Spatial tab opens.
+- API Lab remains API Lab, not Bay.
+- SFTP remains unchanged.
+
+### Payload tools
+
+- JSON validate/format/minify.
+- XML parse.
+- JSON ↔ XML.
+- Base64 Unicode.
+- JWT decode warning.
+- Regex flags/matching.
+- JSONPath.
+
+### API tools
+
+- request construction.
+- response status/time/size.
+- headers.
+- copy.
+- OpenAPI inspection.
+- error handling.
+
+### 3D
+
+- box dimensions.
+- cylinder/sphere/cone.
+- orbit.
+- touch gestures.
+- resize viewport.
+- reset.
+- OBJ.
+- GLB.
+- WebGL fallback.
+
+### Spatial AI
+
+- simple local box.
+- simple primitive dimensions.
+- natural-language desk assembly.
+- semantic object selection.
+- absolute resize.
+- relative movement.
+- rotation.
+- material change.
+- add object to existing scene.
+- export final scene.
+
+### Regression gates
+
+After Spatial work, verify at minimum:
+
+- Maps search.
+- Maps ordinal.
+- Delhi arbitrary-city category search.
+- Books search.
+- Books ordinal.
+- Reader chapter selector.
+- Reader exact chapter scrolling.
+- YouTube search/ordinal.
+- generic Context Engine behavior.
+
+Spatial changes must not require modifying those modules.
+
+---
+
+# 21. COMMIT / DEPLOYMENT DISCIPLINE
+
+Preferred sequence:
+
+```text
+inspect current branch
+→ inspect exact responsible files
+→ make one surgical change
+→ syntax/build check
+→ update index cache-bust if needed
+→ commit TEST
+→ wait for Actions
+→ verify build + deploy + smoke/verify jobs
+→ report exact commit/run
+→ user tests
+```
+
+Do not create throwaway branches/commits merely to experiment with the GitHub API.
+
+Do not stack multiple speculative fixes.
+
+Do not modify workflow files to make application tests pass.
+
+Do not touch `main`.
+
+If a change is wrong, fix the branch deliberately rather than producing a pile of compensating commits.
+
+---
+
+# 22. WHAT THE USER DOES NOT WANT TO HEAR
+
+Avoid:
+
+- “It should work.”
+- “I think this is fixed” without evidence.
+- “Proceed?” when the next engineering step is obvious.
+- “Let’s rollback everything.”
+- explanations blaming the user/browser without trace evidence.
+- claims that Actions is green before checking it.
+- feature expansion while a basic module path is broken.
+- changing mature Maps/Books/Reader code to fix Spatial.
+
+The user expects the agent to do the investigation itself and return with evidence.
+
+---
+
+# 23. FINAL HANDOFF STATE
+
+At the moment this handoff was written:
+
+- Production `main` is a known-good, user-validated production snapshot. **Do not modify it.**
+- TEST is the only workspace for ongoing Engineering Bay/Spatial work.
+- Engineering Bay UI exists and was previously visually confirmed by the user as looking good.
+- Benchmark enhancements exist.
+- Spatial AI assembly work exists.
+- The current outstanding blocker is **command interception/Bay opening**, not a reason to redesign the entire Spatial planner.
+- A prior plan-shape problem was real and has a response guard, but it should only be debugged after the command reliably reaches Spatial.
+- The next agent must restore/verify the proven document-level Spatial command event path first.
+- The next agent must then run the Actions pipeline and only present TEST for user testing after all relevant jobs succeed.
+
+**North star:** make JARVIS more capable without making it less trustworthy. Every new subsystem must fit the existing authority architecture, be measurable, reversible, mobile-safe, and respectful of the working surfaces that already exist.
