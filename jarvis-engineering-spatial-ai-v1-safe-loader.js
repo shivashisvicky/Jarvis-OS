@@ -2,11 +2,23 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-2';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-3';
 fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r.status);return r.text()}).then(code=>{
   // V1 has a Safari-incompatible timer reference in its outer finally.
-  // Strip the cleanup call from the fetched source before execution.
   code=code.replace(/clearTimeout\(timer\);/g,'');
+
+  // Furniture plans historically came back with cylindrical desk legs.
+  // Keep generic cylinders intact, but normalize semantic desk/table legs
+  // into slim rectangular metal supports. This changes geometry only.
+  const planNeedle='const plan=JSON.parse(text);';
+  const planPatch=`let plan=JSON.parse(text);plan=(()=>{const ops=Array.isArray(plan?.operations)?plan.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/\\bleg(?:_|\\s|-)|(?:^|[_\\s-])leg(?:$|[_\\s-])/i.test(String(o.name||''))){const d=o.dimensions||{},r=Number(d.radius)||0.025,h=Number(d.height)||0.7;return {...o,type:'box',dimensions:{width:r*2,depth:r*2,height:h},material:o.material||'metal'};}return o;}):plan?.operations;return {...plan,operations:ops};})();`;
+  code=code.replace(planNeedle,planPatch);
+
+  // Apply the same normalization to cached plans before they are reused.
+  const cacheNeedle='if(c[key]&&validPlan(c[key]))return c[key]';
+  const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/\\bleg(?:_|\\s|-)|(?:^|[_\\s-])leg(?:$|[_\\s-])/i.test(String(o.name||\'\'))?{...o,type:\'box\',dimensions:{width:(Number(o.dimensions?.radius)||.025)*2,depth:(Number(o.dimensions?.radius)||.025)*2,height:Number(o.dimensions?.height)||.7},material:o.material||\'metal\'}:o);return p}' ;
+  code=code.replace(cacheNeedle,cachePatch);
+
   // Allow the sanitized copy to become the active V1 runtime even if an older
   // copy was injected earlier in this page lifecycle.
   try{delete window.__JARVIS_SPATIAL_AI_V1__}catch{}
