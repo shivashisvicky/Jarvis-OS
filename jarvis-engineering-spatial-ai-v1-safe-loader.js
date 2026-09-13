@@ -2,7 +2,7 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-8';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-9';
 
 // Frame each generated model to the viewport instead of relying on a fixed
 // camera distance. Only PerspectiveCamera renders are touched.
@@ -23,7 +23,6 @@ const installFrameFix=()=>{
             if(camera.__jarvisSpatialFrameSig!==sig){
               const aspect=Math.max(.5,Number(camera.aspect)||1),fov=Math.max(20,Number(camera.fov)||45);
               const halfFov=Math.tan((fov*Math.PI/180)/2);
-              // Keep generous headroom on small/mobile Spatial viewports.
               const fit=Math.max(size.y,size.x/aspect,size.z)*.5/halfFov*2.05;
               const direction=new T.Vector3().subVectors(camera.position,center);
               if(direction.lengthSq()<1e-8)direction.set(1.8,1.2,2.2);
@@ -47,20 +46,15 @@ fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r
 
   // Normalize the actual V1 planner output before apply() renders it.
   // The current V1 parser uses `p`, not the older `plan` variable.
-  const normalizePlan=`const normalizeSpatialPlan=(p)=>{if(!p||!Array.isArray(p.operations))return p;p.operations=p.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/\blegs?\b/i.test(String(o.name||''))&&o.dimensions){const radius=Number(o.dimensions.radius),height=Number(o.dimensions.height);if(Number.isFinite(radius)&&Number.isFinite(height)&&radius>0&&height>0){return {...o,type:'box',dimensions:{width:radius*2,depth:radius*2,height},material:o.material||'metal'};}}return o});return p};`;
+  const normalizePlan=`const normalizeSpatialPlan=(p)=>{if(!p||!Array.isArray(p.operations))return p;p.operations=p.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/(^|[^a-z])legs?([^a-z]|$)/i.test(String(o.name||''))&&o.dimensions){const radius=Number(o.dimensions.radius),height=Number(o.dimensions.height);if(Number.isFinite(radius)&&Number.isFinite(height)&&radius>0&&height>0){return {...o,type:'box',dimensions:{width:radius*2,depth:radius*2,height},material:o.material||'metal'};}}return o});return p};`;
   const parseNeedle='const p=JSON.parse(text.slice(a,b+1));';
-  const parsePatch=normalizeSpatialPlan+'const p=normalizeSpatialPlan(JSON.parse(text.slice(a,b+1)));';
+  const parsePatch=normalizePlan+'const p=normalizeSpatialPlan(JSON.parse(text.slice(a,b+1)));';
   code=code.replace(parseNeedle,parsePatch);
 
   // Apply the same normalization to cached plans before they are reused.
   const cacheNeedle='if(c[key]&&validPlan(c[key]))return c[key]';
-  const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/\blegs?\b/i.test(String(o.name||\'\'))&&o.dimensions?{...o,type:\'box\',dimensions:{width:Number(o.dimensions.radius)*2,depth:Number(o.dimensions.radius)*2,height:Number(o.dimensions.height)},material:o.material||\'metal\'}:o);return p}';
+  const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/(^|[^a-z])legs?([^a-z]|$)/i.test(String(o.name||\'\'))&&o.dimensions?{...o,type:\'box\',dimensions:{width:Number(o.dimensions.radius)*2,depth:Number(o.dimensions.radius)*2,height:Number(o.dimensions.height)},material:o.material||\'metal\'}:o);return p}';
   code=code.replace(cacheNeedle,cachePatch);
-
-  // Normalize the human-facing response at the presentation boundary too.
-  const sayNeedle='function say(text){';
-  const sayPatch='function say(text){text=String(text??\'\').replace(/cylindrical\\s+(?=(?:metal\\s+)?legs?\\b)/ig,\'rectangular \');';
-  code=code.replace(sayNeedle,sayPatch);
 
   try{delete window.__JARVIS_SPATIAL_AI_V1__}catch{}
   const blob=new Blob([code],{type:'text/javascript'});
