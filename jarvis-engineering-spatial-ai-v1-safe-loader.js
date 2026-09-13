@@ -2,7 +2,7 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-14';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-15';
 const installFrameFix=()=>{try{const T=window.THREE,R=T?.WebGLRenderer?.prototype;if(!R)return false;if(R.__JARVIS_SPATIAL_FRAME_FIX__)return true;const original=R.render;R.render=function(scene,camera){try{if(camera?.isPerspectiveCamera&&scene){const box=new T.Box3(),size=new T.Vector3(),center=new T.Vector3();scene.traverse(o=>{if(o?.isMesh)box.expandByObject(o)});if(!box.isEmpty()){box.getSize(size);box.getCenter(center);const sig=[size.x,size.y,size.z,center.x,center.y,center.z].map(v=>Math.round(v*1000)).join(',');if(camera.__jarvisSpatialFrameSig!==sig){const aspect=Math.max(.5,Number(camera.aspect)||1),fov=Math.max(20,Number(camera.fov)||45);const halfFov=Math.tan((fov*Math.PI/180)/2);const fit=Math.max(size.y,size.x/aspect,size.z)*.5/halfFov*2.05;const direction=new T.Vector3().subVectors(camera.position,center);if(direction.lengthSq()<1e-8)direction.set(1.8,1.2,2.2);direction.normalize();camera.position.copy(center).add(direction.multiplyScalar(Math.max(fit,1.0)));camera.near=Math.max(.01,Math.min(.1,fit/100));camera.far=Math.max(50,fit*40);camera.lookAt(center);camera.updateProjectionMatrix();camera.__jarvisSpatialFrameSig=sig;}}}}catch{}return original.call(this,scene,camera)};R.__JARVIS_SPATIAL_FRAME_FIX__=true;return true}catch{return false}};
 const framePoll=()=>{if(!installFrameFix())setTimeout(framePoll,25)};framePoll();
 fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r.status);return r.text()}).then(code=>{code=code.replace(/clearTimeout\(timer\);/g,'');
@@ -10,7 +10,7 @@ const normalizeSpatialPlan=(plan)=>{if(!plan||!Array.isArray(plan.operations))re
 const localNeedle='function localPlan(q){';
 if(code.includes(localNeedle))code=code.replace(localNeedle,`const normalizeSpatialPlan=${normalizeSpatialPlan.toString()};\n${localNeedle}`);
 code=code.replace(/if\(c\[key\]&&validPlan\(c\[key\]\)\)return c\[key\]/,'if(c[key]&&validPlan(c[key]))return normalizeSpatialPlan(c[key])');
-code=code.replace('const plan=JSON.parse(text);','const plan=normalizeSpatialPlan(JSON.parse(text));');
+code=code.replace('const plan=JSON.parse(text);','const plan=normalizeSpatialPlan(data?.plan||JSON.parse(text));');
 code=code.replace('body:JSON.stringify({query:prompt,context:[]})','body:JSON.stringify({query:prompt,context:[],mode:\'spatial\'})');
 try{localStorage.removeItem('jarvis-spatial-ai-cache-v1')}catch{}
 try{delete window.__JARVIS_SPATIAL_AI_V1__}catch{}
