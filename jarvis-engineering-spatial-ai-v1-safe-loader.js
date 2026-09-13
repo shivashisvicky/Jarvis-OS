@@ -2,7 +2,7 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-9';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-10';
 
 // Frame each generated model to the viewport instead of relying on a fixed
 // camera distance. Only PerspectiveCamera renders are touched.
@@ -45,11 +45,14 @@ fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r
   code=code.replace(/clearTimeout\(timer\);/g,'');
 
   // Normalize the actual V1 planner output before apply() renders it.
-  // The current V1 parser uses `p`, not the older `plan` variable.
+  // The checked-in V1 currently uses `plan`; tolerate the older `p` form too.
   const normalizePlan=`const normalizeSpatialPlan=(p)=>{if(!p||!Array.isArray(p.operations))return p;p.operations=p.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/(^|[^a-z])legs?([^a-z]|$)/i.test(String(o.name||''))&&o.dimensions){const radius=Number(o.dimensions.radius),height=Number(o.dimensions.height);if(Number.isFinite(radius)&&Number.isFinite(height)&&radius>0&&height>0){return {...o,type:'box',dimensions:{width:radius*2,depth:radius*2,height},material:o.material||'metal'};}}return o});return p};`;
-  const parseNeedle='const p=JSON.parse(text.slice(a,b+1));';
-  const parsePatch=normalizePlan+'const p=normalizeSpatialPlan(JSON.parse(text.slice(a,b+1)));';
-  code=code.replace(parseNeedle,parsePatch);
+  const planNeedle='const plan=JSON.parse(text);';
+  const pNeedle='const p=JSON.parse(text.slice(a,b+1));';
+  const planPatch=normalizePlan+'const plan=normalizeSpatialPlan(JSON.parse(text));';
+  const pPatch=normalizePlan+'const p=normalizeSpatialPlan(JSON.parse(text.slice(a,b+1)));';
+  if(code.includes(planNeedle))code=code.replace(planNeedle,planPatch);
+  else if(code.includes(pNeedle))code=code.replace(pNeedle,pPatch);
 
   // Apply the same normalization to cached plans before they are reused.
   const cacheNeedle='if(c[key]&&validPlan(c[key]))return c[key]';
