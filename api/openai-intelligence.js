@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   if (query.length > 4000) return res.status(413).json({ error: 'query is too long' });
 
   const model = 'gemini-2.5-flash';
+  const spatial = body.mode === 'spatial';
   const system = [
     'You are JARVIS, the intelligence layer of a personal operating system.',
     'Be concise, useful and truthful. Do not invent sources or facts.',
@@ -26,7 +27,9 @@ export default async function handler(req, res) {
         system_instruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: query }] }],
         tools: [{ google_search: {} }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 900 }
+        generationConfig: spatial
+          ? { temperature: 0, maxOutputTokens: 1600, responseMimeType: 'application/json' }
+          : { temperature: 0.2, maxOutputTokens: 900 }
       })
     });
     const data = await response.json();
