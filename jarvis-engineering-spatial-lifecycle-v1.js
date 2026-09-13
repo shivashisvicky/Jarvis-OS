@@ -6,7 +6,7 @@ const trace=(step,data={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:co
 let loading=false,loaded=false;
 const init=()=>{
  const bay=document.getElementById('jarvisEngineeringBay');
- const pane=bay?.querySelector('[data-pane="spatial"]);
+ const pane=bay?.querySelector('[data-pane="spatial"]');
  if(!bay||!pane||loaded||loading)return;
  loading=true;trace('BAY_SPATIAL_READY');
  const s=document.createElement('script');
