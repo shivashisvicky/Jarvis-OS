@@ -6,11 +6,11 @@ const trace=(step,data={})=>{try{window.dispatchEvent(new CustomEvent('jarvis:co
 let loading=false,loaded=false;
 const init=()=>{
  const bay=document.getElementById('jarvisEngineeringBay');
- const pane=bay?.querySelector('[data-pane="spatial"]');
+ const pane=bay?.querySelector('[data-pane="spatial"]);
  if(!bay||!pane||loaded||loading)return;
  loading=true;trace('BAY_SPATIAL_READY');
  const s=document.createElement('script');
- s.src='./jarvis-engineering-spatial-ai-v1-safe-loader.js?v=20260913-spatial-v1-safe-loader-2';
+ s.src='./jarvis-engineering-spatial-ai-v1-safe-loader.js?v=20260913-spatial-v1-safe-loader-3';
  s.async=false;
  const runtimeError=e=>{
   const file=String(e?.filename||'');
