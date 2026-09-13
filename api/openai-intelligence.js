@@ -16,8 +16,9 @@ export default async function handler(req, res) {
     'Use Google Search grounding when current information, recent events, recommendations or verification would improve the answer.',
     'Prefer direct answers, then a short explanation or next action.',
     'Do not claim to have performed an action unless the application explicitly did it.',
-    'For media requests, identify useful video candidates or explain what to search; do not fabricate video IDs.'
-  ].join(' ');
+    'For media requests, identify useful video candidates or explain what to search; do not fabricate video IDs.',
+    spatial ? 'For Spatial Planner requests, return only the requested JSON object. For structural rectangular parts such as tabletops, shelves, cabinets, panels, frames and table legs, use type box unless the user explicitly requests a cylindrical or curved shape. Do not reinterpret rectangular dimensions as cylinders. Keep assembly geometry faithful to the stated dimensions and positions.' : ''
+  ].filter(Boolean).join(' ');
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
