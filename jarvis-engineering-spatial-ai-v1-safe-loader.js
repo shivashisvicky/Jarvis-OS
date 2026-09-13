@@ -11,6 +11,7 @@ const localNeedle='function localPlan(q){';
 if(code.includes(localNeedle))code=code.replace(localNeedle,`const normalizeSpatialPlan=${normalizeSpatialPlan.toString()};\n${localNeedle}`);
 code=code.replace(/if\(c\[key\]&&validPlan\(c\[key\]\)\)return c\[key\]/,'if(c[key]&&validPlan(c[key]))return normalizeSpatialPlan(c[key])');
 code=code.replace('const plan=JSON.parse(text);','const plan=normalizeSpatialPlan(JSON.parse(text));');
+code=code.replace('body:JSON.stringify({query:prompt,context:[]})','body:JSON.stringify({query:prompt,context:[],mode:\'spatial\'})');
 try{localStorage.removeItem('jarvis-spatial-ai-cache-v1')}catch{}
 try{delete window.__JARVIS_SPATIAL_AI_V1__}catch{}
 const blob=new Blob([code],{type:'text/javascript'});const s=document.createElement('script');s.src=URL.createObjectURL(blob);s.async=false;s.onload=()=>URL.revokeObjectURL(s.src);s.onerror=()=>URL.revokeObjectURL(s.src);document.head.appendChild(s)}).catch(e=>{try{window.dispatchEvent(new CustomEvent('jarvis:command-chain-trace',{detail:{stage:'SPATIAL_LIFECYCLE',step:'SPATIAL_AI_SAFE_LOADER_ERROR',message:String(e?.message||e)}}))}catch{}});
