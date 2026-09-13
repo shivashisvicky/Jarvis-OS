@@ -40,9 +40,20 @@ export default async function handler(req, res) {
     const text = String(candidate?.content?.parts?.map(part => part?.text || '').join('') || '').trim();
     if (!text) return res.status(502).json({ error: finishReason === 'MAX_TOKENS' ? 'Gemini spatial plan was truncated' : 'Gemini returned no text' });
     if (spatial && finishReason === 'MAX_TOKENS') return res.status(502).json({ error: 'Gemini spatial plan was truncated' });
+
+    let plan = null;
+    if (spatial) {
+      try {
+        plan = JSON.parse(text);
+        if (!plan || !Array.isArray(plan.operations)) throw new Error('Spatial plan must contain an operations array');
+      } catch (error) {
+        return res.status(502).json({ error: `Gemini returned invalid Spatial JSON: ${error instanceof Error ? error.message : 'parse failed'}` });
+      }
+    }
+
     const chunks = candidate?.groundingMetadata?.groundingChunks || [];
     const sources = chunks.filter(chunk => chunk?.web?.uri).slice(0, 6).map(chunk => ({ title: String(chunk.web.title || chunk.web.uri), uri: String(chunk.web.uri) }));
-    return res.status(200).json({ text, model, provider: 'gemini', grounded: sources.length > 0, sources });
+    return res.status(200).json({ text, ...(spatial ? { plan } : {}), model, provider: 'gemini', grounded: sources.length > 0, sources });
   } catch (error) {
     return res.status(502).json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed' });
   }
