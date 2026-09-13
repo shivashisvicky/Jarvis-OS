@@ -2,7 +2,7 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-4';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-5';
 fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r.status);return r.text()}).then(code=>{
   // V1 has a Safari-incompatible timer reference in its outer finally.
   code=code.replace(/clearTimeout\(timer\);/g,'');
@@ -18,6 +18,11 @@ fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r
   const cacheNeedle='if(c[key]&&validPlan(c[key]))return c[key]';
   const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/\\bleg(?:_|\\s|-)|(?:^|[_\\s-])leg(?:$|[_\\s-])/i.test(String(o.name||\'\'))?{...o,type:\'box\',dimensions:{width:(Number(o.dimensions?.radius)||.025)*2,depth:(Number(o.dimensions?.radius)||.025)*2,height:Number(o.dimensions?.height)||.7},material:o.material||\'metal\'}:o);p.explanation=String(p.explanation||\'\').replace(/cylindrical\\s+(?=(?:metal\\s+)?legs?\\b)/ig,\'rectangular \');return p}' ;
   code=code.replace(cacheNeedle,cachePatch);
+
+  // Normalize the human-facing response at the presentation boundary too.
+  const sayNeedle='function say(text){';
+  const sayPatch='function say(text){text=String(text??\'\').replace(/cylindrical\\s+(?=(?:metal\\s+)?legs?\\b)/ig,\'rectangular \');';
+  code=code.replace(sayNeedle,sayPatch);
 
   // Allow the sanitized copy to become the active V1 runtime even if an older
   // copy was injected earlier in this page lifecycle.
