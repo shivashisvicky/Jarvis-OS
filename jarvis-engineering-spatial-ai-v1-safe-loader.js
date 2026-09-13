@@ -2,7 +2,7 @@
 'use strict';
 if(window.__JARVIS_SPATIAL_V1_SAFE_LOADER__)return;
 window.__JARVIS_SPATIAL_V1_SAFE_LOADER__=true;
-const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-7';
+const src='./jarvis-engineering-spatial-ai-v1.js?v=20260913-spatial-v1-safe-8';
 
 // Frame each generated model to the viewport instead of relying on a fixed
 // camera distance. Only PerspectiveCamera renders are touched.
@@ -45,16 +45,16 @@ fetch(src,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Spatial V1 HTTP '+r
   // V1 has a Safari-incompatible timer reference in its outer finally.
   code=code.replace(/clearTimeout\(timer\);/g,'');
 
-  // Furniture plans historically came back with cylindrical desk legs.
-  // Keep generic cylinders intact, but normalize semantic desk/table legs
-  // into slim rectangular metal supports. This changes geometry only.
-  const planNeedle='const plan=JSON.parse(text);';
-  const planPatch=`let plan=JSON.parse(text);plan=(()=>{const ops=Array.isArray(plan?.operations)?plan.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/\\bleg(?:_|\\s|-)|(?:^|[_\\s-])leg(?:$|[_\\s-])/i.test(String(o.name||''))){const d=o.dimensions||{},r=Number(d.radius)||0.025,h=Number(d.height)||0.7;return {...o,type:'box',dimensions:{width:r*2,depth:r*2,height:h},material:o.material||'metal'};}return o;}):plan?.operations;const explanation=String(plan?.explanation||'').replace(/cylindrical\\s+(?=(?:metal\\s+)?legs?\\b)/ig,'rectangular ');return {...plan,operations:ops,explanation};})();`;
-  code=code.replace(planNeedle,planPatch);
+  // Normalize the actual V1 planner output before apply() renders it.
+  // The current V1 parser uses `p`, not the older `plan` variable.
+  const normalizePlan=`const normalizeSpatialPlan=(p)=>{if(!p||!Array.isArray(p.operations))return p;p.operations=p.operations.map(o=>{if(o?.op==='create'&&o.type==='cylinder'&&/\blegs?\b/i.test(String(o.name||''))&&o.dimensions){const radius=Number(o.dimensions.radius),height=Number(o.dimensions.height);if(Number.isFinite(radius)&&Number.isFinite(height)&&radius>0&&height>0){return {...o,type:'box',dimensions:{width:radius*2,depth:radius*2,height},material:o.material||'metal'};}}return o});return p};`;
+  const parseNeedle='const p=JSON.parse(text.slice(a,b+1));';
+  const parsePatch=normalizeSpatialPlan+'const p=normalizeSpatialPlan(JSON.parse(text.slice(a,b+1)));';
+  code=code.replace(parseNeedle,parsePatch);
 
   // Apply the same normalization to cached plans before they are reused.
   const cacheNeedle='if(c[key]&&validPlan(c[key]))return c[key]';
-  const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/\\bleg(?:_|\\s|-)|(?:^|[_\\s-])leg(?:$|[_\\s-])/i.test(String(o.name||\'\'))?{...o,type:\'box\',dimensions:{width:(Number(o.dimensions?.radius)||.025)*2,depth:(Number(o.dimensions?.radius)||.025)*2,height:Number(o.dimensions?.height)||.7},material:o.material||\'metal\'}:o);p.explanation=String(p.explanation||\'\').replace(/cylindrical\\s+(?=(?:metal\\s+)?legs?\\b)/ig,\'rectangular \');return p}' ;
+  const cachePatch='if(c[key]&&validPlan(c[key])){const p=c[key];p.operations=p.operations.map(o=>o?.op===\'create\'&&o.type===\'cylinder\'&&/\blegs?\b/i.test(String(o.name||\'\'))&&o.dimensions?{...o,type:\'box\',dimensions:{width:Number(o.dimensions.radius)*2,depth:Number(o.dimensions.radius)*2,height:Number(o.dimensions.height)},material:o.material||\'metal\'}:o);return p}';
   code=code.replace(cacheNeedle,cachePatch);
 
   // Normalize the human-facing response at the presentation boundary too.
