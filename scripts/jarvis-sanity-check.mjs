@@ -9,8 +9,9 @@
  *   node scripts/jarvis-sanity-check.mjs
  *
  * The checker focuses on cheap failures that are easy to introduce in the
- * current patch-heavy architecture: missing local assets, duplicate exact
- * script/style references, and known high-risk duplicated authority families.
+ * current patch-heavy architecture: missing local assets, missing cache-busts
+ * on browser-loaded JS/CSS, duplicate exact script/style references, and known
+ * high-risk duplicated authority families.
  */
 
 import fs from 'node:fs';
@@ -28,11 +29,19 @@ const html = fs.readFileSync(indexPath, 'utf8');
 const refs = [...html.matchAll(/(?:src|href)=["'](\.[^"']+)["']/g)].map(m => m[1]);
 const localRefs = refs.filter(ref => !ref.startsWith('./src/') && !ref.includes('://'));
 const missing = [];
+const cacheBustWarnings = [];
 
 for (const ref of localRefs) {
   const clean = ref.split('?')[0].split('#')[0];
   const target = path.join(root, clean.replace(/^\.\//, ''));
   if (!fs.existsSync(target)) missing.push(ref);
+
+  // Browser-loaded source assets should be cache-busted. Vite's hashed assets
+  // already carry content hashes and therefore do not need a query parameter.
+  if (/\.(?:js|css)$/i.test(clean) && !clean.includes('/assets/')) {
+    const query = ref.includes('?') ? ref.slice(ref.indexOf('?') + 1).split('#')[0] : '';
+    if (!/[?&]v=[^&#]+/i.test(`?${query}`)) cacheBustWarnings.push(ref);
+  }
 }
 
 const exactRefs = new Map();
@@ -59,6 +68,10 @@ for (const [label, pattern] of authorityFamilies) {
   if (matches.length > 1) {
     warnings.push(`${label}: ${matches.length} loaded files (${matches.join(', ')})`);
   }
+}
+
+if (cacheBustWarnings.length) {
+  warnings.push(`browser JS/CSS without ?v= cache-bust: ${cacheBustWarnings.join(', ')}`);
 }
 
 console.log(`JARVIS sanity: ${refs.length} local/relative asset references inspected.`);
