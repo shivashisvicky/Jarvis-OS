@@ -4,9 +4,9 @@
   window.__JARVIS_IMAGE_STUDIO__ = true;
 
   const ENDPOINT = 'https://jarvis-image-test.shivashisvicky112.workers.dev/api/image';
+  const ENHANCE_ENDPOINT = 'https://jarvis-image-test.shivashisvicky112.workers.dev/api/enhance';
   const state = { file: null, mimeType: 'image/jpeg', base64: '', originalBase64: '', originalMimeType: 'image/jpeg', mode: 'edit', operation: 'enhance', result: null, sourceWidth: 0, sourceHeight: 0 };
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
-
   const presets = {
     enhance: 'Enhance this image while preserving the exact subject, identity, composition, framing, and important details. Improve clarity, fine detail, dynamic range, exposure, natural color, and realistic lighting. Reduce noise and compression artifacts. Keep the result photorealistic and do not invent or remove meaningful objects.',
     restore: 'Restore this photograph carefully. Remove scratches, dust, noise, blur, and obvious compression damage while preserving the original people, faces, clothing, architecture, composition, and historical character. Recover natural detail and balanced color without making it look artificial.',
@@ -35,16 +35,7 @@
           const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
           const quality = mime === 'image/jpeg' ? 0.88 : undefined;
           const packedUrl = canvas.toDataURL(mime, quality);
-          resolve({
-            originalUrl,
-            originalBase64: originalUrl.split(',')[1],
-            originalMimeType: file.type || 'image/jpeg',
-            url: packedUrl,
-            base64: packedUrl.split(',')[1],
-            mimeType: mime,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-          });
+          resolve({ originalUrl, originalBase64: originalUrl.split(',')[1], originalMimeType: file.type || 'image/jpeg', url: packedUrl, base64: packedUrl.split(',')[1], mimeType: mime, width: img.naturalWidth, height: img.naturalHeight });
         };
         img.src = originalUrl;
       };
@@ -58,8 +49,7 @@
     const scale = Math.min(1, max / Math.max(width, height));
     const scaledWidth = width * scale;
     const scaledHeight = height * scale;
-    let outWidth;
-    let outHeight;
+    let outWidth, outHeight;
     if (scaledWidth >= scaledHeight) {
       outWidth = Math.max(256, Math.min(1024, Math.round(scaledWidth / 64) * 64));
       outHeight = Math.max(256, Math.min(1024, Math.round((outWidth * height / width) / 64) * 64));
@@ -73,27 +63,15 @@
   function render() {
     const host = document.querySelector('#visionLab');
     if (!host) return;
-    host.innerHTML = `<div class="vision-toolbar" role="tablist" aria-label="Vision mode">
-      <button type="button" class="vision-chip ${state.mode === 'edit' ? 'active' : ''}" data-mode="edit">ENHANCE / EDIT</button>
-      <button type="button" class="vision-chip ${state.mode === 'generate' ? 'active' : ''}" data-mode="generate">GENERATE</button>
-    </div>
-    <div class="vision-grid">
-      <section class="vision-card">
-        <h3>${state.mode === 'edit' ? 'Source image' : 'Creative brief'}</h3>
-        ${state.mode === 'edit' ? `<label class="vision-drop" id="visionDrop"><input id="visionFile" type="file" accept="image/jpeg,image/png,image/webp"><span><strong>${state.file ? esc(state.file.name) : 'DROP AN IMAGE OR TAP TO CHOOSE'}</strong><small>${state.file ? `${state.file.type || 'image'} · ready for JARVIS Vision` : 'JPG, PNG or WebP · processed in memory only'}</small></span></label><div id="visionSourcePreview" style="margin-top:10px"></div>` : `<div class="vision-empty"><div><strong>Describe what you want JARVIS to create.</strong><br><small>No source image required.</small></div></div>`}
-        <div style="margin-top:12px">
-          <textarea id="visionPrompt" class="vision-prompt" placeholder="Tell JARVIS what to change…">${esc(state.prompt || (state.mode === 'edit' ? presets.enhance : 'A cinematic, photorealistic scene of a futuristic personal AI workspace at night, subtle blue interface glow, premium industrial design, wide composition.'))}</textarea>
-        </div>
-        ${state.mode === 'edit' ? `<div class="vision-toolbar" style="margin-top:10px">${Object.keys(presets).map(key => `<button type="button" class="vision-chip" data-preset="${key}">${key.toUpperCase()}</button>`).join('')}</div>` : ''}
-        <div class="vision-actions"><button type="button" class="primary" id="visionRun">${state.mode === 'generate' ? 'GENERATE IMAGE' : state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'}</button><button type="button" class="secondary" id="visionClear">CLEAR</button></div>
-        <div class="vision-status" id="visionStatus">${state.file ? 'SOURCE READY' : state.mode === 'edit' ? 'WAITING FOR IMAGE' : 'READY'}</div>
-        <div class="vision-note">ENHANCE uses a faithful Cloudflare Images pipeline that preserves the source pixels and framing. EDIT / GENERATE use the isolated TEST Workers AI model.</div>
-      </section>
-      <section class="vision-card vision-result-wrap">
-        <h3>JARVIS result</h3>
-        <div id="visionResult">${state.result ? `<img class="vision-preview" src="${state.result}" alt="JARVIS generated result"><a class="secondary vision-download" download="jarvis-vision-result.png" href="${state.result}">SAVE</a>` : '<div class="vision-empty">Your enhanced or generated image will appear here.</div>'}</div>
-      </section>
-    </div>`;
+    host.innerHTML = `<div class="vision-toolbar" role="tablist" aria-label="Vision mode"><button type="button" class="vision-chip ${state.mode === 'edit' ? 'active' : ''}" data-mode="edit">ENHANCE / EDIT</button><button type="button" class="vision-chip ${state.mode === 'generate' ? 'active' : ''}" data-mode="generate">GENERATE</button></div>
+    <div class="vision-grid"><section class="vision-card"><h3>${state.mode === 'edit' ? 'Source image' : 'Creative brief'}</h3>
+    ${state.mode === 'edit' ? `<label class="vision-drop" id="visionDrop"><input id="visionFile" type="file" accept="image/jpeg,image/png,image/webp"><span><strong>${state.file ? esc(state.file.name) : 'DROP AN IMAGE OR TAP TO CHOOSE'}</strong><small>${state.file ? `${state.file.type || 'image'} · ready for JARVIS Vision` : 'JPG, PNG or WebP · processed in memory only'}</small></span></label><div id="visionSourcePreview" style="margin-top:10px"></div>` : `<div class="vision-empty"><div><strong>Describe what you want JARVIS to create.</strong><br><small>No source image required.</small></div></div>`}
+    <div style="margin-top:12px"><textarea id="visionPrompt" class="vision-prompt" placeholder="Tell JARVIS what to change…">${esc(state.prompt || (state.mode === 'edit' ? presets.enhance : 'A cinematic, photorealistic scene of a futuristic personal AI workspace at night, subtle blue interface glow, premium industrial design, wide composition.'))}</textarea></div>
+    ${state.mode === 'edit' ? `<div class="vision-toolbar" style="margin-top:10px">${Object.keys(presets).map(key => `<button type="button" class="vision-chip" data-preset="${key}">${key.toUpperCase()}</button>`).join('')}</div>` : ''}
+    <div class="vision-actions"><button type="button" class="primary" id="visionRun">${state.mode === 'generate' ? 'GENERATE IMAGE' : state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'}</button><button type="button" class="secondary" id="visionClear">CLEAR</button></div>
+    <div class="vision-status" id="visionStatus">${state.file ? 'SOURCE READY' : state.mode === 'edit' ? 'WAITING FOR IMAGE' : 'READY'}</div>
+    <div class="vision-note">ENHANCE uses a dedicated faithful Cloudflare Images pipeline. It does not invoke the generative model. EDIT / GENERATE use the isolated TEST Workers AI model.</div></section>
+    <section class="vision-card vision-result-wrap"><h3>JARVIS result</h3><div id="visionResult">${state.result ? `<img class="vision-preview" src="${state.result}" alt="JARVIS generated result"><a class="secondary vision-download" download="jarvis-vision-result.png" href="${state.result}">SAVE</a>` : '<div class="vision-empty">Your enhanced or generated image will appear here.</div>'}</div></section></div>`;
     bind();
     if (state.file && state.sourceUrl) {
       const el = document.querySelector('#visionSourcePreview');
@@ -109,9 +87,7 @@
     try {
       setStatus('PREPARING IMAGE…');
       const packed = await compress(file);
-      state.file = file; state.sourceUrl = packed.originalUrl; state.base64 = packed.base64; state.mimeType = packed.mimeType;
-      state.originalBase64 = packed.originalBase64; state.originalMimeType = packed.originalMimeType;
-      state.sourceWidth = packed.width; state.sourceHeight = packed.height; state.operation = 'enhance'; state.result = null;
+      state.file = file; state.sourceUrl = packed.originalUrl; state.base64 = packed.base64; state.mimeType = packed.mimeType; state.originalBase64 = packed.originalBase64; state.originalMimeType = packed.originalMimeType; state.sourceWidth = packed.width; state.sourceHeight = packed.height; state.operation = 'enhance'; state.result = null;
       render();
     } catch (error) { setStatus(error?.message || 'IMAGE PREPARATION FAILED'); }
   }
@@ -125,89 +101,40 @@
     if (button) { button.disabled = true; button.textContent = 'PROCESSING…'; }
     setStatus(state.mode === 'generate' ? 'JARVIS IS CREATING…' : state.operation === 'enhance' ? 'JARVIS IS ENHANCING…' : 'JARVIS IS EDITING…');
     try {
-      let payload;
+      let payload, endpoint = ENDPOINT;
       if (state.mode === 'generate') {
         payload = { mode: 'generate', prompt, width: 1024, height: 768 };
       } else if (state.operation === 'enhance') {
-        payload = {
-          mode: 'edit',
-          operation: 'enhance',
-          prompt,
-          image: state.originalBase64,
-          mimeType: state.originalMimeType,
-        };
+        endpoint = ENHANCE_ENDPOINT;
+        payload = { prompt, image: state.originalBase64, mimeType: state.originalMimeType };
       } else {
         const dimensions = outputDimensions(state.sourceWidth, state.sourceHeight);
-        const targetAspect = state.sourceWidth && state.sourceHeight
-          ? (state.sourceWidth / state.sourceHeight).toFixed(4)
-          : '';
+        const targetAspect = state.sourceWidth && state.sourceHeight ? (state.sourceWidth / state.sourceHeight).toFixed(4) : '';
         const effectivePrompt = `${prompt}\n\nPreserve the original aspect ratio (${targetAspect}:1) exactly. Do not crop, reframe, zoom, rotate, or change the camera composition unless explicitly requested. Keep the positions of all meaningful objects unchanged.`;
         payload = { mode: 'edit', prompt: effectivePrompt, ...dimensions, image: state.base64, mimeType: state.mimeType };
       }
-
-      const response = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || `Vision service returned HTTP ${response.status}`);
       if (!data?.image?.data) throw new Error('JARVIS returned no image.');
       state.result = `data:${data.image.mimeType || 'image/png'};base64,${data.image.data}`;
       render();
-      setStatus('VISION COMPLETE');
+      setStatus(data?.faithful ? `ENHANCE COMPLETE · ${data.image.width}×${data.image.height} · FAITHFUL` : 'VISION COMPLETE');
     } catch (error) {
       setStatus(error?.message || 'VISION FAILED');
-      if (button) {
-        button.disabled = false;
-        button.textContent = state.mode === 'generate' ? 'GENERATE IMAGE' : state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE';
-      }
+      if (button) { button.disabled = false; button.textContent = state.mode === 'generate' ? 'GENERATE IMAGE' : state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'; }
     }
   }
 
   function bind() {
-    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
-      state.mode = button.dataset.mode === 'generate' ? 'generate' : 'edit';
-      state.operation = state.mode === 'edit' ? 'enhance' : 'generate';
-      state.result = null;
-      state.prompt = '';
-      render();
-    }));
-    document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => {
-      const key = button.dataset.preset;
-      const prompt = document.querySelector('#visionPrompt');
-      if (prompt) prompt.value = presets[key] || presets.enhance;
-      state.prompt = prompt?.value || '';
-      state.operation = key === 'enhance' ? 'enhance' : 'edit';
-      const runButton = document.querySelector('#visionRun');
-      if (runButton) runButton.textContent = state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE';
-    }));
-    document.querySelector('#visionPrompt')?.addEventListener('input', event => {
-      if (state.mode !== 'edit') return;
-      state.operation = event.currentTarget.value.trim() === presets.enhance ? 'enhance' : 'edit';
-      const runButton = document.querySelector('#visionRun');
-      if (runButton) runButton.textContent = state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE';
-    });
+    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { state.mode = button.dataset.mode === 'generate' ? 'generate' : 'edit'; state.operation = state.mode === 'edit' ? 'enhance' : 'generate'; state.result = null; state.prompt = ''; render(); }));
+    document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => { const key = button.dataset.preset; const prompt = document.querySelector('#visionPrompt'); if (prompt) prompt.value = presets[key] || presets.enhance; state.prompt = prompt?.value || ''; state.operation = key === 'enhance' ? 'enhance' : 'edit'; const runButton = document.querySelector('#visionRun'); if (runButton) runButton.textContent = state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'; }));
+    document.querySelector('#visionPrompt')?.addEventListener('input', event => { if (state.mode !== 'edit') return; state.operation = event.currentTarget.value.trim() === presets.enhance ? 'enhance' : 'edit'; const runButton = document.querySelector('#visionRun'); if (runButton) runButton.textContent = state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'; });
     document.querySelector('#visionFile')?.addEventListener('change', event => chooseFile(event.target.files?.[0]));
     const drop = document.querySelector('#visionDrop');
-    if (drop) {
-      ['dragenter','dragover'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('drag'); }));
-      ['dragleave','drop'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('drag'); }));
-      drop.addEventListener('drop', e => chooseFile(e.dataTransfer?.files?.[0]));
-    }
+    if (drop) { ['dragenter','dragover'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('drag'); })); ['dragleave','drop'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('drag'); })); drop.addEventListener('drop', e => chooseFile(e.dataTransfer?.files?.[0])); }
     document.querySelector('#visionRun')?.addEventListener('click', () => void run());
-    document.querySelector('#visionClear')?.addEventListener('click', () => {
-      state.file = null;
-      state.base64 = '';
-      state.originalBase64 = '';
-      state.sourceUrl = '';
-      state.result = null;
-      state.prompt = '';
-      state.sourceWidth = 0;
-      state.sourceHeight = 0;
-      state.operation = 'enhance';
-      render();
-    });
+    document.querySelector('#visionClear')?.addEventListener('click', () => { state.file = null; state.base64 = ''; state.originalBase64 = ''; state.sourceUrl = ''; state.result = null; state.prompt = ''; state.sourceWidth = 0; state.sourceHeight = 0; state.operation = 'enhance'; render(); });
   }
 
   window.jarvisInitImageStudio = () => render();
