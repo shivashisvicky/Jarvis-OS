@@ -110,7 +110,7 @@ export default async function handler(req, res) {
 
     const chunks = candidate?.groundingMetadata?.groundingChunks || [];
     const sources = chunks.filter(chunk => chunk?.web?.uri).slice(0, 6).map(chunk => ({ title: String(chunk.web.title || chunk.web.uri), uri: String(chunk.web.uri) }));
-    return res.status(200).json({ text: JSON.stringify(plan || text), ...(spatial ? { plan } : {}), model, provider: 'gemini', grounded: sources.length > 0, sources });
+    return res.status(200).json({ text: spatial ? JSON.stringify(plan) : text, ...(spatial ? { plan } : {}), model, provider: 'gemini', grounded: sources.length > 0, sources });
   } catch (error) {
     return res.status(502).json({ error: error instanceof Error ? error.message : 'Intelligence gateway failed' });
   }
