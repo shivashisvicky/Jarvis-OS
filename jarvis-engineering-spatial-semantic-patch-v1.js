@@ -13,7 +13,7 @@ function patchSafeLoader(code){
 function patch(code){
  if(!code.includes('function applyPlan(plan){'))return code;
  const promptNeedle='Keep names semantic. Never output executable code.';
- const promptPatch='Keep names semantic. Never output executable code. For any modification of an existing scene, add a target field naming the intended object or semantic group from the current scene, for example target:"monitor", target:"legs", or target:"desk". Use the actual semantic object names when possible. Plural targets such as legs or shelves may intentionally match multiple objects. Never rely on selection when the user explicitly names a target.';
+ const promptPatch='Keep names semantic. Never output executable code. For any modification of an existing scene, add a target field naming the intended object or semantic group from the current scene, for example target:"monitor", target:"legs", or target:"desk". Use the actual semantic object names when possible. Plural targets such as legs or shelves may intentionally match multiple objects. Never rely on selection when the user explicitly names a target. For bicycles, represent front_wheel and rear_wheel as cylinders with a radius and small thickness, place both at the same ground height, and rotate each wheel 90 degrees around X so the cylinder axis is perpendicular to the wheel plane. Keep the frame between the wheels and place the seat and handlebars above the frame at recognizable bicycle positions.';
  code=code.replace(promptNeedle,promptPatch);
  const start=code.indexOf('function selected(){');
  const end=code.indexOf('async function run(',start);
