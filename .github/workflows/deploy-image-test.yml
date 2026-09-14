@@ -50,5 +50,8 @@ jobs:
       - name: Smoke test endpoint
         run: |
           set -euo pipefail
-          endpoint='https://jarvis-image-test.${CLOUDFLARE_ACCOUNT_ID}.workers.dev/api/image'
-          echo "TEST worker deployed. Endpoint path smoke is deferred to the browser because the workers.dev subdomain is account-configured."
+          endpoint='https://jarvis-image-test.shivashisvicky112.workers.dev/api/image'
+          status=$(curl --silent --show-error --output /tmp/jarvis-image-smoke.json --write-out '%{http_code}' -H 'Origin: https://shivashisvicky.github.io' -H 'Content-Type: application/json' -X POST "$endpoint" --data '{}')
+          cat /tmp/jarvis-image-smoke.json
+          test "$status" = 400
+          echo "VISION_WORKER_ROUTE_SMOKE=PASS http=$status"
