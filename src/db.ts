@@ -1,4 +1,4 @@
-export type AppId = 'home'|'calculator'|'snake'|'files'|'notes'|'settings'|'api'|'remote'|'web'|'maps'|'media'|'engineeringBay';
+export type AppId = 'home'|'calculator'|'snake'|'files'|'notes'|'settings'|'api'|'remote'|'web'|'maps'|'media'|'engineeringBay'|'image';
 export interface Note { id:number; text:string; created:number }
 
 const dbName='jarvis-os';
