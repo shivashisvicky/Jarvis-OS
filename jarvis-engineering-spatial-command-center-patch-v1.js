@@ -3,22 +3,26 @@
 if(window.__JARVIS_SPATIAL_COMMAND_CENTER_PATCH_V1__)return;
 window.__JARVIS_SPATIAL_COMMAND_CENTER_PATCH_V1__=true;
 
-// Keep the Spatial Command Center's Enter key exactly equivalent to ASK JARVIS.
-document.addEventListener('keydown',e=>{
-  if(e.key!=='Enter'||e.shiftKey)return;
-  const input=e.target?.closest?.('#jbaiCommand');
-  if(!(input instanceof HTMLInputElement))return;
+// Make keyboard submission use the exact same button path as ASK JARVIS.
+const submitFromEnter=e=>{
+  const key=e.key||'';
+  const code=e.keyCode||e.which||0;
+  if((key!=='Enter'&&code!==13)||e.shiftKey)return;
+  const input=e.target;
+  if(!input?.matches?.('#jbaiCommand'))return;
   const button=document.querySelector('#jbaiRun');
-  if(!(button instanceof HTMLButtonElement))return;
+  if(!button?.matches?.('button'))return;
   e.preventDefault();
   e.stopImmediatePropagation();
   button.click();
-},true);
+};
+document.addEventListener('keydown',submitFromEnter,true);
+document.addEventListener('keypress',submitFromEnter,true);
 
 // Bicycle requests use a deterministic local assembly so the geometry remains recognizable
 // and does not depend on Gemini choosing wheel dimensions/orientation correctly.
 const previousFetch=window.fetch.bind(window);
-const spatialSource=/jarvis-engineering-spatial-ai-v1\\.js(?:\\?|$)/i;
+const spatialSource=/jarvis-engineering-spatial-ai-v1\.js(?:\?|$)/i;
 window.fetch=async function(input,init){
   let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}
   const res=await previousFetch(input,init);
@@ -26,7 +30,7 @@ window.fetch=async function(input,init){
   const code=await res.text();
   const needle='const conv=x=>x.n*(unitToM[x.u]||1),low=q.toLowerCase();let type=';
   if(!code.includes(needle))return new Response(code,{status:res.status,statusText:res.statusText,headers:res.headers});
-  const bicycle=`const conv=x=>x.n*(unitToM[x.u]||1),low=q.toLowerCase();if(/\\b(bicycle|bike)\\b/i.test(low)){const metal='metal',black='black';return{operations:[
+  const bicycle=`const conv=x=>x.n*(unitToM[x.u]||1),low=q.toLowerCase();if(/\b(bicycle|bike)\b/i.test(low)){const metal='metal',black='black';return{operations:[
 {op:'create',type:'cylinder',name:'rear_wheel',dimensions:{radius:.36,height:.06},position:{x:-.75,y:.36,z:0},rotation:{x:90,y:0,z:0},material:black},
 {op:'create',type:'cylinder',name:'front_wheel',dimensions:{radius:.36,height:.06},position:{x:.75,y:.36,z:0},rotation:{x:90,y:0,z:0},material:black},
 {op:'create',type:'box',name:'rear_chainstay',dimensions:{width:.573,height:.05,depth:.05},position:{x:-.475,y:.44,z:0},rotation:{x:0,y:0,z:16.2},material:metal},
