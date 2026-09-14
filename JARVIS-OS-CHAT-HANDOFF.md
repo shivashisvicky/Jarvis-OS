@@ -1,113 +1,142 @@
 # JARVIS OS Chat Handoff
 
-> Purpose: paste this file/link into a new ChatGPT conversation when the previous chat becomes too long. This is the working context for the Jarvis OS project, not a generic README.
+> Purpose: use this file when a JARVIS conversation reaches its context limit. It is a durable continuation pointer, not a replacement for subsystem handoffs.
 
-## Project
+## Current project state
+
 - Repo: `shivashisvicky/Jarvis-OS`
-- Deployment: GitHub Pages / `shivashisvicky.github.io`
-- Current priority: preserve the stable cross-device baseline and make one controlled improvement at a time.
-- User prefers actual code changes + GitHub push + CI verification, not repeated theoretical explanations.
+- Active development: `test/jarvis-intelligence-next`
+- PROD: `prod/2026-09-06-stable`
+- `main`: production source; never use it as an experiment branch.
+- TEST URL: `https://shivashisvicky.github.io/Jarvis-OS/test/`
+- User tests primarily on iOS Safari.
 
-## Stable baseline status
-The app is currently in a good usable state across iOS, Android, Moto/Samsung, and Windows.
+## Mandatory first reads
 
-Confirmed working recently:
-- App opens on iOS and Android without freezing at startup.
-- Voice input works.
-- Spoken JARVIS responses work on iOS after the latest voice lifecycle fix.
-- Orange microphone/dynamic-island stuck state was fixed in the latest stable baseline.
-- After a bad/noisy voice transcription, the app no longer permanently dies and can accept another command.
-- Text field clears after commands.
-- Videos/media search works.
-- Books load correctly and without noticeable delays.
-- Maps routing/search is working, although earlier UI glitches around the transient map view were fixed.
-- `take me to Jagannath nagar` has worked in the stable baseline.
-- `show me restaurants in Jagannath nagar` works.
-- `what time is it` returns the correct written + spoken response.
-- Conversational color-choice prompts such as `pick red or blue` / `black or blue` were improved so they no longer have to be exact hardcoded phrases.
-- Search Hub query handling was fixed so phrases such as `search the internet for black or yellow` are treated as the intended query rather than searching for the literal phrase `the internet`.
-- Search Hub returned relevant results for `cabs` after the last search fix.
+1. `JARVIS-AI-START-HERE.md`
+2. `JARVIS-ARCHITECTURE.md`
+3. `JARVIS-BASELINES.md`
+4. `JARVIS-FUTURE-ROADMAP-2026.md`
+5. `JARVIS-DOCS-INDEX.md`
+6. Relevant subsystem handoff.
 
-## Important voice-history finding
-There was a recurring iOS issue where:
-- first voice command could produce a written response but no spoken response;
-- typing one command manually could activate the speech path, after which voice responses worked;
-- in some revisions the microphone remained active/orange and required a browser refresh.
+## Non-negotiable engineering behavior
 
-The eventual stable fix was to treat voice/speech lifecycle as an explicit authority and preload the voice feature before the first microphone gesture, while correctly stopping recognition after each voice interaction. Do NOT regress this by tying speech activation to text submission.
+- Never modify PROD/main for TEST work.
+- Never call a deployment green without checking Actions.
+- Never assume green CI means behavioral correctness.
+- Prefer small, reversible changes.
+- Identify the authoritative owner before editing.
+- Do not stack global interceptors to solve local failures.
+- Do not casually roll back to historical commits.
+- Cache-bust changed browser assets in `index.html`.
+- Preserve user-verified behavior.
 
-A temporary activation/control button was experimented with. It proved useful for diagnosis but was not intended as the final UI. The stable baseline eventually worked without requiring the user to press that button.
+## Current verified feature state
 
-## Voice/device observations
-- iOS and Windows voices currently sound best.
-- Samsung sometimes used a female voice; this may be Android/system persona/TTS selection rather than an app bug.
-- Moto has shown different voices at different times.
-- Do not add an in-app accent/speech-rate selector unless there is a strong technical reason. The current goal is stable global TTS behavior, not UI controls.
+### Maps
 
-## Command routing philosophy
-JARVIS should behave like an intent-aware assistant, not a pile of exact string matches.
+Maps has surface-specific authority and result-set/ordinal handling. Preserve the rule that fresh Maps-owned results outrank stale generic context. Known regression history includes Delhi location freshness and terminal punctuation in chain commands.
 
-Examples:
-- `pick red or blue`
-- `pick black or white`
-- `black or yellow`
-- `choose black or blue`
+### Books / Reader
 
-These should remain conversational Command Center interactions and should NOT fall through to Search Hub merely because wording changed slightly.
+Books/Reader has mature entity, Gutenberg, context and reader handoff logic. Preserve exact BookRecord/Gutenberg identity across the search-to-reader handoff. Do not create a second Reader owner or let background hydration race an active command chain.
 
-Search Hub should primarily handle actual web-search intent, e.g.:
-- `search the internet for ...`
-- `search the web for ...`
-- `find ... online`
+### Media / YouTube
 
-Do not route ordinary conversational requests to Search Hub as a fallback just because the parser is uncertain. Prefer Command Center conversational handling where the request is clearly non-search.
+Media search and ordinal follow-ups are part of the protected cross-surface behavior. Avoid unrelated routing changes when fixing other surfaces.
 
-## Search Hub recent fix
-The Search Hub previously produced unrelated results for `search the internet for black or yellow`, including Internet/WhatsApp/provider pages. The likely issue was query normalization/provider parameter handling.
+### Voice
 
-The working direction is:
-1. strip search wrapper language (`search`, `search the internet for`, `search the web for`, etc.)
-2. send only the semantic query to the backend/search provider
-3. preserve the selected provider identity in the UI
-4. never let a backend fallback/source label overwrite the user's selected provider label
+Voice is an explicit lifecycle authority. Do not tie speech activation to text submission. Success/error/timeout/cancellation paths must release recognition/microphone state and return the UI to idle.
 
-Do not casually rewrite the entire search stack. Keep changes isolated.
+### Spatial 3D
 
-## Maps
-Known earlier failure mode:
-- voice command `take me to Jagannath nagar` displayed `opening map...`, briefly showed the map, then disappeared.
-- a direct Maps page search was working correctly with Jagannath Nagar / Bhubaneswar and OpenStreetMap rendering.
+Known-good behavioral reference:
 
-Routing was subsequently fixed. Preserve the existing map behavior and do not regress it while changing Command Center routing.
+`c3f0a455becc20231211ed52877f778a153be64c`
 
-## UI notes
-- The floating `STOP VOICE` control can overlap lower content on some viewport sizes. This was observed as a small UI glitch, not a core functional failure.
-- The command input field should clear after every submitted command so follow-up questions can be entered immediately.
-- Avoid adding diagnostic controls to the final UI unless they are truly needed.
+User-verified desk behavior includes creation and follow-up move/resize/material/rotate/delete commands. Later TEST work added deterministic desk fallback, selection/precision resizing, torus/lathe geometry, bicycle, motorcycle and curved-object support.
 
-## Development strategy
-The user explicitly wants a disciplined baseline strategy:
-1. Freeze a known-good baseline.
-2. Make one narrowly scoped change.
-3. Push to GitHub.
-4. Let GitHub Actions build/deploy.
-5. Test on iOS first, then Android/Moto/Samsung/Windows where relevant.
-6. If it fails, compare with the last known-good revision rather than stacking another speculative fix.
-7. Never replace a stable subsystem with a broad rewrite just to solve one symptom.
+Read `JARVIS-SPATIAL-TEST-HANDOFF-20260914.md` before changing Spatial.
 
-## Current phase direction
-The next work should improve command/intention handling and overall polish while preserving voice stability, search, maps, media, books, and cross-device startup.
+### Vision Lab
 
-The user has described the next phase as making JARVIS feel more furnished and less hardcoded, especially around conversational follow-ups and routing.
+As of 2026-09-14 the user has verified:
 
-## Recent commits / useful evidence
-- A recent stable search-related deployment successfully handled `cabs` in Search Hub.
-- A recent voice lifecycle deployment successfully removed the persistent orange mic state and restored spoken responses without requiring a text command first.
-- When a CI run fails, inspect the exact GitHub Actions job before making another change. Do not assume rate limiting or quota is the cause without evidence.
+- faithful Enhance;
+- exact 4032×2268 output for a 4032×2268 source;
+- preserved framing/composition;
+- working iPhone Save.
 
-## How to continue in a new ChatGPT conversation
+Architecture:
+
+```text
+Enhance -> /api/enhance -> Cloudflare Images
+Edit/Generate -> /api/image -> isolated TEST Workers AI
+```
+
+Do not merge these paths.
+
+Read `JARVIS-IMAGE-TEST-HANDOFF-20260914.md` before changing Vision.
+
+### Engineering Bay
+
+Legacy Engineering Bay Image Intelligence has been retired from the visible TEST surface because Vision Lab is the canonical image-intelligence surface. Underlying legacy code was intentionally not deleted yet.
+
+## Product direction
+
+JARVIS is evolving toward one intelligent operating environment rather than a launcher of mini-apps.
+
+The most important future primitives are:
+
+- Command
+- Context
+- Result Set
+- Action
+
+The most important future experiences are cross-module continuity, e.g. Maps result -> task, Vision result -> file, Books -> voice, or a Spatial object -> follow-up manipulation.
+
+Do not optimize for feature count. Optimize for continuity of intent.
+
+## Current roadmap priority
+
+### P0
+
+- unified command lifecycle;
+- unified result-set/context contract;
+- cross-surface ordinal framework;
+- command observability;
+- regression gate.
+
+### P1
+
+- deepen Maps, Books/Reader, Media, Vision and Spatial;
+- validate remaining Vision modes;
+- stabilize current Spatial matrix;
+- improve voice lifecycle.
+
+### P2
+
+- Personal Memory/Knowledge;
+- Workbench/Tasks;
+- Automations/Watchers;
+- intelligent Files;
+- Device/Remote control;
+- camera/vision awareness;
+- unified personal dashboard.
+
+See `JARVIS-FUTURE-ROADMAP-2026.md` for the detailed plan.
+
+## How to continue after context loss
+
 Start with:
 
-`Continue JARVIS OS from JARVIS-OS-CHAT-HANDOFF.md. Treat the current GitHub main branch as the frozen baseline unless I explicitly say otherwise. Do not repeat old plans. First inspect the current repo/Actions state, then work on the next narrowly scoped fix.`
+```text
+Continue JARVIS OS from JARVIS-AI-START-HERE.md.
+Read JARVIS-ARCHITECTURE.md, JARVIS-BASELINES.md and JARVIS-FUTURE-ROADMAP-2026.md first.
+Inspect the current TEST branch and GitHub Actions state before changing anything.
+Preserve user-verified behavior and never touch PROD/main unless explicitly requested.
+```
 
-Then provide the newest failing GitHub Actions URL or screenshot if one exists.
+Then inspect the relevant subsystem handoff before acting.
