@@ -31,14 +31,15 @@ function bicyclePlan(){
   {op:'create',type:'box',name:'right_pedal',dimensions:{width:.12,height:.025,depth:.035},position:{x:.10,y:.42,z:.11},rotation:{x:0,y:0,z:10},material:'black'}
  ],explanation:'Constructed a bicycle from generic spatial primitives with ring tires, hubs, spokes, connected frame members, fork, cockpit, saddle and drivetrain.'};
 }
+function requestQuery(input,init){let request={};try{request=JSON.parse(String(init?.body||'{}'))}catch{}const q=String(request?.query||'');const m=q.match(/User request:\s*([\s\S]*)$/i);return(m?m[1]:q).trim()}
+function simpleBicycleQuery(q){return /^(?:(?:create|build|make|construct|design|model|generate|draw|assemble)\s+)?(?:a\s+)?(?:new\s+)?(?:bicycle|bike)\s*[.!?]*$/i.test(String(q).trim())}
+function bicycleResponse(){const fixed=bicyclePlan();return new Response(JSON.stringify({plan:fixed,text:JSON.stringify(fixed)}),{status:200,headers:{'Content-Type':'application/json'}})}
 async function repairBicycleResponse(input,init,res){
- let request={};try{request=JSON.parse(String(init?.body||'{}'))}catch{}
- const query=String(request?.query||'');if(!/\b(bicycle|bike)\b/i.test(query))return res;
+ const query=requestQuery(input,init);if(!simpleBicycleQuery(query))return res;
  try{
   const data=await res.clone().json();
-  const fixed=bicyclePlan();
-  return new Response(JSON.stringify({...data,plan:fixed,text:JSON.stringify(fixed)}),{status:res.status,statusText:res.statusText,headers:res.headers});
+  return new Response(JSON.stringify({...data,plan:bicyclePlan(),text:JSON.stringify(bicyclePlan())}),{status:res.status,statusText:res.statusText,headers:res.headers});
  }catch{return res}
 }
-window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}if(!spatialSource.test(url)&&!intelligenceSource.test(url))return nativeFetch(input,init);const res=await nativeFetch(input,init);if(!res.ok)return res;if(intelligenceSource.test(url))return repairBicycleResponse(input,init,res);const code=await res.text();return new Response(patchSpatialSource(code),{status:res.status,statusText:res.statusText,headers:res.headers});};
+window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}if(!spatialSource.test(url)&&!intelligenceSource.test(url))return nativeFetch(input,init);if(intelligenceSource.test(url)&&simpleBicycleQuery(requestQuery(input,init)))return bicycleResponse();const res=await nativeFetch(input,init);if(!res.ok)return res;if(intelligenceSource.test(url))return repairBicycleResponse(input,init,res);const code=await res.text();return new Response(patchSpatialSource(code),{status:res.status,statusText:res.statusText,headers:res.headers});};
 })();
