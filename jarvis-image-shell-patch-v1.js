@@ -3,7 +3,7 @@
   if (window.__JARVIS_IMAGE_SHELL__) return;
   window.__JARVIS_IMAGE_SHELL__ = true;
   const CSS = './jarvis-image-studio.css?v=20260914-vision-v3';
-  const JS = './jarvis-image-studio.js?v=20260914-vision-v3';
+  const JS = './jarvis-image-studio.js?v=20260914-vision-v4';
   let assets = null;
   const loadAssets = () => {
     if (window.jarvisInitImageStudio) return Promise.resolve();
