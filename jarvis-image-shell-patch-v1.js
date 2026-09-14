@@ -3,41 +3,25 @@
   if (window.__JARVIS_IMAGE_SHELL__) return;
   window.__JARVIS_IMAGE_SHELL__ = true;
   const CSS = './jarvis-image-studio.css?v=20260914-vision-v3';
-  const JS = './jarvis-image-studio.js?v=20260914-vision-v5';
-  const SAVE_PATCH = './jarvis-image-save-patch-v1.js?v=20260914-vision-save-v1';
+  const JS = './jarvis-image-studio.js?v=20260914-vision-v6';
   let assets = null;
   const loadAssets = () => {
-    if (window.jarvisInitImageStudio && window.__JARVIS_IMAGE_SAVE_PATCH__) return Promise.resolve();
+    if (window.jarvisInitImageStudio) return Promise.resolve();
     if (assets) return assets;
     assets = new Promise((resolve, reject) => {
       try {
         if (!document.querySelector('link[data-jarvis-vision-css]')) {
           const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = CSS; l.dataset.jarvisVisionCss = '1'; document.head.appendChild(l);
         }
-        const loadSavePatch = () => {
-          if (window.__JARVIS_IMAGE_SAVE_PATCH__) return resolve();
-          const existingPatch = document.querySelector('script[data-jarvis-vision-save-js]');
-          if (existingPatch) {
-            if (window.__JARVIS_IMAGE_SAVE_PATCH__) return resolve();
-            existingPatch.addEventListener('load', () => resolve(), { once: true });
-            existingPatch.addEventListener('error', () => reject(new Error('Vision Save script failed to load.')), { once: true });
-            return;
-          }
-          const p = document.createElement('script'); p.src = SAVE_PATCH; p.async = false; p.dataset.jarvisVisionSaveJs = '1';
-          p.onload = () => window.__JARVIS_IMAGE_SAVE_PATCH__ ? resolve() : reject(new Error('Vision Save patch initialized without its entry point.'));
-          p.onerror = () => reject(new Error('Vision Save script failed to load.'));
-          document.head.appendChild(p);
-        };
-        if (window.jarvisInitImageStudio) return loadSavePatch();
         const existing = document.querySelector('script[data-jarvis-vision-js]');
         if (existing) {
-          if (window.jarvisInitImageStudio) return loadSavePatch();
-          existing.addEventListener('load', loadSavePatch, { once: true });
+          if (window.jarvisInitImageStudio) return resolve();
+          existing.addEventListener('load', () => window.jarvisInitImageStudio ? resolve() : reject(new Error('Vision Studio initialized without its entry point.')), { once: true });
           existing.addEventListener('error', () => reject(new Error('Vision Studio script failed to load.')), { once: true });
           return;
         }
         const s = document.createElement('script'); s.src = JS; s.async = false; s.dataset.jarvisVisionJs = '1';
-        s.onload = () => window.jarvisInitImageStudio ? loadSavePatch() : reject(new Error('Vision Studio initialized without its entry point.'));
+        s.onload = () => window.jarvisInitImageStudio ? resolve() : reject(new Error('Vision Studio initialized without its entry point.'));
         s.onerror = () => reject(new Error('Vision Studio script failed to load.'));
         document.head.appendChild(s);
       } catch (error) { reject(error); }
