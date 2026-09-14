@@ -30,6 +30,24 @@ function patch(code){
  const applyNeedle="const targets=resolveTargets(o.target);if(!targets.length)continue;const c=groupCenter(targets);";
  const applyPatch="if(o.op==='resizeSelected'){const s=selected();if(!s)continue;const d=s.dimensions||{},delta=o.delta||{};for(const k of ['width','height','depth','radius']){if(delta[k]!==undefined&&Number.isFinite(Number(delta[k]))&&d[k]!==undefined)d[k]=Math.max(0.001,Number(d[k])+Number(delta[k]))}if(delta.height!==undefined&&d.height!==undefined)s.position={x:s.position?.x||0,y:(s.position?.y||0)+Number(delta.height)/2,z:s.position?.z||0};continue}const targets=resolveTargets(o.target);if(!targets.length)continue;const c=groupCenter(targets);";
  code=code.replace(applyNeedle,applyPatch);
+ const selectionNeedle='let engine=null;';
+ const selectionPatch=`function installViewportSelection(){
+ const p=pane(),vp=p&&$('#jbaiViewport',p);const canvas=vp&&vp.querySelector('canvas');
+ if(!canvas||canvas.dataset.jarvisSelection)return;
+ canvas.dataset.jarvisSelection='1';
+ canvas.addEventListener('click',e=>{
+  if(!engine)return;
+  const r=canvas.getBoundingClientRect();
+  if(!r.width||!r.height)return;
+  const ndc=new engine.THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  const ray=new engine.THREE.Raycaster();ray.setFromCamera(ndc,engine.camera);
+  const hits=ray.intersectObjects([...engine.meshes.values()],false);
+  if(hits.length&&hits[0].object?.userData?.jarvisId)select(hits[0].object.userData.jarvisId);
+ },false);
+}
+`;
+ if(code.includes(selectionNeedle)&&!code.includes('function installViewportSelection()'))code=code.replace(selectionNeedle,selectionPatch+selectionNeedle);
+ code=code.replace('engine.resize();renderTree()}catch(e){','engine.resize();renderTree();installViewportSelection()}catch(e){');
  return code;
 }
 window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}if(!spatialSource.test(url))return nativeFetch(input,init);const res=await nativeFetch(input,init);if(!res.ok)return res;const code=await res.text();return new Response(patch(code),{status:res.status,statusText:res.statusText,headers:res.headers})};
