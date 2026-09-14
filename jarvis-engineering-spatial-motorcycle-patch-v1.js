@@ -11,6 +11,7 @@ function motorcyclePlan(){
  const box=(name,width,height,depth,x,y,angle=0,material='metal')=>({op:'create',type:'box',name,dimensions:{width,height,depth},position:{x,y,z},rotation:{x:0,y:0,z:angle},material});
  const wheel=(name,x)=>({op:'create',type:'torus',name,dimensions:{radius:wheelR,tube:.045},position:{x,y:.38,z:0},rotation:{x:0,y:0,z:0},material:'black'});
  const hub=(name,x)=>({op:'create',type:'cylinder',name,dimensions:{radius:.055,height:.08},position:{x,y:.38,z:.03},rotation:{x:90,y:0,z:0},material:'metal'});
+ const tank={op:'create',type:'lathe',name:'fuel_tank',dimensions:{profile:[[0,-.22],[.065,-.205],[.105,-.15],[.13,-.07],[.14,.03],[.125,.11],[.08,.18],[.025,.22],[0,.20]]},position:{x:-.07,y:.82,z},rotation:{x:0,y:0,z:90},material:'metal'};
  return {operations:[
   wheel('front_wheel',-.76),wheel('rear_wheel',.76),
   hub('front_hub',-.76),hub('rear_hub',.76),
@@ -24,8 +25,7 @@ function motorcyclePlan(){
   box('front_fork_lower',.34,.035,.045,-.69,.43,68),
   box('handlebar_stem',.20,.04,.045,-.57,.91,108),
   {op:'create',type:'cylinder',name:'handlebar',dimensions:{radius:.022,height:.44},position:{x:-.64,y:.99,z},rotation:{x:90,y:0,z:0},material:'metal'},
-  box('fuel_tank_base',.44,.14,.22,-.06,.83,-6,'metal'),
-  box('fuel_tank_front',.24,.12,.22,-.30,.78,-24,'metal'),
+  tank,
   box('seat',.42,.055,.17,.34,.78,-3,'black'),
   box('engine_top',.22,.10,.18,.08,.58,0,'metal'),
   box('engine_block',.24,.20,.19,.12,.47,0,'metal'),
@@ -37,7 +37,7 @@ function motorcyclePlan(){
   {op:'create',type:'cylinder',name:'rear_brake',dimensions:{radius:.17,height:.018},position:{x:.76,y:.38,z:.06},rotation:{x:90,y:0,z:0},material:'metal'},
   box('left_footpeg',.13,.025,.035,-.01,.43,-5,'black'),
   box('right_footpeg',.13,.025,.035,.25,.43,5,'black')
- ],explanation:'Constructed a motorcycle from primitive geometry with a wider wheelbase, low frame, defined front fork and cockpit, shaped fuel tank, stepped engine, seat, exhaust, headlight, brakes and foot pegs.'};
+ ],explanation:'Constructed a motorcycle with ring tires, hubs, tubular-style frame, front fork and cockpit, a smooth lathed fuel tank, stepped engine, seat, exhaust, headlight, brakes and foot pegs.'};
 }
 function motorcycleResponse(){const plan=motorcyclePlan();return new Response(JSON.stringify({plan,text:JSON.stringify(plan)}),{status:200,headers:{'Content-Type':'application/json'}})}
 window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}if(!intelligenceSource.test(url))return nativeFetch(input,init);if(simpleMotorcycleQuery(requestQuery(input,init)))return motorcycleResponse();return nativeFetch(input,init)};
