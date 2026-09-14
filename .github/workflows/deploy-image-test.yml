@@ -51,3 +51,26 @@ jobs:
           cat /tmp/jarvis-image-smoke.json
           test "$status" = 400
           echo "VISION_WORKER_ROUTE_SMOKE=PASS http=$status"
+      - name: Smoke test faithful Enhance
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-image-test.shivashisvicky112.workers.dev/api/enhance'
+          python - <<'PY'
+          import json
+          body = {'image': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'mimeType': 'image/png'}
+          with open('/tmp/jarvis-enhance-smoke.json', 'w') as f: json.dump(body, f)
+          PY
+          status=$(curl --silent --show-error --output /tmp/jarvis-enhance-response.json --write-out '%{http_code}' -H 'Origin: https://shivashisvicky.github.io' -H 'Content-Type: application/json' -X POST "$endpoint" --data-binary @/tmp/jarvis-enhance-smoke.json)
+          cat /tmp/jarvis-enhance-response.json
+          test "$status" = 200
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/jarvis-enhance-response.json'))
+          assert x.get('ok') is True
+          assert x.get('faithful') is True
+          assert x.get('provider') == 'cloudflare-images'
+          assert x.get('image', {}).get('width') == 1
+          assert x.get('image', {}).get('height') == 1
+          assert x.get('image', {}).get('data')
+          print('VISION_FAITHFUL_ENHANCE_SMOKE=PASS 1x1')
+          PY
