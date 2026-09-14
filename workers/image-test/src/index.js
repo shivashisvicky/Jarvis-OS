@@ -53,8 +53,6 @@ async function runModel(env, { prompt, mode, image, mimeType, width, height }) {
   form.append('prompt', prompt);
   form.append('width', String(width));
   form.append('height', String(height));
-  // Keep editing conservative. The model is generative, so explicitly bias it toward
-  // preserving the supplied photograph instead of redesigning it.
   form.append('guidance', mode === 'edit' ? '2' : '3');
 
   if (mode === 'edit') {
@@ -73,6 +71,35 @@ async function runModel(env, { prompt, mode, image, mimeType, width, height }) {
   const data = outputImage(result);
   if (!data) throw Object.assign(new Error('Vision model returned no image'), { code: 'IMAGE_EMPTY' });
   return data;
+}
+
+async function runFaithfulEnhance(env, { image, mimeType }) {
+  if (!env.IMAGES) throw Object.assign(new Error('Cloudflare Images binding is not configured'), { code: 'IMAGE_TRANSFORM_UNAVAILABLE' });
+  const bytes = decodeBase64(image);
+  if (bytes.byteLength > 20 * 1024 * 1024) throw Object.assign(new Error('Image is too large for faithful enhancement'), { code: 'IMAGE_TOO_LARGE' });
+
+  const format = mimeType === 'image/png' ? 'image/png' : mimeType === 'image/webp' ? 'image/webp' : 'image/jpeg';
+  const result = (
+    await env.IMAGES.input(bytes)
+      .transform({
+        sharpen: 1.1,
+        contrast: 1.03,
+        saturation: 1.02,
+      })
+      .output({
+        format,
+        ...(format === 'image/png' ? {} : { quality: 95 }),
+      })
+  ).response();
+
+  const output = await result.arrayBuffer();
+  let binary = '';
+  const data = new Uint8Array(output);
+  const chunk = 0x8000;
+  for (let i = 0; i < data.length; i += chunk) {
+    binary += String.fromCharCode(...data.subarray(i, i + chunk));
+  }
+  return { data: btoa(binary), mimeType: format };
 }
 
 function normalizeDimension(value, fallback) {
@@ -96,6 +123,7 @@ export default {
     try { body = await request.json(); } catch { return json({ error: 'Invalid JSON body' }, 400, origin); }
 
     const mode = body?.mode === 'generate' ? 'generate' : 'edit';
+    const operation = body?.operation === 'enhance' ? 'enhance' : mode;
     const prompt = String(body?.prompt || '').trim();
     if (!prompt) return json({ error: 'prompt is required' }, 400, origin);
     if (prompt.length > 1800) return json({ error: 'prompt is too long' }, 413, origin);
@@ -105,15 +133,27 @@ export default {
     let image = '';
     let mimeType = 'image/jpeg';
 
-    if (mode === 'edit') {
+    if (mode === 'edit' || operation === 'enhance') {
       image = String(body?.image || '');
       mimeType = String(body?.mimeType || 'image/jpeg').toLowerCase();
       if (!image) return json({ error: 'image is required for edit mode' }, 400, origin);
       if (!/^image\/(jpeg|png|webp)$/.test(mimeType)) return json({ error: 'Unsupported image type' }, 415, origin);
-      if (image.length > 4_000_000) return json({ error: 'Image is too large after compression' }, 413, origin);
+      if (image.length > 28_000_000) return json({ error: 'Image is too large after encoding' }, 413, origin);
     }
 
     try {
+      if (operation === 'enhance') {
+        const result = await runFaithfulEnhance(env, { image, mimeType });
+        return json({
+          ok: true,
+          image: result,
+          model: 'cloudflare-images-enhance',
+          mode: 'enhance',
+          provider: 'cloudflare-images',
+          faithful: true,
+        }, 200, origin);
+      }
+
       const data = await runModel(env, { prompt, mode, image, mimeType, width, height });
       return json({
         ok: true,
