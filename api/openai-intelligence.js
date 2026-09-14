@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (query.length > 4000) return res.status(413).json({ error: 'query is too long' });
 
   const model = 'gemini-2.5-flash';
-  const spatial = body.mode === 'spatial';
+  const spatial = body.mode === 'spatial' || /^You are JARVIS Spatial Planner\./i.test(query);
   const system = [
     'You are JARVIS, the intelligence layer of a personal operating system.',
     'Be concise, useful and truthful. Do not invent sources or facts.',
