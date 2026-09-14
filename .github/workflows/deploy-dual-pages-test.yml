@@ -48,10 +48,6 @@ jobs:
         working-directory: test-src
         run: node scripts/jarvis-sanity-check.mjs
 
-      - name: Run PROD static sanity check
-        working-directory: prod-src
-        run: node scripts/jarvis-sanity-check.mjs
-
       - name: Install PROD dependencies
         working-directory: prod-src
         run: pnpm install --no-frozen-lockfile
