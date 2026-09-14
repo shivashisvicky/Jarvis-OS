@@ -4,6 +4,12 @@ if(window.__JARVIS_SPATIAL_SEMANTIC_PATCH_V1__)return;
 window.__JARVIS_SPATIAL_SEMANTIC_PATCH_V1__=true;
 const nativeFetch=window.fetch.bind(window);
 const spatialSource=/jarvis-engineering-spatial-ai-v1\.js(?:\?|$)/i;
+const safeLoader=/jarvis-engineering-spatial-ai-v1-safe-loader\.js(?:\?|$)/i;
+function patchSafeLoader(code){
+ const needle="if(o.type==='cylinder'&&d.width!==undefined&&d.depth!==undefined){o.type='box'}";
+ const replacement="if(o.type==='cylinder'&&d.width!==undefined&&d.depth!==undefined){const dia=Math.max(Number(d.width)||0,Number(d.depth)||0);const h=Number(d.height)||Math.max(.01,Math.min(Number(d.width)||.05,Number(d.depth)||.05)*.2);o.dimensions={radius:dia/2,height:h}}";
+ return code.replace(needle,replacement);
+}
 function patch(code){
  if(!code.includes('function applyPlan(plan){'))return code;
  const promptNeedle='Keep names semantic. Never output executable code.';
@@ -29,5 +35,5 @@ save(sceneState);return sceneState}
 `;
  return code.slice(0,start)+block+code.slice(end);
 }
-window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}if(!spatialSource.test(url)||/safe-loader/i.test(url))return nativeFetch(input,init);const res=await nativeFetch(input,init);if(!res.ok)return res;const code=await res.text();const patched=patch(code);return new Response(patched,{status:res.status,statusText:res.statusText,headers:res.headers});};
+window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}const isSafe=safeLoader.test(url),isSpatial=spatialSource.test(url)&&!isSafe;if(!isSafe&&!isSpatial)return nativeFetch(input,init);const res=await nativeFetch(input,init);if(!res.ok)return res;const code=await res.text();const patched=isSafe?patchSafeLoader(code):patch(code);return new Response(patched,{status:res.status,statusText:res.statusText,headers:res.headers});};
 })();
