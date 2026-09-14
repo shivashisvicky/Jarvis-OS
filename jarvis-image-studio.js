@@ -23,8 +23,8 @@
         const img = new Image();
         img.onerror = () => reject(new Error('Unsupported image.'));
         img.onload = () => {
-          // FLUX.2 Klein 4B accepts reference images smaller than 512x512.
-          // Keep the source below that boundary, then ask the model for a larger output.
+          // Workers AI reference images must be smaller than 512x512.
+          // Keep the original aspect ratio exactly while staying safely below that limit.
           const max = 480;
           const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
           const canvas = document.createElement('canvas');
@@ -48,8 +48,18 @@
     if (!width || !height) return { width: 1024, height: 768 };
     const max = 1024;
     const scale = Math.min(1, max / Math.max(width, height));
-    const snap = value => Math.max(256, Math.min(1920, Math.round((value * scale) / 64) * 64));
-    return { width: snap(width), height: snap(height) };
+    const scaledWidth = width * scale;
+    const scaledHeight = height * scale;
+    let outWidth;
+    let outHeight;
+    if (scaledWidth >= scaledHeight) {
+      outWidth = Math.max(256, Math.min(1024, Math.round(scaledWidth / 64) * 64));
+      outHeight = Math.max(256, Math.min(1024, Math.round((outWidth * height / width) / 64) * 64));
+    } else {
+      outHeight = Math.max(256, Math.min(1024, Math.round(scaledHeight / 64) * 64));
+      outWidth = Math.max(256, Math.min(1024, Math.round((outHeight * width / height) / 64) * 64));
+    }
+    return { width: outWidth, height: outHeight };
   }
 
   function render() {
@@ -109,7 +119,13 @@
       const dimensions = state.mode === 'edit'
         ? outputDimensions(state.sourceWidth, state.sourceHeight)
         : { width: 1024, height: 768 };
-      const payload = { mode: state.mode, prompt, ...dimensions };
+      const targetAspect = state.mode === 'edit' && state.sourceWidth && state.sourceHeight
+        ? (state.sourceWidth / state.sourceHeight).toFixed(4)
+        : '';
+      const effectivePrompt = state.mode === 'edit'
+        ? `${prompt}\n\nPreserve the original aspect ratio (${targetAspect}:1) exactly. Do not crop, reframe, zoom, rotate, or change the camera composition. Keep the positions of all meaningful objects unchanged. This is a conservative photographic enhancement/edit, not a reinterpretation.`
+        : prompt;
+      const payload = { mode: state.mode, prompt: effectivePrompt, ...dimensions };
       if (state.mode === 'edit') { payload.image = state.base64; payload.mimeType = state.mimeType; }
       const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
