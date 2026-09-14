@@ -92,38 +92,52 @@
     } catch (error) { setStatus(error?.message || 'IMAGE PREPARATION FAILED'); }
   }
 
-  async function saveResult() {
+  function dataUrlToBlob(dataUrl) {
+    const match = String(dataUrl).match(/^data:([^;,]+);base64,(.*)$/s);
+    if (!match) throw new Error('Invalid image data.');
+    const bytes = atob(match[2]);
+    const out = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) out[i] = bytes.charCodeAt(i);
+    return new Blob([out], { type: match[1] || 'image/png' });
+  }
+
+  function saveResult() {
     if (!state.result) return;
     const button = document.querySelector('#visionSave');
-    if (button) { button.disabled = true; button.textContent = 'PREPARING…'; }
+    if (button) { button.disabled = true; button.textContent = 'SAVING…'; }
     try {
-      const response = await fetch(state.result);
-      const blob = await response.blob();
-      const ext = (state.resultMimeType || blob.type || 'image/png').split('/')[1]?.replace('jpeg', 'jpg') || 'png';
-      const file = new File([blob], `jarvis-vision-result.${ext}`, { type: state.resultMimeType || blob.type || 'image/png' });
+      const blob = dataUrlToBlob(state.result);
+      const type = state.resultMimeType || blob.type || 'image/png';
+      const ext = type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+      const file = new File([blob], `jarvis-vision-result.${ext}`, { type });
+
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'JARVIS Vision result' });
-        setStatus('SAVE / SHARE COMPLETE');
+        navigator.share({ files: [file], title: 'JARVIS Vision result' })
+          .then(() => setStatus('SHARE COMPLETE · CHOOSE SAVE IMAGE'))
+          .catch(error => { if (error?.name !== 'AbortError') openImageFallback(blob); else setStatus('SAVE CANCELLED'); })
+          .finally(() => { if (button) { button.disabled = false; button.textContent = 'SAVE'; } });
         return;
       }
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `jarvis-vision-result.${ext}`;
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setStatus('IMAGE READY TO SAVE');
+
+      openImageFallback(blob);
     } catch (error) {
-      if (error?.name === 'AbortError') { setStatus('SAVE CANCELLED'); return; }
-      const url = state.result;
-      window.open(url, '_blank', 'noopener');
-      setStatus('IMAGE OPENED · USE SHARE / SAVE');
-    } finally {
+      setStatus(error?.message || 'SAVE FAILED');
       if (button) { button.disabled = false; button.textContent = 'SAVE'; }
     }
+  }
+
+  function openImageFallback(blob) {
+    const url = URL.createObjectURL(blob);
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      window.location.href = url;
+      setStatus('IMAGE OPENED · USE SHARE → SAVE IMAGE');
+    } else {
+      setStatus('IMAGE OPENED · USE SHARE → SAVE IMAGE');
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    }
+    const button = document.querySelector('#visionSave');
+    if (button) { button.disabled = false; button.textContent = 'SAVE'; }
   }
 
   async function run() {
@@ -169,7 +183,7 @@
     const drop = document.querySelector('#visionDrop');
     if (drop) { ['dragenter','dragover'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('drag'); })); ['dragleave','drop'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('drag'); })); drop.addEventListener('drop', e => chooseFile(e.dataTransfer?.files?.[0])); }
     document.querySelector('#visionRun')?.addEventListener('click', () => void run());
-    document.querySelector('#visionSave')?.addEventListener('click', () => void saveResult());
+    document.querySelector('#visionSave')?.addEventListener('click', saveResult);
     document.querySelector('#visionClear')?.addEventListener('click', () => { state.file = null; state.base64 = ''; state.originalBase64 = ''; state.sourceUrl = ''; state.result = null; state.prompt = ''; state.sourceWidth = 0; state.sourceHeight = 0; state.operation = 'enhance'; render(); });
   }
 
