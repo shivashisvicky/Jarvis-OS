@@ -12,25 +12,23 @@ function patch(code){
  code=code.replace(promptNeedle,promptPatch);
  const localNeedle='function localPlan(q){';
  const localPatch=`function localPlan(q){
- const low=q.trim().toLowerCase();
- const unit=(q.match(/\\b(mm|cm|m|ft|feet|in|inch|inches)\\b/i)||[])[1]?.toLowerCase()||'m';
- const amount=q.match(/(\\d+(?:\\.\\d+)?)\\s*(mm|cm|m|ft|feet|in|inch|inches)?/i);
- const toM=v=>Number(v)*(unitToM[(amount?.[2]||unit).toLowerCase()]||1);
- if(/\\b(selected|current)\\b/.test(low)&&/\\b(shorter|taller|thinner|thicker|wider|narrower|deeper|shallower)\\b/.test(low)){
-  if(!amount)return null;
-  const v=toM(amount[1]),d={};
-  if(/shorter|taller/.test(low))d.height=/shorter/.test(low)?-v:v;
-  else if(/thinner|thicker/.test(low)){const s=/thinner/.test(low)?-v:v;d.width=s;d.depth=s}
-  else if(/wider|narrower/.test(low))d.width=/narrower/.test(low)?-v:v;
-  else if(/deeper|shallower/.test(low))d.depth=/shallower/.test(low)?-v:v;
+ const precisionLow=q.trim().toLowerCase();
+ const precisionUnit=(q.match(/\\b(mm|cm|m|ft|feet|in|inch|inches)\\b/i)||[])[1]?.toLowerCase()||'m';
+ const precisionAmount=q.match(/(\\d+(?:\\.\\d+)?)\\s*(mm|cm|m|ft|feet|in|inch|inches)?/i);
+ const precisionToM=v=>Number(v)*(unitToM[(precisionAmount?.[2]||precisionUnit).toLowerCase()]||1);
+ if(/\\b(selected|current)\\b/.test(precisionLow)&&/\\b(shorter|taller|thinner|thicker|wider|narrower|deeper|shallower)\\b/.test(precisionLow)){
+  if(!precisionAmount)return null;
+  const v=precisionToM(precisionAmount[1]),d={};
+  if(/shorter|taller/.test(precisionLow))d.height=/shorter/.test(precisionLow)?-v:v;
+  else if(/thinner|thicker/.test(precisionLow)){const s=/thinner/.test(precisionLow)?-v:v;d.width=s;d.depth=s}
+  else if(/wider|narrower/.test(precisionLow))d.width=/narrower/.test(precisionLow)?-v:v;
+  else if(/deeper|shallower/.test(precisionLow))d.depth=/shallower/.test(precisionLow)?-v:v;
   return{operations:[{op:'resizeSelected',delta:d}],explanation:'Applying the requested precise dimension change to the selected object.'};
  }
 `;
- if(code.includes(localNeedle)&&!code.includes("Applying the requested precise dimension change")){
-  code=code.replace(localNeedle,localPatch);
- }
+ if(code.includes(localNeedle)&&!code.includes("Applying the requested precise dimension change"))code=code.replace(localNeedle,localPatch);
  const applyNeedle="const targets=resolveTargets(o.target);if(!targets.length)continue;const c=groupCenter(targets);";
- const applyPatch="if(o.op==='resizeSelected'){const s=selected();if(!s)continue;const d=s.dimensions||{},delta=o.delta||{};for(const k of ['width','height','depth','radius']){if(delta[k]!==undefined&&Number.isFinite(Number(delta[k]))&&d[k]!==undefined)d[k]=Math.max(k==='height'||k==='width'||k==='depth'?0.001:0.001,Number(d[k])+Number(delta[k]))}if(delta.height!==undefined&&d.height!==undefined)s.position={x:s.position?.x||0,y:(s.position?.y||0)+Number(delta.height)/2,z:s.position?.z||0};continue}const targets=resolveTargets(o.target);if(!targets.length)continue;const c=groupCenter(targets);";
+ const applyPatch="if(o.op==='resizeSelected'){const s=selected();if(!s)continue;const d=s.dimensions||{},delta=o.delta||{};for(const k of ['width','height','depth','radius']){if(delta[k]!==undefined&&Number.isFinite(Number(delta[k]))&&d[k]!==undefined)d[k]=Math.max(0.001,Number(d[k])+Number(delta[k]))}if(delta.height!==undefined&&d.height!==undefined)s.position={x:s.position?.x||0,y:(s.position?.y||0)+Number(delta.height)/2,z:s.position?.z||0};continue}const targets=resolveTargets(o.target);if(!targets.length)continue;const c=groupCenter(targets);";
  code=code.replace(applyNeedle,applyPatch);
  return code;
 }
