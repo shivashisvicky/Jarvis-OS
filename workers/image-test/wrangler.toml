@@ -6,3 +6,6 @@ workers_dev = true
 
 [ai]
 binding = "AI"
+
+[images]
+binding = "IMAGES"
