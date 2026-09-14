@@ -3,3 +3,6 @@ main = "src/index.js"
 compatibility_date = "2026-09-14"
 account_id = "__CLOUDFLARE_ACCOUNT_ID__"
 workers_dev = true
+
+[ai]
+binding = "AI"
