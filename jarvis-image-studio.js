@@ -4,7 +4,7 @@
   window.__JARVIS_IMAGE_STUDIO__ = true;
 
   const ENDPOINT = 'https://jarvis-image-test.shivashisvicky112.workers.dev/api/image';
-  const state = { file: null, mimeType: 'image/jpeg', base64: '', mode: 'edit', result: null };
+  const state = { file: null, mimeType: 'image/jpeg', base64: '', mode: 'edit', result: null, sourceWidth: 0, sourceHeight: 0 };
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
 
   const presets = {
@@ -23,7 +23,9 @@
         const img = new Image();
         img.onerror = () => reject(new Error('Unsupported image.'));
         img.onload = () => {
-          const max = 1800;
+          // FLUX.2 Klein 4B accepts reference images smaller than 512x512.
+          // Keep the source below that boundary, then ask the model for a larger output.
+          const max = 480;
           const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
           const canvas = document.createElement('canvas');
           canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
@@ -40,6 +42,14 @@
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  function outputDimensions(width, height) {
+    if (!width || !height) return { width: 1024, height: 768 };
+    const max = 1024;
+    const scale = Math.min(1, max / Math.max(width, height));
+    const snap = value => Math.max(256, Math.min(1920, Math.round((value * scale) / 64) * 64));
+    return { width: snap(width), height: snap(height) };
   }
 
   function render() {
@@ -59,7 +69,7 @@
         ${state.mode === 'edit' ? `<div class="vision-toolbar" style="margin-top:10px">${Object.keys(presets).map(key => `<button type="button" class="vision-chip" data-preset="${key}">${key.toUpperCase()}</button>`).join('')}</div>` : ''}
         <div class="vision-actions"><button type="button" class="primary" id="visionRun">${state.mode === 'edit' ? 'ENHANCE IMAGE' : 'GENERATE IMAGE'}</button><button type="button" class="secondary" id="visionClear">CLEAR</button></div>
         <div class="vision-status" id="visionStatus">${state.file ? 'SOURCE READY' : state.mode === 'edit' ? 'WAITING FOR IMAGE' : 'READY'}</div>
-        <div class="vision-note">JARVIS Vision uses Gemini native image generation/editing. Uploaded images are sent to the isolated TEST Vision worker only for the requested operation.</div>
+        <div class="vision-note">JARVIS Vision uses an isolated Cloudflare Workers AI image model. Uploaded images are resized in memory and sent only to the TEST Vision worker for the requested operation.</div>
       </section>
       <section class="vision-card vision-result-wrap">
         <h3>JARVIS result</h3>
@@ -81,7 +91,8 @@
     try {
       setStatus('PREPARING IMAGE…');
       const packed = await compress(file);
-      state.file = file; state.sourceUrl = packed.url; state.base64 = packed.base64; state.mimeType = packed.mimeType; state.result = null;
+      state.file = file; state.sourceUrl = packed.url; state.base64 = packed.base64; state.mimeType = packed.mimeType;
+      state.sourceWidth = packed.width; state.sourceHeight = packed.height; state.result = null;
       render();
     } catch (error) { setStatus(error?.message || 'IMAGE PREPARATION FAILED'); }
   }
@@ -95,7 +106,10 @@
     if (button) { button.disabled = true; button.textContent = 'PROCESSING…'; }
     setStatus(state.mode === 'edit' ? 'JARVIS IS ENHANCING…' : 'JARVIS IS CREATING…');
     try {
-      const payload = { mode: state.mode, prompt };
+      const dimensions = state.mode === 'edit'
+        ? outputDimensions(state.sourceWidth, state.sourceHeight)
+        : { width: 1024, height: 768 };
+      const payload = { mode: state.mode, prompt, ...dimensions };
       if (state.mode === 'edit') { payload.image = state.base64; payload.mimeType = state.mimeType; }
       const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
@@ -121,7 +135,7 @@
       drop.addEventListener('drop', e => chooseFile(e.dataTransfer?.files?.[0]));
     }
     document.querySelector('#visionRun')?.addEventListener('click', () => void run());
-    document.querySelector('#visionClear')?.addEventListener('click', () => { state.file = null; state.base64 = ''; state.sourceUrl = ''; state.result = null; state.prompt = ''; render(); });
+    document.querySelector('#visionClear')?.addEventListener('click', () => { state.file = null; state.base64 = ''; state.sourceUrl = ''; state.result = null; state.prompt = ''; state.sourceWidth = 0; state.sourceHeight = 0; render(); });
   }
 
   window.jarvisInitImageStudio = () => render();
