@@ -16,7 +16,7 @@ function patchSpatialSource(code){
 function bicyclePlan(){
  const z=.06,frame=.055,wheelR=.34,tube=.035;
  const box=(name,width,x,y,angle=0,material='metal')=>({op:'create',type:'box',name,dimensions:{width,height:frame,depth:frame},position:{x,y,z},rotation:{x:0,y:0,z:angle},material});
- const wheel=(name,x)=>({op:'create',type:'torus',name,dimensions:{radius:wheelR,tube},position:{x,y:.34,z:0},rotation:{x:90,y:0,z:0},material:'black'});
+ const wheel=(name,x)=>({op:'create',type:'torus',name,dimensions:{radius:wheelR,tube},position:{x,y:.34,z:0},rotation:{x:0,y:0,z:0},material:'black'});
  const hub=(name,x)=>({op:'create',type:'cylinder',name,dimensions:{radius:.045,height:.07},position:{x,y:.34,z:.03},rotation:{x:90,y:0,z:0},material:'metal'});
  const spokes=(prefix,cx)=>Array.from({length:6},(_,i)=>{const a=i*Math.PI/3,len=wheelR*.78;return{op:'create',type:'box',name:prefix+'_spoke_'+(i+1),dimensions:{width:len,height:.012,depth:.012},position:{x:cx+(len/2)*Math.cos(a),y:.34+(len/2)*Math.sin(a),z:.03},rotation:{x:0,y:0,z:a*180/Math.PI},material:'metal'}});
  return {operations:[
