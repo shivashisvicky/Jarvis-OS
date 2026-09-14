@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 
-const MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
+const MODEL = '@cf/black-forest-labs/flux-2-klein-9b';
 
 function cors(origin) {
   const allowed = ALLOWED_ORIGINS.has(origin) ? origin : 'https://shivashisvicky.github.io';
@@ -53,6 +53,9 @@ async function runModel(env, { prompt, mode, image, mimeType, width, height }) {
   form.append('prompt', prompt);
   form.append('width', String(width));
   form.append('height', String(height));
+  // Keep editing conservative. The model is generative, so explicitly bias it toward
+  // preserving the supplied photograph instead of redesigning it.
+  form.append('guidance', mode === 'edit' ? '2' : '3');
 
   if (mode === 'edit') {
     const bytes = decodeBase64(image);
