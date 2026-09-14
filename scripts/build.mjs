@@ -34,6 +34,8 @@ const LAZY_ASSETS = [
   'jarvis-notes.js',
   'jarvis-games-v2.js',
   'jarvis-home-upgrade.js',
+  'jarvis-image-studio.js',
+  'jarvis-image-studio.css',
 ];
 
 async function writeYouTubeConfig() {
