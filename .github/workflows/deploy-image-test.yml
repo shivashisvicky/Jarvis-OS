@@ -1,0 +1,54 @@
+name: Deploy JARVIS Vision TEST Worker
+
+on:
+  push:
+    branches: [test/jarvis-intelligence-next]
+    paths:
+      - 'workers/image-test/**'
+      - '.github/workflows/deploy-image-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy isolated JARVIS Vision TEST Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY; do
+            if [ -z "${!name:-}" ]; then echo "Missing GitHub secret: $name"; exit 1; fi
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Worker
+        run: node --check workers/image-test/src/index.js
+      - name: Prepare Wrangler configuration
+        working-directory: workers/image-test
+        run: |
+          set -euo pipefail
+          sed -i "s/__CLOUDFLARE_ACCOUNT_ID__/${CLOUDFLARE_ACCOUNT_ID}/" wrangler.toml
+          cat wrangler.toml
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+      - name: Deploy isolated TEST Worker
+        working-directory: workers/image-test
+        run: wrangler deploy --name jarvis-image-test
+      - name: Configure Gemini secret
+        working-directory: workers/image-test
+        run: printf '%s' "$GEMINI_API_KEY" | wrangler secret put GEMINI_API_KEY --name jarvis-image-test
+      - name: Smoke test endpoint
+        run: |
+          set -euo pipefail
+          endpoint='https://jarvis-image-test.${CLOUDFLARE_ACCOUNT_ID}.workers.dev/api/image'
+          echo "TEST worker deployed. Endpoint path smoke is deferred to the browser because the workers.dev subdomain is account-configured."
