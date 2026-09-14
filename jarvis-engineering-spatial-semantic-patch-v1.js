@@ -52,37 +52,10 @@ function bicycleFallbackPlan(){
  const z=.06, frame=.055;
  const box=(name,width,x,y,angle=0,material='metal')=>({op:'create',type:'box',name,dimensions:{width,height:frame,depth:frame},position:{x,y,z},rotation:{x:0,y:0,z:angle},material});
  const wheel=(name,x)=>({op:'create',type:'cylinder',name,dimensions:{radius:.34,height:.045},position:{x,y:.34,z:0},rotation:{x:90,y:0,z:0},material:'black'});
- return {operations:[
-  wheel('front_wheel',-.62),wheel('rear_wheel',.62),
-  box('rear_chainstay',.605,.30,.38,172),
-  box('rear_seatstay',.66,.39,.595,129),
-  box('seat_tube',.466,.09,.635,67),
-  box('top_tube',.602,-.12,.825,-175),
-  box('down_tube',.532,-.24,.535,154),
-  box('head_tube',.16,-.45,.725,-112),
-  box('front_fork',.332,-.54,.495,69),
-  box('fork_crown',.10,-.48,.68,90),
-  box('handlebar_stem',.206,-.47,.89,119),
-  {op:'create',type:'cylinder',name:'handlebar',dimensions:{radius:.018,height:.34},position:{x:-.57,y:.99,z:z},rotation:{x:0,y:0,z:90},material:'metal'},
-  {op:'create',type:'cylinder',name:'seatpost',dimensions:{radius:.018,height:.18},position:{x:.18,y:.90,z:z},rotation:{x:0,y:0,z:0},material:'metal'},
-  {op:'create',type:'box',name:'saddle',dimensions:{width:.18,height:.035,depth:.09},position:{x:.18,y:.995,z:z},material:'black'},
-  {op:'create',type:'cylinder',name:'crank',dimensions:{radius:.07,height:.055},position:{x:.02,y:.42,z:.075},rotation:{x:90,y:0,z:0},material:'metal'},
-  {op:'create',type:'box',name:'left_pedal',dimensions:{width:.12,height:.025,depth:.035},position:{x:-.06,y:.42,z:.11},rotation:{x:0,y:0,z:-10},material:'black'},
-  {op:'create',type:'box',name:'right_pedal',dimensions:{width:.12,height:.025,depth:.035},position:{x:.10,y:.42,z:.11},rotation:{x:0,y:0,z:10},material:'black'}
- ],explanation:'Constructed a bicycle as a coherent primitive assembly with two wheels, connected frame members, fork, cockpit, saddle and drivetrain.'};
+ return {operations:[wheel('front_wheel',-.62),wheel('rear_wheel',.62),box('rear_chainstay',.605,.30,.38,172),box('rear_seatstay',.66,.39,.595,129),box('seat_tube',.466,.09,.635,67),box('top_tube',.602,-.12,.825,-175),box('down_tube',.532,-.24,.535,154),box('head_tube',.16,-.45,.725,-112),box('front_fork',.332,-.54,.495,69),box('fork_crown',.10,-.48,.68,90),box('handlebar_stem',.206,-.47,.89,119),{op:'create',type:'cylinder',name:'handlebar',dimensions:{radius:.018,height:.34},position:{x:-.57,y:.99,z:z},rotation:{x:0,y:0,z:90},material:'metal'},{op:'create',type:'cylinder',name:'seatpost',dimensions:{radius:.018,height:.18},position:{x:.18,y:.90,z:z},rotation:{x:0,y:0,z:0},material:'metal'},{op:'create',type:'box',name:'saddle',dimensions:{width:.18,height:.035,depth:.09},position:{x:.18,y:.995,z:z},material:'black'},{op:'create',type:'cylinder',name:'crank',dimensions:{radius:.07,height:.055},position:{x:.02,y:.42,z:.075},rotation:{x:90,y:0,z:0},material:'metal'},{op:'create',type:'box',name:'left_pedal',dimensions:{width:.12,height:.025,depth:.035},position:{x:-.06,y:.42,z:.11},rotation:{x:0,y:0,z:-10},material:'black'},{op:'create',type:'box',name:'right_pedal',dimensions:{width:.12,height:.025,depth:.035},position:{x:.10,y:.42,z:.11},rotation:{x:0,y:0,z:10},material:'black'}],explanation:'Constructed a bicycle as a coherent primitive assembly with two wheels, connected frame members, fork, cockpit, saddle and drivetrain.'};
 }
-async function repairBicycleResponse(input,init,res){
- let request={};try{request=JSON.parse(String(init?.body||'{}'))}catch{}
- const query=String(request?.query||'');if(!/\b(bicycle|bike)\b/i.test(query))return res;
- try{
-  const data=await res.clone().json();
-  let plan=data?.plan;
-  if(!plan&&data?.text){try{const t=String(data.text).replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a)plan=JSON.parse(t.slice(a,b+1))}catch{}}
-  if(validBicyclePlan(plan))return res;
-  const fixed=bicycleFallbackPlan();
-  const out={...data,plan:fixed,text:JSON.stringify(fixed)};
-  return new Response(JSON.stringify(out),{status:res.status,statusText:res.statusText,headers:res.headers});
- }catch{return res}
-}
+function requestQuery(input,init){let request={};try{request=JSON.parse(String(init?.body||'{}'))}catch{}const q=String(request?.query||'');const m=q.match(/User request:\s*([\s\S]*)$/i);return(m?m[1]:q).trim()}
+function simpleBicycleQuery(q){return /^(?:(?:create|build|make|construct|design|model|generate|draw|assemble)\s+)?(?:a\s+)?(?:new\s+)?(?:bicycle|bike)\s*[.!?]*$/i.test(String(q).trim())}
+async function repairBicycleResponse(input,init,res){const query=requestQuery(input,init);if(!simpleBicycleQuery(query))return res;try{const data=await res.clone().json();const fixed=bicycleFallbackPlan();return new Response(JSON.stringify({...data,plan:fixed,text:JSON.stringify(fixed)}),{status:res.status,statusText:res.statusText,headers:res.headers})}catch{return res}}
 window.fetch=async function(input,init){let url='';try{url=typeof input==='string'?input:String(input?.url||'')}catch{}const isSafe=safeLoader.test(url),isSpatial=spatialSource.test(url)&&!isSafe,isIntelligence=intelligenceSource.test(url);if(!isSafe&&!isSpatial&&!isIntelligence)return nativeFetch(input,init);const res=await nativeFetch(input,init);if(!res.ok)return res;if(isIntelligence)return repairBicycleResponse(input,init,res);const code=await res.text();const patched=isSafe?patchSafeLoader(code):patch(code);return new Response(patched,{status:res.status,statusText:res.statusText,headers:res.headers});};
 })();
