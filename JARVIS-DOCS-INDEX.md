@@ -25,6 +25,23 @@ This index is intentionally small. A new AI agent should start with `JARVIS-AI-S
 | `JARVIS-OS-TEST-HANDOFF-2026-09-13-SPATIAL-ADDENDUM.md` | Additional Spatial history and regression context. |
 | `JARVIS-REGRESSIONS.md` | Historical regression ledger and lessons. |
 
+## Engineering sanity tool
+
+`scripts/jarvis-sanity-check.mjs` is a **read-only** Node checker. Run from the repository root with:
+
+```bash
+node scripts/jarvis-sanity-check.mjs
+```
+
+It checks cheap, high-value failure modes without changing runtime behavior:
+
+- local asset references in `index.html` that point to missing files;
+- duplicate exact asset references;
+- duplicate script files;
+- duplicated high-risk authority families such as Speech Recognition, Context, Maps and Ebook authority.
+
+Warnings are advisory. In particular, an authority family may legitimately have layered patches. A warning is a reason to inspect, not a reason to delete a script.
+
 ## Current verified contracts
 
 ### TEST/PROD
