@@ -23,7 +23,7 @@ function bicyclePlan(){
   wheel('front_wheel',-.62),wheel('rear_wheel',.62),hub('front_hub',-.62),hub('rear_hub',.62),
   ...spokes('front',-.62),...spokes('rear',.62),
   box('rear_chainstay',.605,.30,.38,172),box('rear_seatstay',.66,.39,.595,129),box('seat_tube',.466,.09,.635,67),box('top_tube',.602,-.12,.825,-175),box('down_tube',.532,-.24,.535,154),box('head_tube',.16,-.45,.725,-112),box('front_fork',.332,-.54,.495,69),box('fork_crown',.10,-.48,.68,90),box('handlebar_stem',.206,-.47,.89,119),
-  {op:'create',type:'cylinder',name:'handlebar',dimensions:{radius:.025,height:.44},position:{x:-.57,y:.99,z},rotation:{x:0,y:0,z:90},material:'metal'},
+  {op:'create',type:'cylinder',name:'handlebar',dimensions:{radius:.025,height:.44},position:{x:-.57,y:.99,z},rotation:{x:90,y:0,z:0},material:'metal'},
   {op:'create',type:'cylinder',name:'seatpost',dimensions:{radius:.018,height:.18},position:{x:.18,y:.90,z},rotation:{x:0,y:0,z:0},material:'metal'},
   {op:'create',type:'box',name:'saddle',dimensions:{width:.18,height:.035,depth:.09},position:{x:.18,y:.995,z},material:'black'},
   {op:'create',type:'cylinder',name:'crank',dimensions:{radius:.07,height:.055},position:{x:.02,y:.42,z:.075},rotation:{x:90,y:0,z:0},material:'metal'},
