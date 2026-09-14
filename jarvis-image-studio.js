@@ -5,7 +5,7 @@
 
   const ENDPOINT = 'https://jarvis-image-test.shivashisvicky112.workers.dev/api/image';
   const ENHANCE_ENDPOINT = 'https://jarvis-image-test.shivashisvicky112.workers.dev/api/enhance';
-  const state = { file: null, mimeType: 'image/jpeg', base64: '', originalBase64: '', originalMimeType: 'image/jpeg', mode: 'edit', operation: 'enhance', result: null, sourceWidth: 0, sourceHeight: 0 };
+  const state = { file: null, mimeType: 'image/jpeg', base64: '', originalBase64: '', originalMimeType: 'image/jpeg', mode: 'edit', operation: 'enhance', result: null, resultMimeType: 'image/png', sourceWidth: 0, sourceHeight: 0 };
   const esc = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
   const presets = {
     enhance: 'Enhance this image while preserving the exact subject, identity, composition, framing, and important details. Improve clarity, fine detail, dynamic range, exposure, natural color, and realistic lighting. Reduce noise and compression artifacts. Keep the result photorealistic and do not invent or remove meaningful objects.',
@@ -71,7 +71,7 @@
     <div class="vision-actions"><button type="button" class="primary" id="visionRun">${state.mode === 'generate' ? 'GENERATE IMAGE' : state.operation === 'enhance' ? 'ENHANCE IMAGE' : 'EDIT IMAGE'}</button><button type="button" class="secondary" id="visionClear">CLEAR</button></div>
     <div class="vision-status" id="visionStatus">${state.file ? 'SOURCE READY' : state.mode === 'edit' ? 'WAITING FOR IMAGE' : 'READY'}</div>
     <div class="vision-note">ENHANCE uses a dedicated faithful Cloudflare Images pipeline. It does not invoke the generative model. EDIT / GENERATE use the isolated TEST Workers AI model.</div></section>
-    <section class="vision-card vision-result-wrap"><h3>JARVIS result</h3><div id="visionResult">${state.result ? `<img class="vision-preview" src="${state.result}" alt="JARVIS generated result"><a class="secondary vision-download" download="jarvis-vision-result.png" href="${state.result}">SAVE</a>` : '<div class="vision-empty">Your enhanced or generated image will appear here.</div>'}</div></section></div>`;
+    <section class="vision-card vision-result-wrap"><h3>JARVIS result</h3><div id="visionResult">${state.result ? `<img class="vision-preview" src="${state.result}" alt="JARVIS generated result"><button type="button" class="secondary vision-download" id="visionSave">SAVE</button>` : '<div class="vision-empty">Your enhanced or generated image will appear here.</div>'}</div></section></div>`;
     bind();
     if (state.file && state.sourceUrl) {
       const el = document.querySelector('#visionSourcePreview');
@@ -90,6 +90,40 @@
       state.file = file; state.sourceUrl = packed.originalUrl; state.base64 = packed.base64; state.mimeType = packed.mimeType; state.originalBase64 = packed.originalBase64; state.originalMimeType = packed.originalMimeType; state.sourceWidth = packed.width; state.sourceHeight = packed.height; state.operation = 'enhance'; state.result = null;
       render();
     } catch (error) { setStatus(error?.message || 'IMAGE PREPARATION FAILED'); }
+  }
+
+  async function saveResult() {
+    if (!state.result) return;
+    const button = document.querySelector('#visionSave');
+    if (button) { button.disabled = true; button.textContent = 'PREPARING…'; }
+    try {
+      const response = await fetch(state.result);
+      const blob = await response.blob();
+      const ext = (state.resultMimeType || blob.type || 'image/png').split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+      const file = new File([blob], `jarvis-vision-result.${ext}`, { type: state.resultMimeType || blob.type || 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'JARVIS Vision result' });
+        setStatus('SAVE / SHARE COMPLETE');
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `jarvis-vision-result.${ext}`;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setStatus('IMAGE READY TO SAVE');
+    } catch (error) {
+      if (error?.name === 'AbortError') { setStatus('SAVE CANCELLED'); return; }
+      const url = state.result;
+      window.open(url, '_blank', 'noopener');
+      setStatus('IMAGE OPENED · USE SHARE / SAVE');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'SAVE'; }
+    }
   }
 
   async function run() {
@@ -117,7 +151,8 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || `Vision service returned HTTP ${response.status}`);
       if (!data?.image?.data) throw new Error('JARVIS returned no image.');
-      state.result = `data:${data.image.mimeType || 'image/png'};base64,${data.image.data}`;
+      state.resultMimeType = data.image.mimeType || 'image/png';
+      state.result = `data:${state.resultMimeType};base64,${data.image.data}`;
       render();
       setStatus(data?.faithful ? `ENHANCE COMPLETE · ${data.image.width}×${data.image.height} · FAITHFUL` : 'VISION COMPLETE');
     } catch (error) {
@@ -134,6 +169,7 @@
     const drop = document.querySelector('#visionDrop');
     if (drop) { ['dragenter','dragover'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('drag'); })); ['dragleave','drop'].forEach(type => drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('drag'); })); drop.addEventListener('drop', e => chooseFile(e.dataTransfer?.files?.[0])); }
     document.querySelector('#visionRun')?.addEventListener('click', () => void run());
+    document.querySelector('#visionSave')?.addEventListener('click', () => void saveResult());
     document.querySelector('#visionClear')?.addEventListener('click', () => { state.file = null; state.base64 = ''; state.originalBase64 = ''; state.sourceUrl = ''; state.result = null; state.prompt = ''; state.sourceWidth = 0; state.sourceHeight = 0; state.operation = 'enhance'; render(); });
   }
 
