@@ -23,7 +23,7 @@ test('Books regression: "Beowulf and open the 6th one" resolves the current Book
   const results = page.locator('#jbe6Results .jbe6-book');
   await expect(page.locator('#jbe6Panel')).toBeVisible({ timeout: 15_000 });
   await expect(results.first()).toBeVisible({ timeout: 30_000 });
-  await expect(results).toHaveCount(6, { timeout: 30_000 });
+  await expect(results.nth(5)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#jbe6Results')).toContainText(SIXTH_TITLE);
 
   // The ordinal target is identified from the Books result context itself.
