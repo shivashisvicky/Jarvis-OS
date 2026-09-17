@@ -30,11 +30,19 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#circuitBest')).toHaveText(/BEST \d+/);
     await expect(page.locator('#circuitStatus')).toHaveText('PRESS START TO RACE');
 
+    const leftControl = page.locator('[data-circuit="left"]');
+    const rightControl = page.locator('[data-circuit="right"]');
+    const leftBox = await leftControl.boundingBox();
+    const rightBox = await rightControl.boundingBox();
+    expect(leftBox).not.toBeNull();
+    expect(rightBox).not.toBeNull();
+    expect(Math.abs((leftBox?.y ?? 0) - (rightBox?.y ?? 0))).toBeLessThanOrEqual(1);
+
     await page.locator('#circuitReset').click();
     await expect(page.locator('#circuitStatus')).toHaveText('RACING · DODGE + COLLECT');
     await expect(page.locator('#circuitScore')).toHaveText('SCORE 0');
     await page.keyboard.press('ArrowRight');
-    await page.locator('[data-circuit="left"]').click();
+    await leftControl.click();
     await expect.poll(async () => page.locator('#circuitDistance').textContent()).not.toBe('DIST 0M');
 
     await circuit.evaluate(node => node.remove());
