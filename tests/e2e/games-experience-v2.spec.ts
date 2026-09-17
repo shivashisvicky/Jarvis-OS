@@ -16,7 +16,7 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#games-feature-play')).toHaveText('PLAY TETRIS');
 
     await expect(page.locator('.game-card')).toHaveCount(7);
-    await expect(page.locator('#tetrisGame').closest('.game-card')).toBeVisible();
+    await expect(page.locator('#tetrisGame').locator('..')).toHaveClass(/game-card/);
     await expect(page.locator('#tetBoard')).toBeVisible();
 
     await page.locator('#games-feature-play').click();
