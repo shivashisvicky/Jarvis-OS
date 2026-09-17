@@ -18,6 +18,10 @@ test('Books regression: "Beowulf and open the 6th one" resolves the current Book
 
   // The exact user command is the contract. The first clause must establish
   // a broad Books result set before the ordinal follow-up is resolved.
+  const gutenbergRequest = page.waitForRequest(
+    request => request.method() === 'GET' && /gutendex\.com\/books\/56613(?:\?|$)/i.test(request.url()),
+    { timeout: 30_000 }
+  );
   await submitCommand(page, 'Beowulf and open the 6th one');
 
   const results = page.locator('#jbe6Results .jbe6-book');
@@ -30,6 +34,11 @@ test('Books regression: "Beowulf and open the 6th one" resolves the current Book
   // This is deliberately read-only: the test never clicks the sixth card.
   await expect(results.nth(5)).toContainText(SIXTH_TITLE);
   await expect(results.nth(5)).toHaveAttribute('data-book-id', SIXTH_ID);
+
+  // The Reader's metadata request must target the same Gutenberg ID as the
+  // sixth Books result. This proves the resolved/opened book is #56613.
+  const request = await gutenbergRequest;
+  expect(request.url()).toMatch(/\/books\/56613(?:\?|$)/);
 
   // The final observable contract is the actual JARVIS Reader, not merely
   // a matching result card or a successful route/page load.
