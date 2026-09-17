@@ -72,6 +72,43 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: pnpm run build
 
+      - name: Install Chromium for focused TEST behavioral regression
+        working-directory: test-src
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run focused Books behavioral regression against TEST build
+        working-directory: test-src
+        env:
+          JARVIS_LIVE_URL: http://127.0.0.1:4173
+        run: |
+          set -euo pipefail
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/jarvis-test-preview.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --fail --max-time 2 http://127.0.0.1:4173/ >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat /tmp/jarvis-test-preview.log
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --silent --show-error --fail --max-time 5 http://127.0.0.1:4173/ >/dev/null
+          pnpm exec playwright test tests/e2e/books-chain-regression.spec.ts --project=chromium
+
+      - name: Upload focused Books regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: books-chain-regression-${{ github.sha }}
+          path: |
+            test-src/playwright-report/
+            test-src/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Configure Intelligence endpoint in both builds
         env:
           JARVIS_INTELLIGENCE_ENDPOINT: ${{ secrets.JARVIS_INTELLIGENCE_ENDPOINT }}
