@@ -23,12 +23,24 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#tetReset')).toBeFocused();
     await expect(page.locator('#tetBoard')).toBeVisible();
 
-    await expect(page.locator('#jarvisCircuitGame')).toBeVisible();
-    await expect(page.locator('#jarvisCircuitGame h3')).toHaveText('🏎️ JARVIS Circuit');
+    const circuit = page.locator('#jarvisCircuitGame');
+    await expect(circuit).toBeVisible();
+    await expect(circuit.locator('h3')).toHaveText('🏎️ JARVIS Circuit');
     await expect(page.locator('#circuitCanvas')).toBeVisible();
     await expect(page.locator('#circuitBest')).toHaveText(/BEST \d+/);
     await expect(page.locator('#circuitStatus')).toHaveText('PRESS START TO RACE');
 
+    await page.locator('#circuitReset').click();
+    await expect(page.locator('#circuitStatus')).toHaveText('RACING · DODGE + COLLECT');
+    await expect(page.locator('#circuitScore')).toHaveText('SCORE 0');
+    await page.keyboard.press('ArrowRight');
+    await page.locator('[data-circuit="left"]').click();
+    await expect.poll(async () => page.locator('#circuitDistance').textContent()).not.toBe('DIST 0M');
+
+    await circuit.evaluate(node => node.remove());
+    await expect(page.locator('.game-card')).toHaveCount(7);
+    await expect(page.locator('#jarvisCircuitGame')).toBeVisible();
+    await expect(page.locator('#circuitStatus')).toHaveText('PRESS START TO RACE');
     await page.locator('#circuitReset').click();
     await expect(page.locator('#circuitStatus')).toHaveText('RACING · DODGE + COLLECT');
     await expect(page.locator('#circuitScore')).toHaveText('SCORE 0');
