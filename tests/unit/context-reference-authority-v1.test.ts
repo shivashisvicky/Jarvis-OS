@@ -3,22 +3,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
-const loadRuntime = (overrides: Record<string, unknown> = {}) => {
+const loadRuntime = (engine = {
+  active: true,
+  domain: 'BOOKS',
+  contextId: 'books-test',
+  turn: 4,
+  results: [{ title: 'Book One' }, { title: 'Book Two' }, { title: 'Book Three' }],
+  selected: { title: 'Book One' },
+}) => {
   const listeners: Record<string, Function[]> = {};
   const dispatched: any[] = [];
-  const clicked: string[] = [];
   const window: any = {
-    jarvisContextEngine: {
-      get: () => ({
-        active: true,
-        domain: 'BOOKS',
-        contextId: 'books-test',
-        turn: 4,
-        results: [{ title: 'Book One' }, { title: 'Book Two' }, { title: 'Book Three' }],
-        selected: { title: 'Book One' },
-        ...((overrides.jarvisContextEngine as object) || {}),
-      }),
-    },
+    jarvisContextEngine: { get: () => engine },
     addEventListener(type: string, fn: Function) { (listeners[type] ||= []).push(fn); },
     dispatchEvent(event: any) {
       dispatched.push(event);
@@ -67,7 +63,7 @@ const loadRuntime = (overrides: Record<string, unknown> = {}) => {
 
   const source = fs.readFileSync(path.resolve('jarvis-context-reference-authority-v1.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'jarvis-context-reference-authority-v1.js' });
-  return { window, dispatched, clicked };
+  return { window, dispatched };
 };
 
 describe('JARVIS context reference authority', () => {
@@ -104,22 +100,17 @@ describe('JARVIS context reference authority', () => {
     expect(dispatched.filter(x => x.type === 'jarvis:context-followup')).toHaveLength(0);
   });
 
-  it('keeps map ownership surface-specific when a map result card is available', () => {
-    const mapCard = {
-      click: () => {},
-      getAttribute: () => '1',
-    };
-    const { window } = loadRuntime({
-      jarvisContextEngine: {
-        get: () => ({
-          active: true,
-          domain: 'MAPS',
-          results: [{ name: 'One' }, { name: 'Two' }],
-        }),
-      },
+  it('does not let a BOOKS resolver claim a fresh MAPS context', () => {
+    const { window, dispatched } = loadRuntime({
+      active: true,
+      domain: 'MAPS',
+      contextId: 'maps-test',
+      turn: 5,
+      results: [{ name: 'One' }, { name: 'Two' }],
+      selected: null,
     });
 
-    window.jarvisContextReferenceAuthority.run('open the second one');
-    expect(mapCard.getAttribute()).toBe('1');
+    expect(window.jarvisContextReferenceAuthority.run('open the second one')).toBe(true);
+    expect(dispatched.filter(x => x.type === 'jarvis:context-followup')).toHaveLength(0);
   });
 });
