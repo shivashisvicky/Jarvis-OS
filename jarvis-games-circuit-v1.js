@@ -19,7 +19,7 @@
       .circuit-canvas{display:block;width:min(100%,320px);height:auto;aspect-ratio:2/3;border:1px solid #1e536a;border-radius:14px;background:#02070a;touch-action:none;box-shadow:inset 0 0 28px rgba(53,201,239,.05),0 10px 28px rgba(0,0,0,.18)}
       .circuit-hud{width:min(100%,320px);display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
       .circuit-hud b{display:block;padding:7px 5px;text-align:center;border:1px solid #173b4d;border-radius:9px;background:linear-gradient(180deg,#0a202b,#071923);color:#71ddff;font-size:.74rem;letter-spacing:.04em;box-shadow:inset 0 1px rgba(255,255,255,.04)}
-      .circuit-controls{display:grid !important;grid-template-columns:repeat(2,52px) !important;grid-auto-rows:44px;gap:10px;justify-content:center;align-items:center}
+      .circuit-controls{display:flex !important;flex-wrap:nowrap !important;gap:10px;justify-content:center;align-items:center}
       .circuit-controls button{width:52px;height:44px;padding:0;font-size:18px;font-weight:800}
       .circuit-controls button:not(.blank):active{transform:translateY(1px);background:#0d2b38}
       .circuit-controls .blank{display:none !important}
@@ -48,8 +48,7 @@
         </div>
         <div class="circuit-status" id="circuitStatus">PRESS START TO RACE</div>
         <div class="circuit-controls" aria-label="Circuit controls">
-          <button class="blank" type="button">·</button><button type="button" data-circuit="left" aria-label="Move left">◀</button><button class="blank" type="button">·</button>
-          <button class="blank" type="button">·</button><button type="button" data-circuit="right" aria-label="Move right">▶</button><button class="blank" type="button">·</button>
+          <button type="button" data-circuit="left" aria-label="Move left">◀</button><button type="button" data-circuit="right" aria-label="Move right">▶</button>
         </div>
         <div class="game-bar"><span>← → / A D</span><button id="circuitReset" type="button">START / RESTART</button></div>
       </div>`;
