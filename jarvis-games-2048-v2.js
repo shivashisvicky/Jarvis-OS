@@ -17,14 +17,8 @@
       .two-v2-state{min-height:18px;text-align:center;color:#7894a0;font-size:.76rem;letter-spacing:.06em}
       .two-v2-shell .board2048{width:min(100%,340px);max-width:340px;gap:6px;padding:7px;border:1px solid #173b4d;border-radius:14px;background:#02070a;touch-action:none;user-select:none}
       .two-v2-shell .board2048 b{background:#10212b;border:1px solid #173b4d;min-width:0;font-size:clamp(15px,5vw,21px);font-weight:900}
-      .two-v2-controls{display:grid;grid-template-columns:repeat(3,48px);gap:6px;justify-content:center}
-      .two-v2-controls button{width:48px;height:42px;padding:0;font-size:16px}
-      .two-v2-controls .blank{visibility:hidden}
-      @media(max-width:600px){
-        .two-v2-shell .board2048{width:min(100%,340px)}
-        .two-v2-controls{grid-template-columns:repeat(3,52px)}
-        .two-v2-controls button{width:52px;height:46px}
-      }
+      .two-v2-controls{margin-top:4px}
+      @media(max-width:600px){.two-v2-shell .board2048{width:min(100%,340px)}}
     `;
     document.head.appendChild(s);
   };
@@ -49,14 +43,13 @@
     state.className = 'two-v2-state';
     state.textContent = 'READY · MERGE TILES';
 
-    const controls = document.createElement('div');
-    controls.className = 'two-v2-controls';
-    controls.innerHTML = '<button class="blank" type="button">·</button><button data-two="U" type="button">▲</button><button class="blank" type="button">·</button><button data-two="L" type="button">◀</button><button data-two="D" type="button">▼</button><button data-two="R" type="button">▶</button>';
-
     score.style.display = 'none';
     board.parentElement?.insertBefore(hud, board);
     board.parentElement?.insertBefore(state, board);
-    board.parentElement?.appendChild(controls);
+
+    // Reuse the existing mobile 2048 D-pad. Do not create a second authority/control surface.
+    const controls = document.getElementById('jarvis2048Pad');
+    controls?.classList.add('two-v2-controls');
 
     let best = Number(localStorage.getItem(BEST_KEY) || 0);
     const scoreHud = hud.querySelector('#twoV2Score');
@@ -79,8 +72,6 @@
     observer.observe(score, {childList:true, characterData:true, subtree:true});
 
     const dispatch = key => window.dispatchEvent(new KeyboardEvent('keydown', {key, code:key, bubbles:true, cancelable:true}));
-    controls.querySelectorAll('[data-two]').forEach(btn => btn.addEventListener('pointerdown', () => dispatch(({U:'ArrowUp',D:'ArrowDown',L:'ArrowLeft',R:'ArrowRight'})[btn.dataset.two]), {passive:true}));
-
     let sx=0,sy=0,tracking=false;
     board.addEventListener('pointerdown', e => {
       if (e.pointerType === 'mouse') return;
