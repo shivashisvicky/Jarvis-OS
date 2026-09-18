@@ -39,6 +39,7 @@
     wrap.dataset.twoV2 = '1';
     addStyle();
     wrap.classList.add('two-v2-shell','two-v2-card');
+    wrap.style.gridColumn = '1 / -1';
 
     const hud = document.createElement('div');
     hud.className = 'two-v2-hud';
