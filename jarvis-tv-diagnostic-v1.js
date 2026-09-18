@@ -57,18 +57,34 @@
   // rather than DOM keyboard events. Capture pointer/mouse movement in a bounded,
   // throttled form so the diagnostic can distinguish that path without flooding
   // the TV with log entries.
+  // Pointer-direction probe: capture where JioSphere's virtual pointer actually moves.
+  // This remains diagnostic-only and does not synthesize clicks, keys, focus, or scrolling.
   let lastPointerLog = 0;
+  let lastPointerX = null;
+  let lastPointerY = null;
   const logPointerMove = e => {
     const now = Date.now();
     if (now - lastPointerLog < 250) return;
     lastPointerLog = now;
+    const x = Number.isFinite(e.clientX) ? e.clientX : null;
+    const y = Number.isFinite(e.clientY) ? e.clientY : null;
+    const dx = x == null || lastPointerX == null ? null : x - lastPointerX;
+    const dy = y == null || lastPointerY == null ? null : y - lastPointerY;
+    const direction = dx == null || dy == null ? 'INITIAL' :
+      Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'RIGHT' : dx < 0 ? 'LEFT' : 'NONE') :
+      (dy > 0 ? 'DOWN' : dy < 0 ? 'UP' : 'NONE');
+    lastPointerX = x;
+    lastPointerY = y;
     add(e.type, {
-      key:e.pointerType,
+      key:e.pointerType || 'mouse',
       keyCode:e.button,
       button:e.button,
       deltaY:e.movementY,
-      clientX:e.clientX,
-      clientY:e.clientY,
+      clientX:x,
+      clientY:y,
+      dx,
+      dy,
+      direction,
       defaultPrevented:e.defaultPrevented
     });
   };
