@@ -75,7 +75,7 @@
 
   const installTvLayout = () => {
     if (!isTvBrowser()) return;
-    const styleId = 'jarvis-tv-scroll-v4-layout';
+    const styleId = 'jarvis-tv-scroll-v6-layout';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
     style.id = styleId;
@@ -99,6 +99,17 @@
       el.dataset.tvFocusBound = '1';
       if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
     });
+    // JioSphere's TV D-pad navigation is native browser focus navigation.
+    // Give it an initial focus target so the remote can enter the page's
+    // focus graph without requiring a DOM key event.
+    if (document.activeElement === document.body) {
+      const first = w.querySelector(
+        'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]'
+      );
+      if (first instanceof HTMLElement) {
+        try { first.focus({preventScroll:true}); } catch { first.focus(); }
+      }
+    }
   };
 
   document.addEventListener('focusin', e => {
