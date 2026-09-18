@@ -23,6 +23,34 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#tetReset')).toBeFocused();
     await expect(page.locator('#tetBoard')).toBeVisible();
 
+    const snake = page.locator('#snakeGame');
+    await expect(snake).toBeVisible();
+    await expect(snake.locator('h3')).toHaveText('🐍 Snake');
+    await expect(page.locator('#snakeCanvas')).toBeVisible();
+    await expect(page.locator('#snakeV2Score')).toHaveText('SCORE 0');
+    await expect(page.locator('#snakeV2Best')).toHaveText(/BEST \\d+/);
+    await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
+    await expect(snake.locator('[data-snake="up"]')).toBeVisible();
+    await expect(snake.locator('[data-snake="left"]')).toBeVisible();
+    await expect(snake.locator('[data-snake="down"]')).toBeVisible();
+    await expect(snake.locator('[data-snake="right"]')).toBeVisible();
+
+    const canvasSize = await page.locator('#snakeCanvas').evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return { width: r.width, height: r.height };
+    });
+    expect(canvasSize.width).toBeGreaterThanOrEqual(300);
+    expect(Math.abs(canvasSize.width - canvasSize.height)).toBeLessThanOrEqual(1);
+
+    await page.locator('#snakeCanvas').dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 150 });
+    await page.locator('#snakeCanvas').dispatchEvent('pointerup', { pointerType: 'touch', clientX: 190, clientY: 150 });
+    await page.waitForTimeout(130);
+    await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
+
+    await page.locator('#snakeReset').click();
+    await expect(page.locator('#snakeV2Score')).toHaveText('SCORE 0');
+    await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
+
     const circuit = page.locator('#jarvisCircuitGame');
     await expect(circuit).toBeVisible();
     await expect(circuit.locator('h3')).toHaveText('🏎️ JARVIS Circuit');
