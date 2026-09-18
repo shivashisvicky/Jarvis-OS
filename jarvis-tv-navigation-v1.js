@@ -10,29 +10,63 @@
   };
   const inGame = el => !!(el instanceof Element && el.closest('.arcade,.game-card'));
 
-  document.addEventListener('keydown', e => {
+  const focusables = () => Array.from(document.querySelectorAll(
+    '.os button:not([disabled]), .os a[href], .os input:not([disabled]), .os select:not([disabled]), .os textarea:not([disabled]), .os [tabindex="0"]'
+  )).filter(el => {
+    if (!(el instanceof HTMLElement)) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+  });
+
+  const spatialMove = direction => {
+    const all = focusables();
+    if (!all.length) return false;
+    const current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const cr = current?.getBoundingClientRect();
+    const origin = cr || {left:window.innerWidth/2, right:window.innerWidth/2, top:window.innerHeight/2, bottom:window.innerHeight/2, width:0, height:0};
+    const cx = (origin.left + origin.right) / 2, cy = (origin.top + origin.bottom) / 2;
+    const candidates = all.filter(el => el !== current).map(el => {
+      const r = el.getBoundingClientRect();
+      const x = (r.left+r.right)/2, y=(r.top+r.bottom)/2;
+      const dx=x-cx, dy=y-cy;
+      const primary = direction==='left' ? -dx : direction==='right' ? dx : direction==='up' ? -dy : dy;
+      const secondary = direction==='left'||direction==='right' ? Math.abs(dy) : Math.abs(dx);
+      return {el,r,primary,secondary,distance:Math.hypot(dx,dy)};
+    }).filter(x => x.primary > 6)
+      .sort((a,b) => (a.secondary-b.secondary)*3 + a.distance-b.distance);
+    const next = candidates[0]?.el;
+    if (!next) return false;
+    next.focus({preventScroll:true});
+    next.scrollIntoView({behavior:'auto',block:'nearest',inline:'nearest'});
+    return true;
+  };
+
+  const scrollPage = direction => {
+    const step = Math.max(180, Math.floor(window.innerHeight * .45));
+    if (direction==='down') window.scrollBy(0, step);
+    else if (direction==='up') window.scrollBy(0, -step);
+    else return false;
+    return true;
+  };
+
+  window.addEventListener('keydown', e => {
     if (e.defaultPrevented) return;
-    if (!['ArrowDown','ArrowUp','PageDown','PageUp','Home','End'].includes(e.key)) return;
+    const raw = String(e.key || '').toLowerCase();
+    const keyCode = Number(e.keyCode || 0);
+    const key = raw==='left'||keyCode===37 ? 'left' :
+      raw==='right'||keyCode===39 ? 'right' :
+      raw==='up'||keyCode===38 ? 'up' :
+      raw==='down'||keyCode===40 ? 'down' : '';
+    if (!key) return;
 
     const target = e.target instanceof Element ? e.target : document.activeElement;
-    if (isEditable(target) || inGame(target)) return;
+    if (isEditable(target)) return;
 
-    const w = workspace();
-    if (!w || w.scrollHeight <= w.clientHeight + 2) return;
-
-    let handled = true;
-    const step = Math.max(180, Math.floor(w.clientHeight * 0.42));
-    if (e.key === 'ArrowDown') w.scrollBy({top:72,behavior:'smooth'});
-    else if (e.key === 'ArrowUp') w.scrollBy({top:-72,behavior:'smooth'});
-    else if (e.key === 'PageDown') w.scrollBy({top:Math.floor(w.clientHeight * 0.82),behavior:'smooth'});
-    else if (e.key === 'PageUp') w.scrollBy({top:-Math.floor(w.clientHeight * 0.82),behavior:'smooth'});
-    else if (e.key === 'Home') w.scrollTo({top:0,behavior:'smooth'});
-    else if (e.key === 'End') w.scrollTo({top:w.scrollHeight,behavior:'smooth'});
-    else handled = false;
-
+    let handled = spatialMove(key);
+    if (!handled && (key==='down'||key==='up')) handled = scrollPage(key);
     if (handled) {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
     }
   }, true);
 
