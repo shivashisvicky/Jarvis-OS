@@ -10,6 +10,8 @@
   panel.innerHTML = '<b>JARVIS TV DIAGNOSTIC</b><button id="jtvDbgClear" style="float:right">CLEAR</button><pre id="jtvDbgLog" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0"></pre>';
   document.body.appendChild(panel);
   const log = document.getElementById('jtvDbgLog');
+  const MAX_LOG_LINES = 60;
+  const lines = [];
   const add = (name, extra={}) => {
     const s = document.scrollingElement || document.documentElement;
     const w = document.querySelector('.workspace');
@@ -31,10 +33,12 @@
       workspaceClient:w?.clientHeight,
       ua:navigator.userAgent
     });
-    log.textContent += line + '\n';
+    lines.push(line);
+    if (lines.length > MAX_LOG_LINES) lines.splice(0, lines.length - MAX_LOG_LINES);
+    log.textContent = lines.join('\\n') + '\\n';
     log.scrollTop = log.scrollHeight;
   };
-  document.getElementById('jtvDbgClear').onclick=()=>log.textContent='';
+  document.getElementById('jtvDbgClear').onclick=()=>{ lines.length=0; log.textContent=''; };
   add('BOOT');
 
   ['keydown','keyup','keypress'].forEach(type => window.addEventListener(type,e => add(type,e), true));
@@ -42,5 +46,5 @@
   window.addEventListener('scroll',e=>add('WINDOW_SCROLL'),true);
   document.addEventListener('focusin',e=>add('FOCUSIN'),true);
 
-  setInterval(()=>add('HEARTBEAT'),1000);
+  setInterval(()=>add('HEARTBEAT'),3000);
 })();
