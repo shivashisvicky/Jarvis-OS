@@ -15,12 +15,12 @@
       .snake-v2-hud{width:min(100%,340px);display:grid;grid-template-columns:1fr 1fr;gap:6px}
       .snake-v2-hud b{display:block;padding:7px 6px;text-align:center;border:1px solid #173b4d;border-radius:9px;background:linear-gradient(180deg,#0a202b,#071923);color:#71ddff;font-size:.74rem;letter-spacing:.04em}
       .snake-v2-state{min-height:18px;color:#7894a0;font-size:.78rem;text-align:center;letter-spacing:.06em}
-      .snake-v2-shell .snake-wrap{width:100%}
-      .snake-v2-shell .snake-wrap canvas{width:min(100%,340px);height:auto;aspect-ratio:1;image-rendering:pixelated;touch-action:none}
+      .snake-v2-shell{width:100%}
+      .snake-v2-shell canvas{width:min(100%,340px);height:auto;aspect-ratio:1;image-rendering:pixelated;touch-action:none}
       .snake-v2-shell .dpad{grid-template-columns:repeat(3,52px);gap:7px}
       .snake-v2-shell .dpad button{width:52px;height:46px;font-size:17px}
       @media(max-width:600px){
-        .snake-v2-shell .snake-wrap canvas{width:min(100%,340px)}
+        .snake-v2-shell canvas{width:min(100%,340px)}
         .snake-v2-shell .dpad{grid-template-columns:repeat(3,54px)}
         .snake-v2-shell .dpad button{width:54px;height:48px}
       }
