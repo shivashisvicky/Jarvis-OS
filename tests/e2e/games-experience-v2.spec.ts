@@ -23,7 +23,7 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#tetReset')).toBeFocused();
     await expect(page.locator('#tetBoard')).toBeVisible();
 
-    const two = page.locator('#twoGame');
+    const two = page.locator('#twoGame').locator('..');
     await expect(two).toBeVisible();
     await expect(two.locator('h3')).toHaveText('🔢 2048');
     await expect(page.locator('#twoV2Score')).toHaveText('SCORE 0');
