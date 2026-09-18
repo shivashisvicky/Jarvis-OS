@@ -31,6 +31,15 @@
       workspaceTop:w?.scrollTop,
       workspaceH:w?.scrollHeight,
       workspaceClient:w?.clientHeight,
+      layout: (() => {
+        const pick = sel => {
+          const el = document.querySelector(sel);
+          if (!(el instanceof HTMLElement)) return null;
+          const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+          return { rectH:Math.round(r.height), clientH:el.clientHeight, scrollH:el.scrollHeight, cssH:cs.height, minH:cs.minHeight, maxH:cs.maxHeight, overflowY:cs.overflowY, display:cs.display };
+        };
+        return {app:pick('#app'), os:pick('.os'), main:pick('.os-main'), workspace:pick('.workspace')};
+      })(),
       ua:String(navigator.userAgent || '').slice(0,120)
     });
     lines.push(line);
