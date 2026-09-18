@@ -50,8 +50,12 @@
     }
     w.style.overflow = 'visible';
     w.style.minHeight = '0';
-    w.style.height = 'auto';
     w.style.maxHeight = 'none';
+    // The desktop shell makes .workspace a viewport-sized grid item. On TV,
+    // promote its actual content height into layout so the document itself grows.
+    const naturalHeight = Math.max(w.scrollHeight, w.clientHeight);
+    const naturalHeightCss = naturalHeight + 'px';
+    if (w.style.height !== naturalHeightCss) w.style.height = naturalHeightCss;
     w.style.touchAction = 'pan-y';
     w.style.scrollBehavior = 'auto';
     w.style.webkitOverflowScrolling = 'auto';
@@ -75,7 +79,7 @@
 
   const installTvLayout = () => {
     if (!isTvBrowser()) return;
-    const styleId = 'jarvis-tv-scroll-v10-layout';
+    const styleId = 'jarvis-tv-scroll-v11-layout';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
     style.id = styleId;
@@ -86,7 +90,7 @@
       body.jarvis-tv-scroll-mode .os { height:auto !important; min-height:100vh !important; overflow:visible !important; display:block !important; }
       body.jarvis-tv-scroll-mode .os-main { width:100% !important; height:max-content !important; min-height:0 !important; display:grid !important; grid-template-columns:92px minmax(0,1fr) !important; grid-template-rows:max-content !important; align-items:start !important; }
       body.jarvis-tv-scroll-mode .rail { height:max-content !important; min-height:0 !important; overflow:visible !important; }
-      body.jarvis-tv-scroll-mode .workspace { width:auto !important; height:max-content !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode .workspace { width:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode :is(button,a[href],input,select,textarea,[tabindex="0"]):focus-visible { outline:3px solid #62e6ff !important; outline-offset:4px !important; box-shadow:0 0 0 6px rgba(98,230,255,.16) !important; }
       body.jarvis-tv-scroll-mode #jarvisTvDebug { pointer-events:none !important; }
       body.jarvis-tv-scroll-mode #jarvisTvDebug * { pointer-events:none !important; }
