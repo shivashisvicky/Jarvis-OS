@@ -52,6 +52,28 @@
 
   ['keydown','keyup','keypress'].forEach(type => window.addEventListener(type,e => add(type,e), true));
   ['wheel','pointerdown','pointerup','click','touchstart','touchend'].forEach(type => window.addEventListener(type,e => add(type,e), true));
+
+  // JioSphere may expose the physical remote through its native TV pointer layer
+  // rather than DOM keyboard events. Capture pointer/mouse movement in a bounded,
+  // throttled form so the diagnostic can distinguish that path without flooding
+  // the TV with log entries.
+  let lastPointerLog = 0;
+  const logPointerMove = e => {
+    const now = Date.now();
+    if (now - lastPointerLog < 250) return;
+    lastPointerLog = now;
+    add(e.type, {
+      key:e.pointerType,
+      keyCode:e.button,
+      button:e.button,
+      deltaY:e.movementY,
+      clientX:e.clientX,
+      clientY:e.clientY,
+      defaultPrevented:e.defaultPrevented
+    });
+  };
+  window.addEventListener('pointermove', logPointerMove, true);
+  window.addEventListener('mousemove', logPointerMove, true);
   window.addEventListener('scroll',e=>add('WINDOW_SCROLL'),true);
   document.addEventListener('focusin',e=>add('FOCUSIN'),true);
 
