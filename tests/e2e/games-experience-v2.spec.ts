@@ -23,27 +23,6 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#tetReset')).toBeFocused();
     await expect(page.locator('#tetBoard')).toBeVisible();
 
-    const two = page.locator('#twoGame').locator('..');
-    await expect(two).toBeVisible();
-    await expect(two.locator('h3')).toHaveText('🔢 2048');
-    await expect(page.locator('#twoV2Score')).toHaveText('SCORE 0');
-    await expect(page.locator('#twoV2Best')).toHaveText('BEST 0');
-    await expect(page.locator('#twoV2State')).toHaveText('PLAYING · MERGE');
-    await expect(two.locator('[data-two="U"]')).toBeVisible();
-    await expect(two.locator('[data-two="L"]')).toBeVisible();
-    await expect(two.locator('[data-two="D"]')).toBeVisible();
-    await expect(two.locator('[data-two="R"]')).toBeVisible();
-    const twoSize = await page.locator('#twoBoard').evaluate(el => {
-      const r = el.getBoundingClientRect();
-      return { width: r.width, height: r.height };
-    });
-    expect(twoSize.width).toBeGreaterThanOrEqual(300);
-    expect(Math.abs(twoSize.width - twoSize.height)).toBeLessThanOrEqual(2);
-
-    await page.locator('#twoBoard').dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 150 });
-    await page.locator('#twoBoard').dispatchEvent('pointerup', { pointerType: 'touch', clientX: 105, clientY: 150 });
-    await expect(page.locator('#twoV2State')).toHaveText('PLAYING · MERGE');
-
     const snake = page.locator('#snakeGame').locator('..');
     await expect(snake).toBeVisible();
     await expect(snake.locator('h3')).toHaveText('🐍 Snake');
@@ -72,6 +51,28 @@ test.describe('Games Experience 2.0', () => {
     await page.locator('#snakeReset').click();
     await expect(page.locator('#snakeV2Score')).toHaveText('SCORE 0');
     await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
+
+
+    const two = page.locator('#twoGame').locator('..');
+    await expect(two).toBeVisible();
+    await expect(two.locator('h3')).toHaveText('🔢 2048');
+    await expect(page.locator('#twoV2Score')).toHaveText('SCORE 0');
+    await expect(page.locator('#twoV2Best')).toHaveText('BEST 0');
+    await expect(page.locator('#twoV2State')).toHaveText('PLAYING · MERGE');
+    await expect(two.locator('[data-two="U"]')).toBeVisible();
+    await expect(two.locator('[data-two="L"]')).toBeVisible();
+    await expect(two.locator('[data-two="D"]')).toBeVisible();
+    await expect(two.locator('[data-two="R"]')).toBeVisible();
+    const twoSize = await page.locator('#twoBoard').evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return { width: r.width, height: r.height };
+    });
+    expect(twoSize.width).toBeGreaterThanOrEqual(300);
+    expect(Math.abs(twoSize.width - twoSize.height)).toBeLessThanOrEqual(2);
+
+    await page.locator('#twoBoard').dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 150 });
+    await page.locator('#twoBoard').dispatchEvent('pointerup', { pointerType: 'touch', clientX: 105, clientY: 150 });
+    await expect(page.locator('#twoV2State')).toHaveText('PLAYING · MERGE');
 
     const reaction = page.locator('#jarvisReactionGame');
     await expect(reaction).toBeVisible();
