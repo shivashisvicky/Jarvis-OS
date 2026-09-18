@@ -62,8 +62,8 @@ test.describe('Games Experience 2.0', () => {
     await expect.poll(async () => page.locator('#reactionState').textContent(), {timeout:5000}).toBe('NOW · TAP');
     await page.locator('#reactionTarget').click();
     await expect(page.locator('#reactionState')).toHaveText('REACTION CAPTURED · RUN AGAIN');
-    await expect(page.locator('#reactionScore')).toHaveText(/LAST \\d+MS/);
-    await expect(page.locator('#reactionBest')).toHaveText(/BEST \\d+MS/);
+    await expect(page.locator('#reactionScore')).toHaveText(/LAST \d+MS/);
+    await expect(page.locator('#reactionBest')).toHaveText(/BEST \d+MS/);
 
     const circuit = page.locator('#jarvisCircuitGame');
     await expect(circuit).toBeVisible();
