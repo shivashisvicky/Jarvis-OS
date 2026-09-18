@@ -28,7 +28,7 @@ test.describe('Games Experience 2.0', () => {
     await expect(snake.locator('h3')).toHaveText('🐍 Snake');
     await expect(page.locator('#snakeCanvas')).toBeVisible();
     await expect(page.locator('#snakeV2Score')).toHaveText('SCORE 0');
-    await expect(page.locator('#snakeV2Best')).toHaveText(/BEST \\d+/);
+    await expect(page.locator('#snakeV2Best')).toHaveText('BEST 0');
     await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
     await expect(snake.locator('[data-snake="up"]')).toBeVisible();
     await expect(snake.locator('[data-snake="left"]')).toBeVisible();
