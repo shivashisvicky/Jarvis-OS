@@ -75,7 +75,7 @@
 
   const installTvLayout = () => {
     if (!isTvBrowser()) return;
-    const styleId = 'jarvis-tv-scroll-v6-layout';
+    const styleId = 'jarvis-tv-scroll-v7-layout';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
     style.id = styleId;
@@ -84,9 +84,12 @@
       body.jarvis-tv-scroll-mode,
       body.jarvis-tv-scroll-mode #app { height:auto !important; min-height:100vh !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode .os { height:auto !important; min-height:100vh !important; overflow:visible !important; display:block !important; }
-      body.jarvis-tv-scroll-mode .os-main { height:auto !important; min-height:0 !important; grid-template-rows:auto !important; }
+      body.jarvis-tv-scroll-mode .os-main { height:auto !important; min-height:0 !important; display:grid !important; grid-template-columns:92px minmax(0,1fr) !important; grid-template-rows:auto !important; align-items:start !important; }
       body.jarvis-tv-scroll-mode .workspace { height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode .rail { height:auto !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode :is(button,a[href],input,select,textarea,[tabindex="0"]):focus-visible { outline:3px solid #62e6ff !important; outline-offset:4px !important; box-shadow:0 0 0 6px rgba(98,230,255,.16) !important; }
+      body.jarvis-tv-scroll-mode #jarvisTvDebug { pointer-events:none !important; }
+      body.jarvis-tv-scroll-mode #jarvisTvDebug * { pointer-events:none !important; }
     `;
     document.head.appendChild(style);
   };
@@ -94,14 +97,22 @@
   const installFocusDestinations = () => {
     const w = workspace();
     if (!w) return;
+    const debug = document.getElementById('jarvisTvDebug');
+    if (debug instanceof HTMLElement) {
+      debug.setAttribute('inert','');
+      debug.setAttribute('aria-hidden','true');
+      if (document.activeElement instanceof HTMLElement && debug.contains(document.activeElement)) {
+        document.activeElement.blur();
+      }
+    }
     w.querySelectorAll('.page-head,.panel,.module-card,.settings-card,.info-card').forEach(el => {
       if (!(el instanceof HTMLElement) || el.dataset.tvFocusBound === '1') return;
       el.dataset.tvFocusBound = '1';
       if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
     });
     // JioSphere's TV D-pad navigation is native browser focus navigation.
-    // Give it an initial focus target so the remote can enter the page's
-    // focus graph without requiring a DOM key event.
+    // Give it an initial focus target inside JARVIS so the remote can enter
+    // the page's focus graph without relying on DOM key events.
     if (document.activeElement === document.body) {
       const first = w.querySelector(
         'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]'
