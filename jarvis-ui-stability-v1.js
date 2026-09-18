@@ -12,6 +12,8 @@ const tidyMaps=()=>{
   }
 };
 
+const isTvBrowser=()=>/(jiobrowser|jiosphere|android tv|googletv|google tv|bravia|smart[- ]?tv|hbbtv|tizen tv|web0s|viera)/i.test(String(navigator.userAgent||''));
+
 const stabilize=()=>{
   tidyMaps();
   const ws=document.querySelector('#workspace');
@@ -19,18 +21,19 @@ const stabilize=()=>{
 
   /* The workspace is the only mobile scroller. Do not let injected Home
      overlays create a second horizontal scroll chain or rubber-band. */
-  ws.style.contain='none';
-  ws.style.overflowX='hidden';
-  ws.style.overscrollBehaviorX='none';
-  if(window.matchMedia?.('(max-width:760px)').matches){
-    ws.style.touchAction='pan-y';
-    ws.style.webkitOverflowScrolling='touch';
+  if(!isTvBrowser()){
+    ws.style.contain='none';
+    ws.style.overflowX='hidden';
+    ws.style.overscrollBehaviorX='none';
+    if(window.matchMedia?.('(max-width:760px)').matches){
+      ws.style.touchAction='pan-y';
+      ws.style.webkitOverflowScrolling='touch';
+    }
+    const os=document.querySelector('.os');
+    if(os)os.style.overflow='hidden';
   }
 
-  const os=document.querySelector('.os');
-  if(os)os.style.overflow='hidden';
-
-  if(window.matchMedia?.('(max-width:760px)').matches){
+  if(!isTvBrowser() && window.matchMedia?.('(max-width:760px)').matches){
     const styleId='jarvis-home-mobile-stability-v2';
     if(!document.getElementById(styleId)){
       const style=document.createElement('style');
