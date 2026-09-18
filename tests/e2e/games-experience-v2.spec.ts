@@ -30,13 +30,22 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#circuitBest')).toHaveText(/BEST \d+/);
     await expect(page.locator('#circuitStatus')).toHaveText('PRESS START TO RACE');
 
-    const leftControl = page.locator('[data-circuit="left"]');
-    const rightControl = page.locator('[data-circuit="right"]');
-    const leftBox = await leftControl.boundingBox();
-    const rightBox = await rightControl.boundingBox();
-    expect(leftBox).not.toBeNull();
-    expect(rightBox).not.toBeNull();
-    expect(Math.abs((leftBox?.y ?? 0) - (rightBox?.y ?? 0))).toBeLessThanOrEqual(1);
+    const leftControl = circuit.locator('[data-circuit="left"]');
+    const rightControl = circuit.locator('[data-circuit="right"]');
+    await expect(leftControl).toBeVisible();
+    await expect(rightControl).toBeVisible();
+    const controlY = await circuit.locator('.circuit-controls').evaluate(el => {
+      const left = el.querySelector('[data-circuit="left"]');
+      const right = el.querySelector('[data-circuit="right"]');
+      if (!(left instanceof HTMLElement) || !(right instanceof HTMLElement)) {
+        throw new Error('Circuit controls not found');
+      }
+      return {
+        left: left.getBoundingClientRect().y,
+        right: right.getBoundingClientRect().y
+      };
+    });
+    expect(Math.abs(controlY.left - controlY.right)).toBeLessThanOrEqual(1);
 
     await page.locator('#circuitReset').click();
     await expect(page.locator('#circuitStatus')).toHaveText('RACING · DODGE + COLLECT');
