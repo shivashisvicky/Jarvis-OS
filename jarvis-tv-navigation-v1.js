@@ -6,7 +6,7 @@
   const workspace = () => document.querySelector('.workspace');
   const isEditable = el => {
     if (!(el instanceof HTMLElement)) return false;
-    return el.matches('input,textarea,select,[contenteditable="true"]');
+    return el.matches('textarea,select,[contenteditable="true"]') || (el.matches('input') && el.type !== 'text' && el.type !== 'search');
   };
   const inGame = el => !!(el instanceof Element && el.closest('.arcade,.game-card'));
 
