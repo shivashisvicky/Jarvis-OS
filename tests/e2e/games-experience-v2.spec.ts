@@ -59,10 +59,12 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#twoV2Score')).toHaveText('SCORE 0');
     await expect(page.locator('#twoV2Best')).toHaveText('BEST 0');
     await expect(page.locator('#twoV2State')).toHaveText('PLAYING · MERGE');
-    await expect(two.locator('[data-two="U"]')).toBeVisible();
-    await expect(two.locator('[data-two="L"]')).toBeVisible();
-    await expect(two.locator('[data-two="D"]')).toBeVisible();
-    await expect(two.locator('[data-two="R"]')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad [data-dir="ArrowUp"]')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad [data-dir="ArrowLeft"]')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad [data-dir="ArrowDown"]')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad [data-dir="ArrowRight"]')).toBeVisible();
+    await expect(two.locator('#jarvis2048Pad')).toHaveCount(1);
     const twoSize = await page.locator('#twoBoard').evaluate(el => {
       const r = el.getBoundingClientRect();
       return { width: r.width, height: r.height };
