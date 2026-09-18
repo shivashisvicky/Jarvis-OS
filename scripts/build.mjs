@@ -61,7 +61,7 @@ async function copyRootStaticAssets() {
       throw new Error(`JARVIS build: referenced static asset is missing: ${asset}\n${error.message}`);
     }
   }
-  await copyFile(new URL('../tv-scroll-probe.html', root), new URL('tv-scroll-probe.html', dist));
+  await copyFile(new URL('tv-scroll-probe.html', root), new URL('tv-scroll-probe.html', dist));
   console.log('JARVIS build: copied tv-scroll-probe.html');
 }
 
