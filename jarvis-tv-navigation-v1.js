@@ -3,6 +3,16 @@
   if (window.__JARVIS_TV_NAVIGATION_V1__) return;
   window.__JARVIS_TV_NAVIGATION_V1__ = true;
 
+  const isTvBrowser = () => {
+    const ua = String(navigator.userAgent || '');
+    const tvToken = /(bravia|smart[- ]?tv|hbbtv|android tv|googletv|google tv|aft[abms]|netcast|web0s|viera|tizen tv)/i.test(ua);
+    const jioBrowser = /jiobrowser/i.test(ua);
+    const largeNonTouch = Math.max(screen.width || 0, screen.height || 0) >= 1200 && navigator.maxTouchPoints === 0;
+    return tvToken || jioBrowser || largeNonTouch;
+  };
+
+  if (!isTvBrowser()) return;
+
   const workspace = () => document.querySelector('.workspace');
   const isEditable = el => {
     if (!(el instanceof HTMLElement)) return false;
