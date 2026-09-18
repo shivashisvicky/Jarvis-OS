@@ -1,97 +1,61 @@
 (() => {
   'use strict';
   if (!/[?&]tvdebug=1(?:&|$)/i.test(location.search)) return;
-  if (window.__JARVIS_TV_DEBUG_V1__) return;
-  window.__JARVIS_TV_DEBUG_V1__ = true;
+  if (window.__JARVIS_TV_DEBUG_V2__) return;
+  window.__JARVIS_TV_DEBUG_V2__ = true;
 
   const panel = document.createElement('div');
   panel.id = 'jarvisTvDebug';
   panel.style.cssText = 'position:fixed;z-index:2147483647;left:12px;right:12px;top:12px;max-height:72vh;overflow:auto;background:#06131a;color:#dff8ff;border:2px solid #36d9ff;border-radius:12px;padding:12px;font:14px monospace;box-shadow:0 8px 30px #000;';
-  panel.innerHTML = '<b>JARVIS TV DIAGNOSTIC</b><button id="jtvDbgClear" style="float:right">CLEAR</button><pre id="jtvDbgLog" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0"></pre>';
+  panel.innerHTML = '<b>JARVIS TV POINTER DIAGNOSTIC</b><button id="jtvDbgClear" style="float:right">CLEAR</button><pre id="jtvDbgLog" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0"></pre>';
   document.body.appendChild(panel);
+
   const log = document.getElementById('jtvDbgLog');
-  const MAX_LOG_LINES = 30;
   const lines = [];
-  const add = (name, extra={}) => {
-    const s = document.scrollingElement || document.documentElement;
-    const w = document.querySelector('.workspace');
-    const a = document.activeElement;
-    const line = JSON.stringify({
-      event:name,
-      key:extra.key,
-      keyCode:extra.keyCode,
-      button:extra.button,
-      deltaY:extra.deltaY,
-      defaultPrevented:extra.defaultPrevented,
-      active:a?.tagName + (a?.id ? '#'+a.id : '') + (a?.className ? '.'+String(a.className).split(' ')[0] : ''),
-      windowY:window.scrollY,
-      docTop:s?.scrollTop,
-      docH:s?.scrollHeight,
-      winH:window.innerHeight,
-      workspaceTop:w?.scrollTop,
-      workspaceH:w?.scrollHeight,
-      workspaceClient:w?.clientHeight,
-      layout: (() => {
-        const pick = sel => {
-          const el = document.querySelector(sel);
-          if (!(el instanceof HTMLElement)) return null;
-          const cs = getComputedStyle(el), r = el.getBoundingClientRect();
-          return { rectH:Math.round(r.height), clientH:el.clientHeight, scrollH:el.scrollHeight, cssH:cs.height, minH:cs.minHeight, maxH:cs.maxHeight, overflowY:cs.overflowY, display:cs.display };
-        };
-        return {app:pick('#app'), os:pick('.os'), main:pick('.os-main'), workspace:pick('.workspace')};
-      })(),
-      ua:String(navigator.userAgent || '').slice(0,120)
-    });
-    lines.push(line);
-    if (lines.length > MAX_LOG_LINES) lines.splice(0, lines.length - MAX_LOG_LINES);
-    log.textContent = lines.join('\\n') + '\\n';
+  const add = (event, data = {}) => {
+    lines.push(JSON.stringify({event, ...data}));
+    if (lines.length > 24) lines.shift();
+    log.textContent = lines.join('\n') + '\n';
     log.scrollTop = log.scrollHeight;
   };
-  document.getElementById('jtvDbgClear').onclick=()=>{ lines.length=0; log.textContent=''; };
+  document.getElementById('jtvDbgClear').onclick = () => {
+    lines.length = 0;
+    log.textContent = '';
+  };
+
   add('BOOT');
 
-  ['keydown','keyup','keypress'].forEach(type => window.addEventListener(type,e => add(type,e), true));
-  ['wheel','pointerdown','pointerup','click','touchstart','touchend'].forEach(type => window.addEventListener(type,e => add(type,e), true));
+  let last = null;
+  let lastLogAt = 0;
 
-  // JioSphere may expose the physical remote through its native TV pointer layer
-  // rather than DOM keyboard events. Capture pointer/mouse movement in a bounded,
-  // throttled form so the diagnostic can distinguish that path without flooding
-  // the TV with log entries.
-  // Pointer-direction probe: capture where JioSphere's virtual pointer actually moves.
-  // This remains diagnostic-only and does not synthesize clicks, keys, focus, or scrolling.
-  let lastPointerLog = 0;
-  let lastPointerX = null;
-  let lastPointerY = null;
-  const logPointerMove = e => {
+  window.addEventListener('pointermove', e => {
     const now = Date.now();
-    if (now - lastPointerLog < 250) return;
-    lastPointerLog = now;
-    const x = Number.isFinite(e.clientX) ? e.clientX : null;
-    const y = Number.isFinite(e.clientY) ? e.clientY : null;
-    const dx = x == null || lastPointerX == null ? null : x - lastPointerX;
-    const dy = y == null || lastPointerY == null ? null : y - lastPointerY;
-    const direction = dx == null || dy == null ? 'INITIAL' :
-      Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'RIGHT' : dx < 0 ? 'LEFT' : 'NONE') :
-      (dy > 0 ? 'DOWN' : dy < 0 ? 'UP' : 'NONE');
-    lastPointerX = x;
-    lastPointerY = y;
-    add(e.type, {
-      key:e.pointerType || 'mouse',
-      keyCode:e.button,
-      button:e.button,
-      deltaY:e.movementY,
-      clientX:x,
-      clientY:y,
-      dx,
-      dy,
-      direction,
-      defaultPrevented:e.defaultPrevented
-    });
-  };
-  window.addEventListener('pointermove', logPointerMove, true);
-  window.addEventListener('mousemove', logPointerMove, true);
-  window.addEventListener('scroll',e=>add('WINDOW_SCROLL'),true);
-  document.addEventListener('focusin',e=>add('FOCUSIN'),true);
+    if (now - lastLogAt < 150) return;
+    lastLogAt = now;
 
-  // Deliberately no heartbeat. The diagnostic must remain inert unless an actual event occurs.
+    const x = Number.isFinite(e.clientX) ? Math.round(e.clientX) : null;
+    const y = Number.isFinite(e.clientY) ? Math.round(e.clientY) : null;
+    const dx = x == null || last == null ? null : x - last.x;
+    const dy = y == null || last == null ? null : y - last.y;
+    const direction =
+      dx == null || dy == null ? 'INITIAL' :
+      Math.abs(dx) >= Math.abs(dy)
+        ? (dx > 0 ? 'RIGHT' : dx < 0 ? 'LEFT' : 'NONE')
+        : (dy > 0 ? 'DOWN' : dy < 0 ? 'UP' : 'NONE');
+
+    last = {x, y};
+    add('POINTERMOVE', {x, y, dx, dy, direction});
+  }, true);
+
+  window.addEventListener('keydown', e => {
+    const k = String(e.key || '');
+    if (/Arrow|Page|Home|End/i.test(k) || [33,34,35,36,37,38,39,40].includes(Number(e.keyCode))) {
+      add('KEYDOWN', {key:k, keyCode:Number(e.keyCode || 0), defaultPrevented:e.defaultPrevented});
+    }
+  }, true);
+
+  window.addEventListener('scroll', () => {
+    const s = document.scrollingElement || document.documentElement;
+    add('SCROLL', {windowY:Math.round(window.scrollY || 0), docTop:Math.round(s?.scrollTop || 0)});
+  }, true);
 })();
