@@ -39,8 +39,10 @@
 
   document.addEventListener('keydown', e => {
     if (!isTvBrowser() || e.defaultPrevented) return;
-    const key = e.key || ({40:'ArrowDown',38:'ArrowUp',34:'PageDown',33:'PageUp',36:'Home',35:'End'})[e.keyCode];
-    if (!['ArrowDown','ArrowUp','PageDown','PageUp','Home','End'].includes(key)) return;
+    const rawKey = String(e.key || '');
+    const legacyKey = ({40:'ArrowDown',38:'ArrowUp',34:'PageDown',33:'PageUp',36:'Home',35:'End'})[e.keyCode];
+    const key = ['ArrowDown','ArrowUp','PageDown','PageUp','Home','End'].includes(rawKey) ? rawKey : legacyKey;
+    if (!key) return;
     const target = e.target instanceof Element ? e.target : document.activeElement;
     if (isEditable(target) || inGame(target)) return;
     const w = workspace();
