@@ -6,8 +6,9 @@
   const isTvBrowser = () => {
     const ua = String(navigator.userAgent || '');
     const tvToken = /(bravia|smart[- ]?tv|hbbtv|android tv|googletv|google tv|aft[abms]|netcast|web0s|viera|tizen tv)/i.test(ua);
-    const jioLarge = /jiobrowser/i.test(ua) && Math.max(screen.width || 0, screen.height || 0) >= 1200;
-    return tvToken || jioLarge;
+    const jioBrowser = /jiobrowser/i.test(ua);
+    const largeNonTouch = Math.max(screen.width || 0, screen.height || 0) >= 1200 && navigator.maxTouchPoints === 0;
+    return tvToken || jioBrowser || largeNonTouch;
   };
 
   const workspace = () => document.querySelector('.workspace');
@@ -38,7 +39,8 @@
 
   document.addEventListener('keydown', e => {
     if (!isTvBrowser() || e.defaultPrevented) return;
-    if (!['ArrowDown','ArrowUp','PageDown','PageUp','Home','End'].includes(e.key)) return;
+    const key = e.key || ({40:'ArrowDown',38:'ArrowUp',34:'PageDown',33:'PageUp',36:'Home',35:'End'})[e.keyCode];
+    if (!['ArrowDown','ArrowUp','PageDown','PageUp','Home','End'].includes(key)) return;
     const target = e.target instanceof Element ? e.target : document.activeElement;
     if (isEditable(target) || inGame(target)) return;
     const w = workspace();
@@ -46,11 +48,11 @@
 
     const step = Math.max(220, Math.floor(w.clientHeight * 0.55));
     const handled =
-      e.key === 'ArrowDown' ? move(step) :
-      e.key === 'ArrowUp' ? move(-step) :
-      e.key === 'PageDown' ? move(Math.floor(w.clientHeight * 0.9)) :
-      e.key === 'PageUp' ? move(-Math.floor(w.clientHeight * 0.9)) :
-      e.key === 'Home' ? move(0, 'top') :
+      key === 'ArrowDown' ? move(step) :
+      key === 'ArrowUp' ? move(-step) :
+      key === 'PageDown' ? move(Math.floor(w.clientHeight * 0.9)) :
+      key === 'PageUp' ? move(-Math.floor(w.clientHeight * 0.9)) :
+      key === 'Home' ? move(0, 'top') :
       move(0, 'bottom');
 
     if (handled) {
