@@ -15,7 +15,7 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#games-experience-v2 h2')).toHaveText('TETRIS');
     await expect(page.locator('#games-feature-play')).toHaveText('PLAY TETRIS');
 
-    await expect(page.locator('.game-card')).toHaveCount(7);
+    await expect(page.locator('.game-card')).toHaveCount(8);
     await expect(page.locator('#tetrisGame').locator('..')).toHaveClass(/game-card/);
     await expect(page.locator('#tetBoard')).toBeVisible();
 
@@ -51,6 +51,20 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#snakeV2Score')).toHaveText('SCORE 0');
     await expect(page.locator('#snakeV2State')).toHaveText('PLAYING · SURVIVE');
 
+    const reaction = page.locator('#jarvisReactionGame');
+    await expect(reaction).toBeVisible();
+    await expect(reaction.locator('h3')).toHaveText('⚡ JARVIS Reaction');
+    await expect(page.locator('#reactionTarget')).toHaveText('WAIT');
+    await expect(page.locator('#reactionState')).toHaveText('PRESS START TO TEST');
+    await expect(page.locator('#reactionBest')).toHaveText('BEST ---');
+
+    await page.locator('#reactionStart').click();
+    await expect.poll(async () => page.locator('#reactionState').textContent(), {timeout:5000}).toBe('NOW · TAP');
+    await page.locator('#reactionTarget').click();
+    await expect(page.locator('#reactionState')).toHaveText('REACTION CAPTURED · RUN AGAIN');
+    await expect(page.locator('#reactionScore')).toHaveText(/LAST \\d+MS/);
+    await expect(page.locator('#reactionBest')).toHaveText(/BEST \\d+MS/);
+
     const circuit = page.locator('#jarvisCircuitGame');
     await expect(circuit).toBeVisible();
     await expect(circuit.locator('h3')).toHaveText('🏎️ JARVIS Circuit');
@@ -83,7 +97,7 @@ test.describe('Games Experience 2.0', () => {
     await expect.poll(async () => page.locator('#circuitDistance').textContent()).not.toBe('DIST 0M');
 
     await circuit.evaluate(node => node.remove());
-    await expect(page.locator('.game-card')).toHaveCount(7);
+    await expect(page.locator('.game-card')).toHaveCount(8);
     await expect(page.locator('#jarvisCircuitGame')).toBeVisible();
     await expect(page.locator('#circuitStatus')).toHaveText('PRESS START TO RACE');
     await page.locator('#circuitReset').click();
