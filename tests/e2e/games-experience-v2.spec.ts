@@ -23,7 +23,7 @@ test.describe('Games Experience 2.0', () => {
     await expect(page.locator('#tetReset')).toBeFocused();
     await expect(page.locator('#tetBoard')).toBeVisible();
 
-    const snake = page.locator('#snakeGame');
+    const snake = page.locator('#snakeGame').locator('..');
     await expect(snake).toBeVisible();
     await expect(snake.locator('h3')).toHaveText('🐍 Snake');
     await expect(page.locator('#snakeCanvas')).toBeVisible();
