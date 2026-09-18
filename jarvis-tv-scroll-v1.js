@@ -39,14 +39,19 @@
       os.style.height = 'auto';
       os.style.minHeight = '100vh';
       os.style.overflow = 'visible';
+      os.style.display = 'block';
     }
     const main = document.querySelector('.os-main');
     if (main) {
-      main.style.minHeight = 'auto';
+      main.style.minHeight = '0';
+      main.style.height = 'auto';
+      main.style.display = 'grid';
+      main.style.gridTemplateRows = 'auto';
     }
     w.style.overflow = 'visible';
     w.style.minHeight = '0';
     w.style.height = 'auto';
+    w.style.maxHeight = 'none';
     w.style.touchAction = 'pan-y';
     w.style.scrollBehavior = 'auto';
     w.style.webkitOverflowScrolling = 'auto';
@@ -66,6 +71,25 @@
   };
 
 
+
+
+  const installTvLayout = () => {
+    if (!isTvBrowser()) return;
+    const styleId = 'jarvis-tv-scroll-v4-layout';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      html.jarvis-tv-scroll-mode,
+      body.jarvis-tv-scroll-mode,
+      body.jarvis-tv-scroll-mode #app { height:auto !important; min-height:100vh !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode .os { height:auto !important; min-height:100vh !important; overflow:visible !important; display:block !important; }
+      body.jarvis-tv-scroll-mode .os-main { height:auto !important; min-height:0 !important; grid-template-rows:auto !important; }
+      body.jarvis-tv-scroll-mode .workspace { height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode .rail { height:auto !important; overflow:visible !important; }
+    `;
+    document.head.appendChild(style);
+  };
 
   const installFocusDestinations = () => {
     const w = workspace();
@@ -115,7 +139,7 @@
       e.stopImmediatePropagation();
     }
   }, false);
-  document.addEventListener('keydown', e => {
+  const handleRemoteScroll = e => {
     if (!isTvBrowser() || e.defaultPrevented) return;
     const rawKey = String(e.key || '');
     const legacyKey = ({40:'ArrowDown',38:'ArrowUp',34:'PageDown',33:'PageUp',36:'Home',35:'End'})[e.keyCode];
@@ -139,7 +163,10 @@
       e.preventDefault();
       e.stopImmediatePropagation();
     }
-  }, true);
+  };
+
+  window.addEventListener('keydown', handleRemoteScroll, true);
+  window.addEventListener('keyup', handleRemoteScroll, true);
 
   document.addEventListener('wheel', e => {
     if (!isTvBrowser()) return;
@@ -150,7 +177,8 @@
     e.preventDefault();
   }, {capture:true, passive:false});
 
-  new MutationObserver(() => { apply(); installFocusDestinations(); }).observe(document.documentElement, {childList:true, subtree:true});
+  new MutationObserver(() => { apply(); installTvLayout(); installFocusDestinations(); }).observe(document.documentElement, {childList:true, subtree:true});
   apply();
+  installTvLayout();
   installFocusDestinations();
 })();
