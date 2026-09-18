@@ -10,7 +10,7 @@
   panel.innerHTML = '<b>JARVIS TV DIAGNOSTIC</b><button id="jtvDbgClear" style="float:right">CLEAR</button><pre id="jtvDbgLog" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0"></pre>';
   document.body.appendChild(panel);
   const log = document.getElementById('jtvDbgLog');
-  const MAX_LOG_LINES = 60;
+  const MAX_LOG_LINES = 30;
   const lines = [];
   const add = (name, extra={}) => {
     const s = document.scrollingElement || document.documentElement;
@@ -31,7 +31,7 @@
       workspaceTop:w?.scrollTop,
       workspaceH:w?.scrollHeight,
       workspaceClient:w?.clientHeight,
-      ua:navigator.userAgent
+      ua:String(navigator.userAgent || '').slice(0,120)
     });
     lines.push(line);
     if (lines.length > MAX_LOG_LINES) lines.splice(0, lines.length - MAX_LOG_LINES);
@@ -46,5 +46,5 @@
   window.addEventListener('scroll',e=>add('WINDOW_SCROLL'),true);
   document.addEventListener('focusin',e=>add('FOCUSIN'),true);
 
-  setInterval(()=>add('HEARTBEAT'),3000);
+  // Deliberately no heartbeat. The diagnostic must remain inert unless an actual event occurs.
 })();
