@@ -11,7 +11,7 @@
     const s = document.createElement('style');
     s.id = STYLE_ID;
     s.textContent = `
-      .game-card.two-v2-card{grid-column:1 / -1}.two-v2-shell{display:grid;gap:9px;justify-items:center;width:100%}
+      .game-card.two-v2-card{grid-column:1 / -1}.two-v2-shell #twoGame{width:100%;display:grid;justify-items:center}.two-v2-shell{display:grid;gap:9px;justify-items:center;width:100%}
       .two-v2-hud{width:min(100%,340px);display:grid;grid-template-columns:1fr 1fr;gap:6px}
       .two-v2-hud b{padding:7px 6px;text-align:center;border:1px solid #173b4d;border-radius:9px;background:#071923;color:#71ddff;font-size:.74rem;letter-spacing:.04em}
       .two-v2-state{min-height:18px;text-align:center;color:#7894a0;font-size:.76rem;letter-spacing:.06em}
