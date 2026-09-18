@@ -75,7 +75,7 @@
 
   const installTvLayout = () => {
     if (!isTvBrowser()) return;
-    const styleId = 'jarvis-tv-scroll-v7-layout';
+    const styleId = 'jarvis-tv-scroll-v8-layout';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
     style.id = styleId;
@@ -84,8 +84,9 @@
       body.jarvis-tv-scroll-mode,
       body.jarvis-tv-scroll-mode #app { height:auto !important; min-height:100vh !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode .os { height:auto !important; min-height:100vh !important; overflow:visible !important; display:block !important; }
-      body.jarvis-tv-scroll-mode .os-main { height:auto !important; min-height:0 !important; display:grid !important; grid-template-columns:92px minmax(0,1fr) !important; grid-template-rows:auto !important; align-items:start !important; }
-      body.jarvis-tv-scroll-mode .workspace { height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode .os-main { height:auto !important; min-height:0 !important; display:flex !important; align-items:stretch !important; }
+      body.jarvis-tv-scroll-mode .rail { flex:0 0 92px !important; height:auto !important; overflow:visible !important; }
+      body.jarvis-tv-scroll-mode .workspace { flex:1 1 auto !important; width:auto !important; height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode .rail { height:auto !important; overflow:visible !important; }
       body.jarvis-tv-scroll-mode :is(button,a[href],input,select,textarea,[tabindex="0"]):focus-visible { outline:3px solid #62e6ff !important; outline-offset:4px !important; box-shadow:0 0 0 6px rgba(98,230,255,.16) !important; }
       body.jarvis-tv-scroll-mode #jarvisTvDebug { pointer-events:none !important; }
