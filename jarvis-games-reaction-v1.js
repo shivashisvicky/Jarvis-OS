@@ -24,8 +24,22 @@
     document.head.appendChild(style);
   };
 
+  const ensureCard = () => {
+    if (document.getElementById('jarvisReactionGame')) return document.getElementById('jarvisReactionGame');
+    const grid = document.querySelector('.arcade-grid');
+    if (!grid) return null;
+    const circuit = document.getElementById('jarvisCircuitGame')?.closest('.game-card');
+    const card = document.createElement('section');
+    card.className = 'game-card';
+    card.id = 'jarvisReactionGame';
+    card.innerHTML = '<h3>⚡ JARVIS Reaction</h3><p>Wait for the signal. Tap as fast as you can.</p><div id="reactionPanel" class="reaction-v1"><div class="reaction-v1-hud"><b id="reactionScore">LAST ---</b><b id="reactionBest">BEST ---</b></div><div class="reaction-v1-state" id="reactionState">PRESS START TO TEST</div><div class="reaction-v1-panel"><button id="reactionTarget" class="reaction-v1-target" type="button">WAIT</button></div><button id="reactionStart" class="reaction-v1-start" type="button">START TEST</button></div>';
+    if (circuit?.parentElement === grid) circuit.insertAdjacentElement('afterend', card);
+    else grid.appendChild(card);
+    return card;
+  };
+
   const install = () => {
-    const card = document.getElementById('jarvisReactionGame');
+    const card = ensureCard();
     if (!card || card.dataset.reactionV1 === '1') return false;
     card.dataset.reactionV1 = '1';
     addStyle();
