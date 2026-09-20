@@ -11,8 +11,10 @@
   if (!isTvBrowser()) return;
   window.__JARVIS_TV_SCROLL_V2__ = true;
 
-  // Keep TV scrolling isolated to the existing JARVIS workspace.
-  // Do not promote html/body/app/os into document scrolling mode.
+  // TV only. Keep the existing JARVIS workspace as the sole scroll owner.
+  // IMPORTANT: ordinary pointer movement must never scroll. JioSphere uses
+  // the pointer for navigation/clicking, so unrestricted pointer scrolling
+  // causes accidental movement while selecting cards, games, and controls.
   const workspace = () => document.querySelector('.workspace');
 
   const installWorkspaceScroll = () => {
@@ -57,16 +59,41 @@
     return false;
   };
 
+  // JioSphere's D-pad drives a virtual pointer. Use narrow edge rails as the
+  // scroll gesture, matching the TV-browser interaction model, instead of
+  // turning every vertical cursor movement into a page scroll.
+  const inScrollRail = x => {
+    const width = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0);
+    if (!width) return false;
+
+    const leftRail = 48;
+    const rightRail = Math.min(112, Math.max(72, Math.floor(width * 0.07)));
+
+    return x <= leftRail || x >= width - rightRail;
+  };
+
   let lastX = null;
   let lastY = null;
   let edgeDirection = 0;
   let edgeRaf = 0;
 
+  const stopEdgeScroll = () => {
+    edgeDirection = 0;
+    if (edgeRaf) {
+      cancelAnimationFrame(edgeRaf);
+      edgeRaf = 0;
+    }
+  };
+
   const edgeTick = () => {
     edgeRaf = 0;
     if (!edgeDirection) return;
 
-    if (!scroll(edgeDirection * 14)) return;
+    if (!scroll(edgeDirection * 14)) {
+      edgeDirection = 0;
+      return;
+    }
+
     edgeRaf = requestAnimationFrame(edgeTick);
   };
 
@@ -75,6 +102,7 @@
       if (!edgeRaf) edgeRaf = requestAnimationFrame(edgeTick);
       return;
     }
+
     edgeDirection = direction;
     if (!edgeRaf) edgeRaf = requestAnimationFrame(edgeTick);
   };
@@ -86,10 +114,12 @@
     const y = Number.isFinite(event.clientY) ? event.clientY : null;
 
     if (x == null || y == null) {
+      stopEdgeScroll();
       lastX = lastY = null;
-      edgeDirection = 0;
       return;
     }
+
+    const rail = inScrollRail(x);
 
     if (lastX == null || lastY == null) {
       lastX = x;
@@ -100,10 +130,9 @@
       lastX = x;
       lastY = y;
 
-      // JioSphere exposes the remote cursor as pointer movement rather than
-      // DOM keyboard events. Convert meaningful vertical movement into a
-      // deterministic scroll on JARVIS's real scroll owner.
-      if (Math.abs(dy) >= 4 && Math.abs(dy) >= Math.abs(dx) * 1.1) {
+      // Only a vertical movement while the cursor is in an edge rail can
+      // scroll. Moving over buttons/cards/games therefore remains navigation.
+      if (rail && Math.abs(dy) >= 8 && Math.abs(dy) >= Math.abs(dx) * 1.25) {
         scroll(dy * 4);
       }
     }
@@ -111,19 +140,21 @@
     const h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
     const edge = Math.min(90, Math.max(54, Math.floor(h * 0.13)));
 
-    if (y <= edge) {
+    // Continuous paging is also restricted to the edge rails. This gives the
+    // remote a deliberate "hold at edge" gesture without stealing navigation.
+    if (rail && y <= edge) {
       scheduleEdgeScroll(-1);
-    } else if (y >= h - edge) {
+    } else if (rail && y >= h - edge) {
       scheduleEdgeScroll(1);
     } else {
-      edgeDirection = 0;
+      stopEdgeScroll();
     }
   };
 
   window.addEventListener('pointermove', onPointerMove, true);
 
   window.addEventListener('pointerleave', () => {
-    edgeDirection = 0;
+    stopEdgeScroll();
     lastX = lastY = null;
   }, true);
 
