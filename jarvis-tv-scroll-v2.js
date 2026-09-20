@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  if (window.__JARVIS_TV_SCROLL_V3__) return;
+  if (window.__JARVIS_TV_SCROLL_V4__) return;
 
   const isTvBrowser = () => {
     const ua = String(navigator.userAgent || '');
@@ -9,19 +9,28 @@
   };
 
   if (!isTvBrowser()) return;
-  window.__JARVIS_TV_SCROLL_V3__ = true;
+  window.__JARVIS_TV_SCROLL_V4__ = true;
 
   // TV ONLY.
-  // JioSphere exposes the remote as a virtual pointer, not reliable DOM
-  // keydown events. Therefore scrolling must be an explicit clickable action,
-  // not inferred from ordinary pointer movement.
+  //
+  // JioSphere behaves much more like the spatial 3D viewport than a normal
+  // desktop browser: it exposes a virtual pointer and reliable pointer
+  // gestures, while DOM arrow-key delivery is inconsistent. The 3D workbench
+  // already proves that an explicit pointer-drag interaction works well.
+  //
+  // Mimic that interaction for the page itself:
+  //   pointer move alone = normal JARVIS navigation
+  //   press + vertical drag on workspace = scroll
+  //
+  // This deliberately avoids a permanent TV overlay and avoids stealing
+  // ordinary clicks from buttons, links, games, inputs, and cards.
+
   const workspace = () => document.querySelector('.workspace');
 
   const installWorkspaceScroll = () => {
     const w = workspace();
     if (!(w instanceof HTMLElement)) return false;
 
-    // Keep JARVIS' existing workspace as the sole scroll owner.
     w.style.setProperty('overflow-y', 'auto', 'important');
     w.style.setProperty('overflow-x', 'hidden', 'important');
     w.style.setProperty('min-height', '0', 'important');
@@ -31,181 +40,133 @@
     return true;
   };
 
-  const maxScroll = () => {
-    const w = workspace();
-    if (!(w instanceof HTMLElement)) return 0;
-    return Math.max(0, w.scrollHeight - w.clientHeight);
-  };
-
-  const updateButtonState = () => {
-    const root = document.getElementById('jarvis-tv-scroll-controls');
-    const w = workspace();
-    if (!(root instanceof HTMLElement) || !(w instanceof HTMLElement)) return;
-
-    const max = Math.max(0, w.scrollHeight - w.clientHeight);
-    const top = w.scrollTop;
-
-    root.hidden = max <= 2;
-    const up = root.querySelector('[data-jarvis-tv-scroll="up"]');
-    const down = root.querySelector('[data-jarvis-tv-scroll="down"]');
-
-    if (up instanceof HTMLButtonElement) up.disabled = top <= 2;
-    if (down instanceof HTMLButtonElement) down.disabled = top >= max - 2;
-  };
-
-  const scrollByPage = direction => {
-    const w = workspace();
-    if (!(w instanceof HTMLElement)) return false;
-
-    const max = Math.max(0, w.scrollHeight - w.clientHeight);
-    if (max <= 2) return false;
-
-    // A large, deterministic page step is easier to use with a TV pointer
-    // than continuous pointer-delta scrolling.
-    const step = Math.max(220, Math.floor(w.clientHeight * 0.72));
-    const before = w.scrollTop;
-    const next = Math.max(0, Math.min(max, before + direction * step));
-
-    if (Math.abs(next - before) <= 0.5) {
-      updateButtonState();
-      return false;
-    }
-
-    w.scrollTop = next;
-    updateButtonState();
-    return true;
-  };
-
-  const scrollToEdge = direction => {
-    const w = workspace();
-    if (!(w instanceof HTMLElement)) return false;
-
-    const max = Math.max(0, w.scrollHeight - w.clientHeight);
-    if (max <= 2) return false;
-
-    w.scrollTop = direction < 0 ? 0 : max;
-    updateButtonState();
-    return true;
-  };
-
-  const style = document.createElement('style');
-  style.id = 'jarvis-tv-scroll-controls-style';
-  style.textContent = `
-    #jarvis-tv-scroll-controls {
-      position: fixed;
-      right: clamp(14px, 1.8vw, 34px);
-      top: 50%;
-      transform: translateY(-50%);
-      z-index: 2147483000;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      pointer-events: auto;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    #jarvis-tv-scroll-controls[hidden] {
-      display: none !important;
-    }
-
-    #jarvis-tv-scroll-controls button {
-      width: clamp(64px, 5.2vw, 96px);
-      height: clamp(64px, 5.2vw, 96px);
-      padding: 0;
-      border: 2px solid rgba(120, 220, 255, .72);
-      border-radius: 16px;
-      background: rgba(3, 15, 24, .92);
-      color: #dff8ff;
-      box-shadow: 0 8px 28px rgba(0,0,0,.38), inset 0 0 18px rgba(80,210,255,.08);
-      font-size: clamp(28px, 2.3vw, 42px);
-      font-weight: 700;
-      line-height: 1;
-      cursor: pointer;
-      pointer-events: auto;
-      touch-action: manipulation;
-      user-select: none;
-    }
-
-    #jarvis-tv-scroll-controls button:focus,
-    #jarvis-tv-scroll-controls button:hover {
-      outline: 3px solid rgba(170,235,255,.95);
-      outline-offset: 3px;
-      background: rgba(8, 30, 45, .98);
-    }
-
-    #jarvis-tv-scroll-controls button:active {
-      transform: scale(.96);
-    }
-
-    #jarvis-tv-scroll-controls button:disabled {
-      opacity: .28;
-      filter: saturate(.45);
-    }
-
-    #jarvis-tv-scroll-controls .jarvis-tv-scroll-edge {
-      font-size: clamp(20px, 1.45vw, 28px);
-      height: clamp(38px, 3vw, 54px);
-      border-radius: 11px;
-    }
-  `;
-
-  const installControls = () => {
-    if (!document.head) return false;
-
-    if (!document.getElementById(style.id)) {
-      document.head.appendChild(style);
-    }
-
-    let root = document.getElementById('jarvis-tv-scroll-controls');
-    if (!(root instanceof HTMLElement)) {
-      root = document.createElement('div');
-      root.id = 'jarvis-tv-scroll-controls';
-      root.setAttribute('aria-label', 'JARVIS TV page scrolling');
-      root.innerHTML = `
-        <button type="button" class="jarvis-tv-scroll-edge" data-jarvis-tv-scroll="top" aria-label="Scroll to top" title="Scroll to top">⇈</button>
-        <button type="button" data-jarvis-tv-scroll="up" aria-label="Scroll up" title="Scroll up">▲</button>
-        <button type="button" data-jarvis-tv-scroll="down" aria-label="Scroll down" title="Scroll down">▼</button>
-        <button type="button" class="jarvis-tv-scroll-edge" data-jarvis-tv-scroll="bottom" aria-label="Scroll to bottom" title="Scroll to bottom">⇊</button>
-      `;
-
-      root.addEventListener('click', event => {
-        const target = event.target instanceof Element
-          ? event.target.closest('button[data-jarvis-tv-scroll]')
-          : null;
-        if (!(target instanceof HTMLButtonElement) || target.disabled) return;
-
-        const action = target.getAttribute('data-jarvis-tv-scroll');
-        if (action === 'up') scrollByPage(-1);
-        else if (action === 'down') scrollByPage(1);
-        else if (action === 'top') scrollToEdge(-1);
-        else if (action === 'bottom') scrollToEdge(1);
-      });
-
-      document.body.appendChild(root);
-    }
-
-    updateButtonState();
-    return true;
-  };
-
-  // Keep wheel support where the TV browser exposes it, but never translate
-  // ordinary pointer movement into scrolling.
-  window.addEventListener('wheel', event => {
-    if (Math.abs(event.deltaY || 0) < 0.5) return;
+  const updateScrollState = () => {
     const w = workspace();
     if (!(w instanceof HTMLElement)) return;
+    w.dataset.jarvisTvScrollable =
+      (w.scrollHeight - w.clientHeight > 2) ? 'true' : 'false';
+  };
+
+  const isInteractive = target => {
+    if (!(target instanceof Element)) return false;
+    return !!target.closest(
+      'button,a[href],input,textarea,select,[contenteditable="true"],' +
+      '[role="button"],[role="link"],.arcade,.game-card,canvas,' +
+      '#commandForm,#jarvis-tv-scroll-controls'
+    );
+  };
+
+  let drag = null;
+
+  const stopDrag = () => {
+    drag = null;
+  };
+
+  const onPointerDown = event => {
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const w = workspace();
+    if (!(w instanceof HTMLElement) || !w.contains(event.target)) return;
+    if (isInteractive(event.target)) return;
+
+    const max = Math.max(0, w.scrollHeight - w.clientHeight);
+    if (max <= 2) return;
+
+    drag = {
+      pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
+      startX: Number(event.clientX) || 0,
+      startY: Number(event.clientY) || 0,
+      lastY: Number(event.clientY) || 0,
+      active: false
+    };
+  };
+
+  const onPointerMove = event => {
+    if (!drag) return;
+    if (
+      drag.pointerId !== null &&
+      Number.isFinite(event.pointerId) &&
+      event.pointerId !== drag.pointerId
+    ) return;
+
+    const x = Number(event.clientX) || 0;
+    const y = Number(event.clientY) || 0;
+    const totalX = x - drag.startX;
+    const totalY = y - drag.startY;
+    const dy = y - drag.lastY;
+
+    // Require a deliberate vertical drag. A tiny cursor correction should
+    // never turn into scrolling.
+    if (!drag.active) {
+      if (Math.abs(totalY) < 14 || Math.abs(totalY) < Math.abs(totalX) * 1.25) return;
+      drag.active = true;
+    }
+
+    if (Math.abs(dy) < 0.5) return;
+
+    const w = workspace();
+    if (!(w instanceof HTMLElement)) {
+      stopDrag();
+      return;
+    }
 
     const before = w.scrollTop;
     const max = Math.max(0, w.scrollHeight - w.clientHeight);
-    const next = Math.max(0, Math.min(max, before + Number(event.deltaY)));
+
+    // Match the familiar content-drag gesture used by the working 3D
+    // viewport: dragging upward reveals content below, dragging downward
+    // reveals content above.
+    const next = Math.max(0, Math.min(max, before - dy * 2.2));
 
     if (Math.abs(next - before) > 0.5) {
       w.scrollTop = next;
-      updateButtonState();
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    drag.lastY = y;
+    updateScrollState();
+  };
+
+  const onPointerUp = event => {
+    if (!drag) return;
+
+    if (drag.active) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    stopDrag();
+  };
+
+  window.addEventListener('pointerdown', onPointerDown, true);
+  window.addEventListener('pointermove', onPointerMove, true);
+  window.addEventListener('pointerup', onPointerUp, true);
+  window.addEventListener('pointercancel', stopDrag, true);
+  window.addEventListener('pointerleave', stopDrag, true);
+
+  // Keep wheel support if JioSphere exposes it.
+  window.addEventListener('wheel', event => {
+    const w = workspace();
+    if (!(w instanceof HTMLElement)) return;
+
+    const delta = Number(event.deltaY || 0);
+    if (Math.abs(delta) < 0.5) return;
+
+    const before = w.scrollTop;
+    const max = Math.max(0, w.scrollHeight - w.clientHeight);
+    const next = Math.max(0, Math.min(max, before + delta));
+
+    if (Math.abs(next - before) > 0.5) {
+      w.scrollTop = next;
       event.preventDefault();
     }
+
+    updateScrollState();
   }, {capture:true, passive:false});
 
+  // Focus navigation remains useful when a TV browser actually supplies
+  // focus/keyboard events. Keep it independent from the drag gesture.
   document.addEventListener('focusin', event => {
     const target = event.target instanceof Element ? event.target : null;
     const w = workspace();
@@ -219,19 +180,17 @@
       target.scrollIntoView();
     }
 
-    updateButtonState();
+    updateScrollState();
   }, true);
 
   const observer = new MutationObserver(() => {
     installWorkspaceScroll();
-    installControls();
-    updateButtonState();
+    updateScrollState();
   });
 
   const start = () => {
     installWorkspaceScroll();
-    installControls();
-    updateButtonState();
+    updateScrollState();
     observer.observe(document.documentElement, {childList:true, subtree:true});
   };
 
@@ -241,6 +200,6 @@
     start();
   }
 
-  window.addEventListener('resize', updateButtonState, {passive:true});
-  window.addEventListener('scroll', updateButtonState, {passive:true});
+  window.addEventListener('resize', updateScrollState, {passive:true});
+  window.addEventListener('scroll', updateScrollState, {passive:true});
 })();
