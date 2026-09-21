@@ -78,6 +78,59 @@
     });
 
     workspace.dataset.jarvisTvScrollable = 'native-document';
+
+    /*
+     * TV ONLY READER.
+     *
+     * The main JARVIS shell now scrolls as a native document, but the
+     * ebook reader is a fixed full-screen overlay with its own overflow
+     * container. JioSphere can expose that nested scrollbar visually
+     * without delivering usable scrolling to it.
+     *
+     * When the TV reader exists, flatten that overlay into the same native
+     * document flow. The browser then has exactly one scroll owner again:
+     * the document itself.
+     */
+    const readers = document.querySelectorAll('.jbe11, .jbe2-reader, .jbe6-reader');
+    readers.forEach(reader => {
+      [
+        ['position', 'absolute'],
+        ['inset', '0 auto auto 0'],
+        ['width', '100%'],
+        ['height', 'auto'],
+        ['min-height', '100vh'],
+        ['overflow', 'visible'],
+        ['display', 'flex'],
+        ['flex-direction', 'column']
+      ].forEach(([property, value]) => {
+        reader.style.setProperty(property, value, 'important');
+      });
+
+      const body = reader.querySelector('.jbe11-body, .jbe2-body');
+      if (body) {
+        [
+          ['height', 'auto'],
+          ['min-height', '0'],
+          ['max-height', 'none'],
+          ['flex', 'none'],
+          ['overflow', 'visible'],
+          ['scroll-behavior', 'auto'],
+          ['overscroll-behavior', 'auto']
+        ].forEach(([property, value]) => {
+          body.style.setProperty(property, value, 'important');
+        });
+      }
+
+      const page = reader.querySelector('.jbe11-page, .jbe2-page');
+      if (page) {
+        page.style.setProperty('min-height', '0', 'important');
+        page.style.setProperty('height', 'auto', 'important');
+        page.style.setProperty('overflow', 'visible', 'important');
+      }
+
+      reader.dataset.jarvisTvReaderScrollable = 'native-document';
+    });
+
     return true;
   };
 
